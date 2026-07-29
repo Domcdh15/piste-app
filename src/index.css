@@ -1,0 +1,51 @@
+:root {
+  --ink: #0e1116;
+  --panel: #171b22;
+  --panel2: #1d222b;
+  --hairline: #262b34;
+  --hairline-strong: #333a46;
+  --text: #e8eaed;
+  --text-dim: #8a93a3;
+  --text-faint: #5b6472;
+  --amber: #f5a623;
+  --amber-dim: #4a3a1c;
+  --teal: #2dd4bf;
+  --teal-dim: #173b36;
+  --red: #ef4444;
+  --red-dim: #3d1e1e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--text);
+  font-family: "Inter", sans-serif;
+}
+
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.mono {
+  font-family: "JetBrains Mono", monospace;
+}
+
+.display {
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.focusable:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
