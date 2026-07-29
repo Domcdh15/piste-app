@@ -8,6 +8,11 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Prompt manquant" });
   }
 
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error("ANTHROPIC_API_KEY est manquante côté serveur");
+    return res.status(500).json({ error: "Clé API manquante côté serveur" });
+  }
+
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -25,6 +30,7 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const errText = await response.text();
+      console.error("Erreur API Claude:", response.status, errText);
       return res.status(500).json({ error: "Erreur API Claude", details: errText });
     }
 
@@ -36,6 +42,7 @@ export default async function handler(req, res) {
 
     res.status(200).json({ text });
   } catch (e) {
-    res.status(500).json({ error: "Erreur serveur" });
+    console.error("Erreur serveur:", e.message);
+    res.status(500).json({ error: "Erreur serveur", details: e.message });
   }
 }
