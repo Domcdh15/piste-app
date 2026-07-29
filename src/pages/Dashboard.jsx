@@ -20,6 +20,10 @@ function formatEuros(n) {
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n || 0);
 }
 
+function formatDate(d) {
+  return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
 async function callAI(prompt) {
   const res = await fetch("/api/generate", {
     method: "POST",
@@ -67,6 +71,19 @@ export default function Dashboard({ session }) {
     if (!error) {
       setForm({ name: "", company: "", stage: "Découverte", status: "attente", priority: 50, deal_value: "" });
       setShowForm(false);
+      loadProspects();
+    }
+  }
+
+  async function handleUpdateProspect(id, changes) {
+    const { error } = await supabase.from("prospects").update(changes).eq("id", id);
+    if (!error) loadProspects();
+  }
+
+  async function handleDeleteProspect(id) {
+    const { error } = await supabase.from("prospects").delete().eq("id", id);
+    if (!error) {
+      setSelectedId(null);
       loadProspects();
     }
   }
@@ -156,23 +173,63 @@ export default function Dashboard({ session }) {
           </div>
         </div>
 
-        {selected && <ProspectPanel prospect={selected} tab={tab} setTab={setTab} />}
+        {selected && (
+          <ProspectPanel
+            prospect={selected}
+            tab={tab}
+            setTab={setTab}
+            onUpdate={(changes) => handleUpdateProspect(selected.id, changes)}
+            onDelete={() => handleDeleteProspect(selected.id)}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-function ProspectPanel({ prospect, tab, setTab }) {
+function ProspectPanel({ prospect, tab, setTab, onUpdate, onDelete }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   return (
     <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "18px" }}>
-      <div style={{ marginBottom: "14px" }}>
-        <div className="display" style={{ fontWeight: 700, fontSize: "16px" }}>{prospect.name}</div>
-        <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>{prospect.company} · {prospect.stage}</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
+        <div>
+          <div className="display" style={{ fontWeight: 700, fontSize: "16px" }}>{prospect.name}</div>
+          <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>{prospect.company}</div>
+        </div>
+        {confirmDelete ? (
+          <div style={{ display: "flex", gap: "6px" }}>
+            <button className="focusable" onClick={onDelete} style={{ fontSize: "11px", padding: "5px 8px", borderRadius: "6px", background: "var(--red-dim)", color: "var(--red)", border: "0.5px solid var(--red)55" }}>Confirmer</button>
+            <button className="focusable" onClick={() => setConfirmDelete(false)} style={{ fontSize: "11px", padding: "5px 8px", borderRadius: "6px", background: "transparent", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>Annuler</button>
+          </div>
+        ) : (
+          <button className="focusable" onClick={() => setConfirmDelete(true)} style={{ fontSize: "11px", padding: "5px 8px", borderRadius: "6px", background: "transparent", color: "var(--text-faint)", border: "0.5px solid var(--hairline)" }}>Supprimer</button>
+        )}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "14px" }}>
+        <div>
+          <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>STATUT</div>
+          <select value={prospect.status} onChange={(e) => onUpdate({ status: e.target.value })} style={{ ...selectStyle }}>
+            <option value="appeler">À appeler</option>
+            <option value="relancer">À relancer</option>
+            <option value="attente">En attente</option>
+            <option value="retard">En retard</option>
+          </select>
+        </div>
+        <div>
+          <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>ÉTAPE</div>
+          <select value={prospect.stage} onChange={(e) => onUpdate({ stage: e.target.value })} style={{ ...selectStyle }}>
+            <option>Découverte</option>
+            <option>Qualification</option>
+            <option>Négociation</option>
+          </select>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: "4px", marginBottom: "14px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
-        {[["email", "Email"], ["script", "Script d'appel"], ["analyse", "Analyse IA"]].map(([key, label]) => (
-          <button key={key} className="focusable" onClick={() => setTab(key)} style={{ flex: 1, padding: "7px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: tab === key ? "var(--hairline)" : "transparent", color: tab === key ? "var(--text)" : "var(--text-dim)" }}>
+        {[["email", "Email"], ["script", "Script"], ["analyse", "Analyse"], ["historique", "Historique"]].map(([key, label]) => (
+          <button key={key} className="focusable" onClick={() => setTab(key)} style={{ flex: 1, padding: "7px 6px", borderRadius: "6px", fontSize: "11px", fontWeight: 500, background: tab === key ? "var(--hairline)" : "transparent", color: tab === key ? "var(--text)" : "var(--text-dim)" }}>
             {label}
           </button>
         ))}
@@ -181,6 +238,48 @@ function ProspectPanel({ prospect, tab, setTab }) {
       {tab === "email" && <EmailGenerator prospect={prospect} />}
       {tab === "script" && <ScriptGenerator prospect={prospect} />}
       {tab === "analyse" && <AnalyseGenerator prospect={prospect} />}
+      {tab === "historique" && <Historique prospect={prospect} />}
+    </div>
+  );
+}
+
+function Historique({ prospect }) {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      const [emails, scripts, analyses] = await Promise.all([
+        supabase.from("emails_generes").select("*").eq("prospect_id", prospect.id),
+        supabase.from("scripts_appel").select("*").eq("prospect_id", prospect.id),
+        supabase.from("analyses_ia").select("*").eq("prospect_id", prospect.id),
+      ]);
+      const all = [
+        ...(emails.data || []).map((x) => ({ ...x, kind: "Email" })),
+        ...(scripts.data || []).map((x) => ({ ...x, kind: `Script — ${x.section}` })),
+        ...(analyses.data || []).map((x) => ({ ...x, kind: "Analyse" })),
+      ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      setItems(all);
+      setLoading(false);
+    }
+    load();
+  }, [prospect.id]);
+
+  if (loading) return <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Chargement...</div>;
+  if (items.length === 0) return <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Rien d'enregistré pour ce prospect pour l'instant.</div>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "420px", overflowY: "auto" }}>
+      {items.map((item) => (
+        <div key={`${item.kind}-${item.id}`} style={{ background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+            <span className="mono" style={{ fontSize: "11px", color: "var(--teal)" }}>{item.kind}</span>
+            <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>{formatDate(item.created_at)}</span>
+          </div>
+          <div style={{ fontSize: "12px", color: "var(--text-dim)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{item.content}</div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -344,4 +443,14 @@ const inputStyle = {
   color: "var(--text)",
   fontSize: "13px",
   padding: "8px 10px",
+};
+
+const selectStyle = {
+  width: "100%",
+  background: "var(--panel2)",
+  border: "0.5px solid var(--hairline)",
+  borderRadius: "6px",
+  color: "var(--text)",
+  fontSize: "12px",
+  padding: "6px 8px",
 };
