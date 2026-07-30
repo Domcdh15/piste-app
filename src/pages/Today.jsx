@@ -245,9 +245,6 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
       </div>
 
       <div style={{ padding: "28px 32px 48px" }}>
-        <AlertsBox alerts={alerts} onOpen={onOpenProspect} />
-        <PriorityCard priorities={priorities} loading={prioritiesLoading} onOpen={onOpenProspect} />
-
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px", marginBottom: "14px", alignItems: "start" }}>
           <StatTile
             accent="var(--blue)"
@@ -372,6 +369,11 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
                 );
               })
           )}
+        </div>
+
+        <div style={{ marginTop: "28px" }}>
+          <AlertsBox alerts={alerts} onOpen={onOpenProspect} />
+          <PriorityCard priorities={priorities} loading={prioritiesLoading} onOpen={onOpenProspect} />
         </div>
       </div>
 
