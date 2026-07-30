@@ -39,13 +39,14 @@ function endOfDayISO() {
   return d.toISOString();
 }
 
-export async function fetchTodayEvents(provider, accessToken) {
+export async function fetchEventsInRange(provider, accessToken, startISO, endISO) {
   if (provider === "google") {
     const url = new URL("https://www.googleapis.com/calendar/v3/calendars/primary/events");
-    url.searchParams.set("timeMin", startOfDayISO());
-    url.searchParams.set("timeMax", endOfDayISO());
+    url.searchParams.set("timeMin", startISO);
+    url.searchParams.set("timeMax", endISO);
     url.searchParams.set("singleEvents", "true");
     url.searchParams.set("orderBy", "startTime");
+    url.searchParams.set("maxResults", "250");
     const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
     if (!res.ok) throw new Error("google_fetch_failed");
     const data = await res.json();
@@ -54,14 +55,18 @@ export async function fetchTodayEvents(provider, accessToken) {
       title: e.summary || "(Sans titre)",
       start: e.start?.dateTime || e.start?.date,
       end: e.end?.dateTime || e.end?.date,
+      location: e.location || "",
+      meetingUrl: e.hangoutLink || "",
+      attendees: (e.attendees || []).map((a) => a.email).filter(Boolean),
       provider: "google",
     }));
   }
 
   if (provider === "microsoft") {
     const url = new URL("https://graph.microsoft.com/v1.0/me/calendarview");
-    url.searchParams.set("startDateTime", startOfDayISO());
-    url.searchParams.set("endDateTime", endOfDayISO());
+    url.searchParams.set("startDateTime", startISO);
+    url.searchParams.set("endDateTime", endISO);
+    url.searchParams.set("$top", "250");
     const res = await fetch(url, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -75,9 +80,16 @@ export async function fetchTodayEvents(provider, accessToken) {
       title: e.subject || "(Sans titre)",
       start: e.start?.dateTime,
       end: e.end?.dateTime,
+      location: e.location?.displayName || "",
+      meetingUrl: e.onlineMeeting?.joinUrl || "",
+      attendees: (e.attendees || []).map((a) => a.emailAddress?.address).filter(Boolean),
       provider: "microsoft",
     }));
   }
 
   return [];
+}
+
+export async function fetchTodayEvents(provider, accessToken) {
+  return fetchEventsInRange(provider, accessToken, startOfDayISO(), endOfDayISO());
 }

@@ -96,7 +96,7 @@ function buildHistoryContext(history) {
   return parts.length > 0 ? parts.join("\n\n") : "Aucun échange précédent enregistré — premier contact.";
 }
 
-export default function Pipeline({ prospects, loading, reload, session, initialSelectedId, onConsumeInitialSelection, initialShowForm, onConsumeInitialShowForm, initialTab }) {
+export default function Pipeline({ prospects, loading, reload, session, initialSelectedId, onConsumeInitialSelection, initialShowForm, onConsumeInitialShowForm, initialTab, settings }) {
   const [showForm, setShowForm] = useState(!!initialShowForm);
   const [form, setForm] = useState({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", email: "", phone: "", stage: "À contacter", status: "attente", priority: 50, deal_value: "" });
   const [saving, setSaving] = useState(false);
@@ -184,14 +184,14 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
     .filter((p) => stageFilter === "Toutes" || p.stage === stageFilter)
     .filter((p) => statusFilter === "Tous" || p.status === statusFilter)
     .filter((p) => !q || p.name.toLowerCase().includes(q) || p.company.toLowerCase().includes(q));
-  const activeList = sortList(visibleProspects.filter((p) => p.stage !== "Gagné"));
-  const clientList = sortList(visibleProspects.filter((p) => p.stage === "Gagné"));
+  const combinedList = sortList(visibleProspects);
 
   if (selected) {
     return (
       <ProspectDetailPage
         prospect={selected}
         session={session}
+        settings={settings}
         onBack={() => setSelectedId(null)}
         onUpdate={(changes) => handleUpdateProspect(selected.id, changes)}
         onDelete={() => handleDeleteProspect(selected.id)}
@@ -274,19 +274,8 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
         <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun prospect pour l'instant. Ajoute ton premier prospect ci-dessus.</div>
       ) : visibleProspects.length === 0 ? (
         <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun résultat pour cette recherche ou ces filtres.</div>
-      ) : activeList.length === 0 ? (
-        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun prospect actif — regarde du côté de tes clients ci-dessous.</div>
       ) : (
-        <ProspectTable list={activeList} onSelect={setSelectedId} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-      )}
-
-      {clientList.length > 0 && (
-        <>
-          <div className="display" style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.06em", color: "var(--text-dim)", margin: "22px 0 12px" }}>
-            CLIENTS <span style={{ color: "#0ea968" }}>({clientList.length})</span>
-          </div>
-          <ProspectTable list={clientList} onSelect={setSelectedId} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} asClient />
-        </>
+        <ProspectTable list={combinedList} onSelect={setSelectedId} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
       )}
     </div>
   );
@@ -303,7 +292,7 @@ function SortHeader({ label, sortKeyName, sortKey, sortDir, onSort }) {
   );
 }
 
-function ProspectTable({ list, onSelect, onSort, sortKey, sortDir, asClient }) {
+function ProspectTable({ list, onSelect, onSort, sortKey, sortDir }) {
   return (
     <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", overflow: "hidden", overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -311,23 +300,24 @@ function ProspectTable({ list, onSelect, onSort, sortKey, sortDir, asClient }) {
           <tr style={{ borderBottom: "0.5px solid var(--hairline)" }}>
             <SortHeader label="NOM" sortKeyName="name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
             <SortHeader label="ENTREPRISE" sortKeyName="company" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-            <th style={th}>{asClient ? "" : "STATUT"}</th>
+            <th style={th}>STATUT</th>
             <th style={th}>ÉTAPE</th>
             <th style={th}>PROCHAIN CONTACT</th>
             <SortHeader label="MONTANT" sortKeyName="deal_value" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
           </tr>
         </thead>
         <tbody>
-          {list.map((p) => <ProspectTableRow key={p.id} p={p} onClick={() => onSelect(p.id)} asClient={asClient} />)}
+          {list.map((p) => <ProspectTableRow key={p.id} p={p} onClick={() => onSelect(p.id)} />)}
         </tbody>
       </table>
     </div>
   );
 }
 
-function ProspectTableRow({ p, onClick, asClient }) {
+function ProspectTableRow({ p, onClick }) {
   const meta = STATUS_META[p.status] || STATUS_META.attente;
-  const closed = !asClient && CLOSED_STAGES.includes(p.stage);
+  const isClient = p.stage === "Gagné";
+  const closed = p.stage === "Perdu";
   const td = { padding: "10px 12px", fontSize: "13px", verticalAlign: "middle" };
   return (
     <tr onClick={onClick} style={{ cursor: "pointer", borderBottom: "0.5px solid var(--hairline)", opacity: closed ? 0.6 : 1 }}>
@@ -339,7 +329,7 @@ function ProspectTableRow({ p, onClick, asClient }) {
       </td>
       <td style={{ ...td, color: "var(--text-dim)", whiteSpace: "nowrap" }}>{p.company}</td>
       <td style={td}>
-        {asClient ? (
+        {isClient ? (
           <span className="mono" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, color: "#0ea968", background: "#e2f7ec", border: "0.5px solid #0ea96855", borderRadius: "6px", padding: "4px 8px", whiteSpace: "nowrap" }}>
             <TrophyIcon size={11} color="#0ea968" /> CLIENT
           </span>
@@ -365,7 +355,7 @@ function ProspectTableRow({ p, onClick, asClient }) {
   );
 }
 
-function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onLogActivity, initialTab }) {
+function ProspectDetailPage({ prospect, session, settings, onBack, onUpdate, onDelete, onLogActivity, initialTab }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [tab, setTab] = useState(initialTab || "email");
@@ -554,7 +544,7 @@ function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onL
       </div>
 
       <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "18px" }}>
-        {tab === "email" && <EmailGenerator prospect={prospect} history={history} session={session} />}
+        {tab === "email" && <EmailGenerator prospect={prospect} history={history} session={session} settings={settings} />}
         {tab === "script" && <ScriptGenerator prospect={prospect} history={history} session={session} />}
         {tab === "analyse" && <AnalyseGenerator prospect={prospect} history={history} session={session} />}
         {tab === "taches" && <TasksTab prospect={prospect} session={session} />}
@@ -963,7 +953,7 @@ function TasksTab({ prospect, session }) {
   );
 }
 
-function EmailGenerator({ prospect, history, session }) {
+function EmailGenerator({ prospect, history, session, settings }) {
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -980,7 +970,8 @@ function EmailGenerator({ prospect, history, session }) {
     setLoading(true);
     setError("");
     try {
-      const prompt = `Tu es un assistant commercial. Rédige un email de relance court (5 à 6 phrases maximum), professionnel mais chaleureux, en français. Ne mets pas d'objet, uniquement le corps de l'email, termine par "— [Ton prénom]". Appuie-toi sur les points forts identifiés dans l'historique pour renforcer l'argumentaire, et adresse discrètement les points faibles ou objections potentielles. Ne répète pas ce qui a déjà été dit dans les échanges précédents.
+      const signOff = settings?.ai_signature?.trim() || "[Ton prénom]";
+      const prompt = `Tu es un assistant commercial. Rédige un email de relance court (5 à 6 phrases maximum), professionnel mais chaleureux, en français. Ne mets pas d'objet, uniquement le corps de l'email, termine par "— ${signOff}". Appuie-toi sur les points forts identifiés dans l'historique pour renforcer l'argumentaire, et adresse discrètement les points faibles ou objections potentielles. Ne répète pas ce qui a déjà été dit dans les échanges précédents.
 ${keywords.trim() ? `\nÉléments à intégrer absolument, donnés par le commercial : ${keywords.trim()}\n` : ""}
 Nom du contact : ${prospect.name}
 Entreprise : ${prospect.company}

@@ -32,7 +32,7 @@ async function fetchProspectContext(prospectId) {
   return parts.join("\n");
 }
 
-export default function Assistant({ session, prospects, onOpenProspect }) {
+export default function Assistant({ session, prospects, onOpenProspect, settings }) {
   const openProspects = prospects.filter((p) => p.stage !== "Gagné" && p.stage !== "Perdu");
 
   return (
@@ -42,7 +42,7 @@ export default function Assistant({ session, prospects, onOpenProspect }) {
 
       <QuickCommands prospects={openProspects} onOpenProspect={onOpenProspect} session={session} />
       <InsightCards prospects={openProspects} onOpenProspect={onOpenProspect} />
-      <EmailGeneratorPanel prospects={openProspects} session={session} />
+      <EmailGeneratorPanel prospects={openProspects} session={session} settings={settings} />
       <CallPrepPanel prospects={openProspects} session={session} />
     </div>
   );
@@ -182,9 +182,9 @@ function InsightCards({ prospects, onOpenProspect }) {
   );
 }
 
-function EmailGeneratorPanel({ prospects, session }) {
+function EmailGeneratorPanel({ prospects, session, settings }) {
   const [prospectId, setProspectId] = useState("");
-  const [tone, setTone] = useState(TONES[0]);
+  const [tone, setTone] = useState(settings?.ai_default_tone || TONES[0]);
   const [length, setLength] = useState(LENGTHS[0]);
   const [objective, setObjective] = useState(OBJECTIVES[0]);
   const [content, setContent] = useState("");
@@ -200,7 +200,8 @@ function EmailGeneratorPanel({ prospects, session }) {
     try {
       const context = await fetchProspectContext(prospect.id);
       const lengthGuide = { Court: "3-4 phrases", Moyen: "5-7 phrases", Détaillé: "8-10 phrases" }[length];
-      const prompt = `Tu es un assistant commercial. Rédige un email en français, ton ${tone.toLowerCase()}, longueur ${lengthGuide}, avec pour objectif : ${objective.toLowerCase()}. Uniquement le corps de l'email, termine par "— [Ton prénom]".
+      const signOff = settings?.ai_signature?.trim() || "[Ton prénom]";
+      const prompt = `Tu es un assistant commercial. Rédige un email en français, ton ${tone.toLowerCase()}, longueur ${lengthGuide}, avec pour objectif : ${objective.toLowerCase()}. Uniquement le corps de l'email, termine par "— ${signOff}".
 
 Nom du contact : ${prospect.name}
 Entreprise : ${prospect.company}

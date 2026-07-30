@@ -1,6 +1,26 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { PhoneIcon, MailIcon, CheckIcon, formatShortDate, isOverdue, PRIORITY_LEVELS, inputStyle } from "../lib/ui.jsx";
+import { PhoneIcon, MailIcon, CheckIcon, ClockIcon, AlertIcon, formatShortDate, isOverdue, PRIORITY_LEVELS, inputStyle } from "../lib/ui.jsx";
+
+const TYPE_META = {
+  appeler: { label: "Appel", color: "var(--amber)", dim: "var(--amber-dim)", Icon: PhoneIcon },
+  email: { label: "Email", color: "var(--blue)", dim: "var(--blue-dim)", Icon: MailIcon },
+};
+
+const PRIORITY_COLORS = {
+  25: { color: "var(--text-dim)", dim: "var(--panel2)" },
+  50: { color: "var(--blue)", dim: "var(--blue-dim)" },
+  75: { color: "var(--amber)", dim: "var(--amber-dim)" },
+  100: { color: "var(--red)", dim: "var(--red-dim)" },
+};
+
+const DATE_FILTERS = [
+  { key: "Toutes", label: "Toutes" },
+  { key: "En retard", label: "En retard", color: "var(--red)" },
+  { key: "Aujourd'hui", label: "Aujourd'hui", color: "var(--blue)" },
+  { key: "Cette semaine", label: "Cette semaine", color: "var(--amber)" },
+  { key: "Sans échéance", label: "Sans échéance", color: "var(--text-dim)" },
+];
 
 export default function Tasks({ prospects, session }) {
   const [tasks, setTasks] = useState([]);
@@ -10,6 +30,7 @@ export default function Tasks({ prospects, session }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ note: "", prospectId: "", type: "appeler", dueAt: "", priority: "50" });
   const [saving, setSaving] = useState(false);
+  const [justDone, setJustDone] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -45,6 +66,10 @@ export default function Tasks({ prospects, session }) {
   }
 
   async function toggleDone(t) {
+    if (!t.done) {
+      setJustDone(t.id);
+      setTimeout(() => setJustDone(null), 500);
+    }
     await supabase.from("tasks").update({ done: !t.done }).eq("id", t.id);
     load();
   }
@@ -66,44 +91,111 @@ export default function Tasks({ prospects, session }) {
   const endOfWeek = new Date(startOfWeek);
   endOfWeek.setDate(endOfWeek.getDate() + 7);
 
-  const filtered = tasks
-    .filter((t) => typeFilter === "Tous" || t.type === typeFilter)
-    .filter((t) => {
-      if (dateFilter === "Toutes") return true;
-      if (!t.due_at) return dateFilter === "Sans échéance";
-      const d = new Date(t.due_at);
-      if (dateFilter === "En retard") return d < now && !t.done;
-      if (dateFilter === "Aujourd'hui") return d <= endOfDay;
-      if (dateFilter === "Cette semaine") return d < endOfWeek;
-      return true;
-    });
+  const typeFiltered = tasks.filter((t) => typeFilter === "Tous" || t.type === typeFilter);
+
+  const dateCounts = {
+    "En retard": typeFiltered.filter((t) => !t.done && t.due_at && new Date(t.due_at) < now).length,
+    "Aujourd'hui": typeFiltered.filter((t) => !t.done && t.due_at && new Date(t.due_at) >= now && new Date(t.due_at) <= endOfDay).length,
+    "Cette semaine": typeFiltered.filter((t) => !t.done && t.due_at && new Date(t.due_at) > endOfDay && new Date(t.due_at) < endOfWeek).length,
+    "Sans échéance": typeFiltered.filter((t) => !t.done && !t.due_at).length,
+  };
+
+  const filtered = typeFiltered.filter((t) => {
+    if (dateFilter === "Toutes") return true;
+    if (!t.due_at) return dateFilter === "Sans échéance";
+    const d = new Date(t.due_at);
+    if (dateFilter === "En retard") return d < now && !t.done;
+    if (dateFilter === "Aujourd'hui") return d <= endOfDay;
+    if (dateFilter === "Cette semaine") return d < endOfWeek;
+    return true;
+  });
+
+  const active = filtered.filter((t) => !t.done);
+  const done = filtered.filter((t) => t.done);
+
+  function bucketOf(t) {
+    if (!t.due_at) return "plus_tard";
+    const d = new Date(t.due_at);
+    if (d < now) return "en_retard";
+    if (d <= endOfDay) return "aujourdhui";
+    if (d < endOfWeek) return "semaine";
+    return "plus_tard";
+  }
+
+  const BUCKETS = [
+    { key: "en_retard", label: "En retard", color: "var(--red)" },
+    { key: "aujourdhui", label: "Aujourd'hui", color: "var(--blue)" },
+    { key: "semaine", label: "Cette semaine", color: "var(--amber)" },
+    { key: "plus_tard", label: "Plus tard / sans échéance", color: "var(--text-dim)" },
+  ];
+
+  const activeByBucket = BUCKETS.map((b) => ({ ...b, tasks: active.filter((t) => bucketOf(t) === b.key) })).filter((b) => b.tasks.length > 0);
 
   return (
     <div style={{ padding: "28px 32px 48px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px", flexWrap: "wrap", gap: "12px" }}>
         <div className="display" style={{ fontWeight: 700, fontSize: "20px" }}>✅ Tâches</div>
-        <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "7px 12px", fontSize: "13px" }}>
+        <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "7px 12px", fontSize: "13px", fontWeight: 600 }}>
           {showForm ? "Annuler" : "+ Nouvelle tâche"}
         </button>
       </div>
+      <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "18px" }}>
+        {active.length} tâche{active.length !== 1 ? "s" : ""} active{active.length !== 1 ? "s" : ""}
+        {dateCounts["En retard"] > 0 && <span style={{ color: "var(--red)", fontWeight: 600 }}> · {dateCounts["En retard"]} en retard</span>}
+      </div>
 
-      <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
-        <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
-          <option value="Toutes">Toutes les dates</option>
-          <option value="En retard">En retard</option>
-          <option value="Aujourd'hui">Aujourd'hui</option>
-          <option value="Cette semaine">Cette semaine</option>
-          <option value="Sans échéance">Sans échéance</option>
-        </select>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
-          <option value="Tous">Tous les types</option>
-          <option value="appeler">Appel</option>
-          <option value="email">Email</option>
-        </select>
+      <div style={{ display: "flex", gap: "8px", marginBottom: "12px", flexWrap: "wrap" }}>
+        {DATE_FILTERS.map((f) => {
+          const count = dateCounts[f.key];
+          const activeState = dateFilter === f.key;
+          return (
+            <button
+              key={f.key}
+              className="focusable"
+              onClick={() => setDateFilter(f.key)}
+              style={{
+                display: "flex", alignItems: "center", gap: "6px", padding: "7px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 600,
+                background: activeState ? (f.color || "var(--text)") : "var(--panel)",
+                color: activeState ? "#fff" : (f.color || "var(--text-dim)"),
+                border: activeState ? "none" : "0.5px solid var(--hairline)",
+              }}
+            >
+              {f.label}
+              {count > 0 && (
+                <span style={{ fontSize: "10px", fontWeight: 700, background: activeState ? "rgba(255,255,255,0.3)" : (f.color ? f.color + "22" : "var(--panel2)"), color: activeState ? "#fff" : f.color, borderRadius: "10px", padding: "1px 6px" }}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ display: "flex", gap: "6px", marginBottom: "20px", flexWrap: "wrap" }}>
+        {["Tous", "appeler", "email"].map((t) => {
+          const activeState = typeFilter === t;
+          const meta = TYPE_META[t];
+          return (
+            <button
+              key={t}
+              className="focusable"
+              onClick={() => setTypeFilter(t)}
+              style={{
+                display: "flex", alignItems: "center", gap: "5px", padding: "5px 10px", borderRadius: "16px", fontSize: "11px", fontWeight: 500,
+                background: activeState ? (meta?.dim || "var(--hairline)") : "transparent",
+                color: activeState ? (meta?.color || "var(--text)") : "var(--text-faint)",
+                border: "0.5px solid " + (activeState ? (meta?.color || "var(--hairline)") + "55" : "var(--hairline)"),
+              }}
+            >
+              {meta && <meta.Icon size={11} color={activeState ? meta.color : "var(--text-faint)"} />}
+              {t === "Tous" ? "Tous les types" : meta.label}
+            </button>
+          );
+        })}
       </div>
 
       {showForm && (
-        <form onSubmit={addTask} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "16px", marginBottom: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+        <form onSubmit={addTask} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "16px", marginBottom: "20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
           <input required placeholder="Titre" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} style={{ ...inputStyle, gridColumn: "1 / -1" }} />
           <select required value={form.prospectId} onChange={(e) => setForm({ ...form, prospectId: e.target.value })} style={inputStyle}>
             <option value="">Lié à un prospect...</option>
@@ -117,7 +209,7 @@ export default function Tasks({ prospects, session }) {
           <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} style={inputStyle}>
             {PRIORITY_LEVELS.map((l) => <option key={l.value} value={l.value}>Priorité : {l.label}</option>)}
           </select>
-          <button type="submit" disabled={saving} className="focusable" style={{ gridColumn: "1 / -1", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px" }}>
+          <button type="submit" disabled={saving} className="focusable" style={{ gridColumn: "1 / -1", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px", fontWeight: 600 }}>
             {saving ? "Enregistrement..." : "Créer la tâche"}
           </button>
         </form>
@@ -126,36 +218,90 @@ export default function Tasks({ prospects, session }) {
       {loading ? (
         <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Chargement...</div>
       ) : filtered.length === 0 ? (
-        <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Aucune tâche pour ces filtres.</div>
+        <div style={{ textAlign: "center", padding: "48px 0", color: "var(--text-faint)" }}>
+          <div style={{ fontSize: "32px", marginBottom: "8px" }}>🎉</div>
+          <div style={{ fontSize: "13px" }}>Aucune tâche pour ces filtres.</div>
+        </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxWidth: "760px" }}>
-          {filtered.map((t) => {
-            const prospect = prospectById[t.prospect_id];
-            const level = PRIORITY_LEVELS.find((l) => l.value === t.priority) || PRIORITY_LEVELS[1];
-            return (
-              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "10px", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px", opacity: t.done ? 0.55 : 1 }}>
-                <button className="focusable" onClick={() => toggleDone(t)} style={{ background: "none", border: "none", padding: 0, display: "flex" }}>
-                  <CheckIcon size={18} color={t.done ? "#0ea968" : "var(--text-faint)"} />
-                </button>
-                {t.type === "email" ? <MailIcon size={13} color="var(--text-dim)" /> : <PhoneIcon size={13} color="var(--text-dim)" />}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "13px", textDecoration: t.done ? "line-through" : "none" }}>{t.note}</div>
-                  {prospect && <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>{prospect.name} · {prospect.company}</div>}
-                </div>
-                <span className="mono" style={{ fontSize: "10px", fontWeight: 700, color: level.value >= 75 ? "var(--red)" : "var(--text-dim)", background: "var(--panel2)", borderRadius: "5px", padding: "3px 6px" }}>
-                  {level.label}
-                </span>
-                {t.due_at && (
-                  <span className="mono" style={{ fontSize: "11px", color: !t.done && isOverdue(t.due_at) ? "var(--red)" : "var(--text-faint)" }}>
-                    {formatShortDate(t.due_at)}
-                  </span>
-                )}
-                <button className="focusable" onClick={() => remove(t.id)} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "12px" }}>✕</button>
+        <div style={{ maxWidth: "760px" }}>
+          {activeByBucket.map((bucket) => (
+            <div key={bucket.key} style={{ marginBottom: "22px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: bucket.color }} />
+                <span className="display" style={{ fontWeight: 700, fontSize: "12px", color: bucket.color, letterSpacing: "0.02em" }}>{bucket.label.toUpperCase()}</span>
+                <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>({bucket.tasks.length})</span>
               </div>
-            );
-          })}
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {bucket.tasks.map((t) => (
+                  <TaskRow key={t.id} t={t} prospect={prospectById[t.prospect_id]} onToggle={() => toggleDone(t)} onRemove={() => remove(t.id)} justDone={justDone === t.id} />
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {done.length > 0 && (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#0ea968" }} />
+                <span className="display" style={{ fontWeight: 700, fontSize: "12px", color: "#0ea968", letterSpacing: "0.02em" }}>TERMINÉES</span>
+                <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>({done.length})</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {done.map((t) => (
+                  <TaskRow key={t.id} t={t} prospect={prospectById[t.prospect_id]} onToggle={() => toggleDone(t)} onRemove={() => remove(t.id)} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
+    </div>
+  );
+}
+
+function TaskRow({ t, prospect, onToggle, onRemove, justDone }) {
+  const level = PRIORITY_LEVELS.find((l) => l.value === t.priority) || PRIORITY_LEVELS[1];
+  const priorityColor = PRIORITY_COLORS[level.value] || PRIORITY_COLORS[50];
+  const type = TYPE_META[t.type] || TYPE_META.appeler;
+  const overdue = !t.done && t.due_at && isOverdue(t.due_at);
+
+  return (
+    <div
+      style={{
+        display: "flex", alignItems: "center", gap: "12px", background: "var(--panel)",
+        border: "0.5px solid " + (overdue ? "var(--red)55" : "var(--hairline)"),
+        borderLeft: `3px solid ${t.done ? "var(--hairline)" : priorityColor.color}`,
+        borderRadius: "10px", padding: "12px", opacity: t.done ? 0.55 : 1,
+        transform: justDone ? "scale(0.99)" : "scale(1)", transition: "opacity 0.2s, transform 0.2s",
+      }}
+    >
+      <button className="focusable" onClick={onToggle} style={{ background: "none", border: "none", padding: 0, display: "flex", cursor: "pointer" }}>
+        <span style={{ width: "22px", height: "22px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: t.done ? "#0ea96822" : "var(--panel2)", border: `1.5px solid ${t.done ? "#0ea968" : "var(--hairline-strong)"}` }}>
+          {t.done && <CheckIcon size={12} color="#0ea968" />}
+        </span>
+      </button>
+
+      <span style={{ width: "26px", height: "26px", borderRadius: "50%", background: type.dim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <type.Icon size={12} color={type.color} />
+      </span>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: "13px", fontWeight: 500, textDecoration: t.done ? "line-through" : "none" }}>{t.note}</div>
+        {prospect && <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>{prospect.name} · {prospect.company}</div>}
+      </div>
+
+      <span className="mono" style={{ fontSize: "10px", fontWeight: 700, color: priorityColor.color, background: priorityColor.dim, borderRadius: "5px", padding: "3px 7px", whiteSpace: "nowrap" }}>
+        {level.label}
+      </span>
+
+      {t.due_at && (
+        <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: overdue ? "var(--red)" : "var(--text-faint)", fontWeight: overdue ? 700 : 400, whiteSpace: "nowrap" }}>
+          {overdue ? <AlertIcon size={11} color="var(--red)" /> : <ClockIcon size={11} color="var(--text-faint)" />}
+          <span className="mono">{formatShortDate(t.due_at)}</span>
+        </span>
+      )}
+
+      <button className="focusable" onClick={onRemove} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "13px", padding: "0 2px" }}>✕</button>
     </div>
   );
 }

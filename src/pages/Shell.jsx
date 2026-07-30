@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import Sidebar from "../components/Sidebar.jsx";
 import Today from "./Today.jsx";
+import Agenda from "./Agenda.jsx";
 import Pipeline from "./Pipeline.jsx";
 import Opportunities from "./Opportunities.jsx";
 import Tasks from "./Tasks.jsx";
@@ -17,6 +18,7 @@ export default function Shell({ session }) {
   const [jumpToProspectId, setJumpToProspectId] = useState(null);
   const [jumpToShowForm, setJumpToShowForm] = useState(false);
   const [jumpToTab, setJumpToTab] = useState("email");
+  const [settings, setSettings] = useState(null);
 
   async function loadProspects() {
     setLoading(true);
@@ -25,8 +27,14 @@ export default function Shell({ session }) {
     setLoading(false);
   }
 
+  async function loadSettings() {
+    const { data } = await supabase.from("user_settings").select("*").eq("user_id", session.user.id).maybeSingle();
+    setSettings(data || {});
+  }
+
   useEffect(() => {
     loadProspects();
+    loadSettings();
   }, []);
 
   function openProspect(id, tab) {
@@ -45,6 +53,7 @@ export default function Shell({ session }) {
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} userEmail={session.user.email} />
       <div style={{ flex: 1, minWidth: 0 }}>
         {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} onOpenProspect={openProspect} />}
+        {activeTab === "agenda" && <Agenda prospects={prospects} session={session} onOpenProspect={openProspect} />}
         {activeTab === "pipeline" && (
           <Pipeline
             prospects={prospects}
@@ -56,13 +65,14 @@ export default function Shell({ session }) {
             initialShowForm={jumpToShowForm}
             onConsumeInitialShowForm={() => setJumpToShowForm(false)}
             initialTab={jumpToTab}
+            settings={settings}
           />
         )}
         {activeTab === "opportunities" && <Opportunities prospects={prospects} onOpenProspect={openProspect} onNewOpportunity={openNewProspectForm} />}
         {activeTab === "tasks" && <Tasks prospects={prospects} session={session} />}
-        {activeTab === "assistant" && <Assistant session={session} prospects={prospects} onOpenProspect={openProspect} />}
+        {activeTab === "assistant" && <Assistant session={session} prospects={prospects} onOpenProspect={openProspect} settings={settings} />}
         {activeTab === "activities" && <Activities prospects={prospects} onOpenProspect={openProspect} />}
-        {activeTab === "settings" && <Settings session={session} />}
+        {activeTab === "settings" && <Settings session={session} prospects={prospects} settings={settings} reloadSettings={loadSettings} />}
         {activeTab === "integrations" && <Integrations session={session} />}
       </div>
     </div>
