@@ -679,11 +679,18 @@ ${buildHistoryContext(history)}`;
 
 function GeneratorBlock({ label, loading, error, content, setContent, onGenerate, onSave }) {
   const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   async function handleSave() {
     await onSave();
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
+  }
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   }
 
   return (
@@ -704,9 +711,14 @@ function GeneratorBlock({ label, loading, error, content, setContent, onGenerate
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ color: "var(--text-faint)", fontSize: "11px" }}>Généré par Claude — à relire avant envoi</div>
-        <button className="focusable" onClick={handleSave} disabled={!content} style={{ background: "transparent", color: content ? "var(--text)" : "var(--text-faint)", border: "0.5px solid var(--hairline)", borderRadius: "6px", padding: "6px 10px", fontSize: "12px" }}>
-          {saved ? "Enregistré" : "Enregistrer"}
-        </button>
+        <div style={{ display: "flex", gap: "6px" }}>
+          <button className="focusable" onClick={handleCopy} disabled={!content} style={{ background: "transparent", color: content ? "var(--text)" : "var(--text-faint)", border: "0.5px solid var(--hairline)", borderRadius: "6px", padding: "6px 10px", fontSize: "12px" }}>
+            {copied ? "Copié" : "Copier"}
+          </button>
+          <button className="focusable" onClick={handleSave} disabled={!content} style={{ background: "transparent", color: content ? "var(--text)" : "var(--text-faint)", border: "0.5px solid var(--hairline)", borderRadius: "6px", padding: "6px 10px", fontSize: "12px" }}>
+            {saved ? "Enregistré" : "Enregistrer"}
+          </button>
+        </div>
       </div>
     </div>
   );
