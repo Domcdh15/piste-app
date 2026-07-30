@@ -96,7 +96,7 @@ function buildHistoryContext(history) {
 
 export default function Pipeline({ prospects, loading, reload, session }) {
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", stage: "À contacter", status: "attente", priority: 50, deal_value: "" });
+  const [form, setForm] = useState({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", email: "", phone: "", stage: "À contacter", status: "attente", priority: 50, deal_value: "" });
   const [saving, setSaving] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [search, setSearch] = useState("");
@@ -112,6 +112,8 @@ export default function Pipeline({ prospects, loading, reload, session }) {
       civility: form.civility,
       company: form.company,
       job_title: form.jobTitle.trim(),
+      email: form.email.trim(),
+      phone: form.phone.trim(),
       stage: form.stage,
       status: form.status,
       priority: Number(form.priority),
@@ -119,7 +121,7 @@ export default function Pipeline({ prospects, loading, reload, session }) {
     });
     setSaving(false);
     if (!error) {
-      setForm({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", stage: "À contacter", status: "attente", priority: 50, deal_value: "" });
+      setForm({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", email: "", phone: "", stage: "À contacter", status: "attente", priority: 50, deal_value: "" });
       setShowForm(false);
       reload();
     }
@@ -210,6 +212,8 @@ export default function Pipeline({ prospects, loading, reload, session }) {
           <input required placeholder="Nom" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} style={inputStyle} />
           <input required placeholder="Entreprise" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} style={inputStyle} />
           <input placeholder="Poste (ex : Directeur commercial)" value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })} style={inputStyle} />
+          <input type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} style={inputStyle} />
+          <input type="tel" placeholder="Téléphone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} style={inputStyle} />
           <select value={form.stage} onChange={(e) => setForm({ ...form, stage: e.target.value })} style={inputStyle}>
             {OPEN_STAGES.map((s) => <option key={s}>{s}</option>)}
           </select>
@@ -339,6 +343,20 @@ function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onL
             <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>
               {prospect.job_title ? `${prospect.job_title} · ` : ""}{prospect.company}
             </div>
+            {(prospect.email || prospect.phone) && (
+              <div style={{ display: "flex", gap: "12px", marginTop: "4px" }}>
+                {prospect.email && (
+                  <a href={`mailto:${prospect.email}`} style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--blue)", fontSize: "12px", textDecoration: "none" }}>
+                    <MailIcon size={11} color="var(--blue)" /> {prospect.email}
+                  </a>
+                )}
+                {prospect.phone && (
+                  <a href={`tel:${prospect.phone}`} style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--blue)", fontSize: "12px", textDecoration: "none" }}>
+                    <PhoneIcon size={11} color="var(--blue)" /> {prospect.phone}
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         </div>
         <div style={{ display: "flex", gap: "6px" }}>
@@ -622,6 +640,8 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
   const [lastName, setLastName] = useState(nameParts.slice(1).join(" "));
   const [company, setCompany] = useState(prospect.company);
   const [jobTitle, setJobTitle] = useState(prospect.job_title || "");
+  const [email, setEmail] = useState(prospect.email || "");
+  const [phone, setPhone] = useState(prospect.phone || "");
   const [priority, setPriority] = useState(nearestPriorityLevel(prospect.priority));
   const [dealValue, setDealValue] = useState(prospect.deal_value);
   const [saving, setSaving] = useState(false);
@@ -634,6 +654,8 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
       name: `${firstName.trim()} ${lastName.trim()}`.trim(),
       company,
       job_title: jobTitle.trim(),
+      email: email.trim(),
+      phone: phone.trim(),
       priority: Number(priority),
       deal_value: Number(dealValue) || 0,
     });
@@ -652,6 +674,8 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
       <input required placeholder="Nom" value={lastName} onChange={(e) => setLastName(e.target.value)} style={inputStyle} />
       <input required placeholder="Entreprise" value={company} onChange={(e) => setCompany(e.target.value)} style={inputStyle} />
       <input placeholder="Poste (ex : Directeur commercial)" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} style={inputStyle} />
+      <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
+      <input type="tel" placeholder="Téléphone" value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} />
       <select value={priority} onChange={(e) => setPriority(e.target.value)} style={inputStyle}>
         {PRIORITY_LEVELS.map((l) => <option key={l.value} value={l.value}>Priorité : {l.label}</option>)}
       </select>
