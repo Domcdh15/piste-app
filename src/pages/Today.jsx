@@ -16,6 +16,7 @@ import {
   formatEuros,
   formatShortDate,
   isOverdue,
+  computeDealScore,
 } from "../lib/ui.jsx";
 
 function todayLabel() {
@@ -30,6 +31,43 @@ function formatEventTime(iso) {
 }
 
 const FALLBACK_TIP = "Commencez par vos relances en attente, puis enchaînez avec vos appels planifiés pour maximiser vos conversions.";
+
+function computeAlerts(prospects, taches) {
+  const open = prospects.filter((p) => p.stage !== "Gagné" && p.stage !== "Perdu");
+  const now = new Date();
+  const taskProspectIds = new Set(taches.map((t) => t.prospect_id));
+  const alerts = [];
+
+  open
+    .filter((p) => !p.last_contact_at || (now - new Date(p.last_contact_at)) / 86400000 > 7)
+    .slice(0, 3)
+    .forEach((p) => {
+      const message = p.last_contact_at
+        ? `Aucune réponse depuis ${Math.floor((now - new Date(p.last_contact_at)) / 86400000)} jours.`
+        : "Aucun contact depuis la création de ce prospect.";
+      alerts.push({ level: "urgent", emoji: "🔴", prospect: p, message });
+    });
+
+  open
+    .filter((p) => p.deal_value > 0 && !p.next_contact_at && !taskProspectIds.has(p.id))
+    .sort((a, b) => b.deal_value - a.deal_value)
+    .slice(0, 3)
+    .forEach((p) => {
+      alerts.push({ level: "risk", emoji: "🟠", prospect: p, message: `Cette opportunité de ${formatEuros(p.deal_value)} n'a aucune prochaine action prévue.` });
+    });
+
+  open
+    .filter((p) => {
+      const recentlyContacted = p.last_contact_at && (now - new Date(p.last_contact_at)) / 86400000 <= 3;
+      return recentlyContacted && computeDealScore(p) >= 70;
+    })
+    .slice(0, 3)
+    .forEach((p) => {
+      alerts.push({ level: "hot", emoji: "🟢", prospect: p, message: `Bonne dynamique : contact récent et avancement à ${computeDealScore(p)}%.` });
+    });
+
+  return alerts;
+}
 
 export default function Today({ prospects, setActiveTab, session, reload, onOpenProspect }) {
   const [events, setEvents] = useState([]);
@@ -46,6 +84,7 @@ export default function Today({ prospects, setActiveTab, session, reload, onOpen
   const appelsList = prospects.filter((p) => p.status === "appeler");
   const relancesList = prospects.filter((p) => p.status === "relancer");
   const opportunitesList = prospects.filter((p) => p.priority >= 75);
+  const alerts = computeAlerts(prospects, taches);
   const nbAppels = appelsList.length;
   const nbRelances = relancesList.length;
   const nbRetard = prospects.filter((p) => p.status === "retard").length;
@@ -187,6 +226,7 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
       </div>
 
       <div style={{ padding: "28px 32px 48px" }}>
+        <AlertsBox alerts={alerts} onOpen={onOpenProspect} />
         <PriorityCard priorities={priorities} loading={prioritiesLoading} onOpen={onOpenProspect} />
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px", marginBottom: "14px", alignItems: "start" }}>
@@ -314,6 +354,42 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
               })
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+const ALERT_STYLE = {
+  urgent: { bg: "var(--red-dim)", border: "var(--red)55", label: "URGENT" },
+  risk: { bg: "var(--amber-dim)", border: "var(--amber)55", label: "OPPORTUNITÉ À RISQUE" },
+  hot: { bg: "#e2f7ec", border: "#0ea96855", label: "OPPORTUNITÉ CHAUDE" },
+};
+
+function AlertsBox({ alerts, onOpen }) {
+  if (alerts.length === 0) return null;
+  return (
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "18px", marginBottom: "18px" }}>
+      <div className="display" style={{ fontWeight: 700, fontSize: "15px", marginBottom: "12px" }}>🔔 Alertes IA</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        {alerts.map((a, i) => {
+          const style = ALERT_STYLE[a.level];
+          return (
+            <button
+              key={i}
+              className="focusable"
+              onClick={() => onOpen?.(a.prospect.id)}
+              style={{ display: "flex", alignItems: "flex-start", gap: "10px", background: style.bg, border: `0.5px solid ${style.border}`, borderRadius: "8px", padding: "10px 12px", textAlign: "left" }}
+            >
+              <span style={{ fontSize: "14px" }}>{a.emoji}</span>
+              <div style={{ minWidth: 0 }}>
+                <div className="mono" style={{ fontSize: "10px", fontWeight: 700, color: "var(--text-faint)", marginBottom: "2px" }}>{style.label}</div>
+                <div style={{ fontSize: "12px", color: "var(--text)" }}>
+                  <strong>{a.prospect.name}</strong> ({a.prospect.company}) — {a.message}
+                </div>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
