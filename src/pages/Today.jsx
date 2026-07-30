@@ -209,7 +209,7 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
             label="Appels à faire"
             value={nbAppels}
             items={appelsList}
-            renderItem={(p) => <MissionRow key={p.id} prospect={p} onUpdateStatus={updateStatus} />}
+            renderItem={(p) => <MissionRow key={p.id} prospect={p} onUpdateStatus={updateStatus} onOpen={onOpenProspect} />}
           />
           <StatTile
             accent="var(--amber)"
@@ -217,7 +217,7 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
             label="Emails en attente"
             value={nbRelances}
             items={relancesList}
-            renderItem={(p) => <MissionRow key={p.id} prospect={p} onUpdateStatus={updateStatus} />}
+            renderItem={(p) => <MissionRow key={p.id} prospect={p} onUpdateStatus={updateStatus} onOpen={onOpenProspect} />}
           />
           <StatTile
             accent="#0ea968"
@@ -225,7 +225,7 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
             label="Opportunités prioritaires"
             value={nbOpportunites}
             items={opportunitesList}
-            renderItem={(p) => <MissionRow key={p.id} prospect={p} onUpdateStatus={updateStatus} />}
+            renderItem={(p) => <MissionRow key={p.id} prospect={p} onUpdateStatus={updateStatus} onOpen={onOpenProspect} />}
           />
         </div>
 
@@ -260,7 +260,7 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
             label="Mes tâches"
             value={tachesLoading ? "…" : nbTaches}
             items={taches}
-            renderItem={(t) => <TaskRow key={t.id} task={t} prospect={prospectById[t.prospect_id]} />}
+            renderItem={(t) => <TaskRow key={t.id} task={t} prospect={prospectById[t.prospect_id]} onOpen={onOpenProspect} />}
           />
         </div>
 
@@ -422,14 +422,19 @@ function StatTile({ accent, icon, label, value, items, renderItem }) {
   );
 }
 
-function TaskRow({ task, prospect }) {
+function TaskRow({ task, prospect, onOpen }) {
+  const nameStyle = { fontSize: "12px", color: prospect ? "var(--blue)" : "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
         {task.type === "email" ? <MailIcon size={12} color="var(--text-dim)" /> : <PhoneIcon size={12} color="var(--text-dim)" />}
-        <span style={{ fontSize: "12px", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {prospect ? `${prospect.name} — ` : ""}{task.note}
-        </span>
+        {prospect ? (
+          <button className="focusable" onClick={() => onOpen?.(prospect.id)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", ...nameStyle }}>
+            {prospect.name} — <span style={{ color: "var(--text)" }}>{task.note}</span>
+          </button>
+        ) : (
+          <span style={nameStyle}>{task.note}</span>
+        )}
       </div>
       <span className="mono" style={{ fontSize: "11px", color: task.due_at && isOverdue(task.due_at) ? "var(--red)" : "var(--text-faint)", flexShrink: 0 }}>
         {task.due_at ? formatShortDate(task.due_at) : "Sans échéance"}
@@ -438,10 +443,16 @@ function TaskRow({ task, prospect }) {
   );
 }
 
-function MissionRow({ prospect, onUpdateStatus }) {
+function MissionRow({ prospect, onUpdateStatus, onOpen }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-      <span style={{ fontSize: "12px", color: "var(--text)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{prospect.name}</span>
+      <button
+        className="focusable"
+        onClick={() => onOpen?.(prospect.id)}
+        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontSize: "12px", color: "var(--blue)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+      >
+        {prospect.name}
+      </button>
       <select
         value={prospect.status}
         onClick={(e) => e.stopPropagation()}
