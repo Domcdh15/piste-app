@@ -56,6 +56,21 @@ export const STAGE_PROGRESS = {
   "Perdu": 0,
 };
 
+export function computeDealScore(p) {
+  let score = STAGE_PROGRESS[p.stage] ?? 15;
+  score += (p.priority - 50) / 5;
+  if (p.stage !== "À contacter") {
+    if (!p.last_contact_at) {
+      score -= 15;
+    } else {
+      const days = Math.floor((Date.now() - new Date(p.last_contact_at)) / 86400000);
+      if (days > 14) score -= 15;
+      else if (days > 7) score -= 8;
+    }
+  }
+  return Math.max(5, Math.min(100, Math.round(score)));
+}
+
 export function formatRelative(d) {
   if (!d) return null;
   const diffDays = Math.floor((new Date() - new Date(d)) / 86400000);

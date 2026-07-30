@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { formatEuros, formatShortDate, formatRelative, STAGE_PROGRESS, STAGE_META, Avatar, SparklesIcon } from "../lib/ui.jsx";
+import { formatEuros, formatShortDate, formatRelative, STAGE_META, Avatar, SparklesIcon, computeDealScore } from "../lib/ui.jsx";
 
 const COLUMNS = [
   { key: "À contacter", label: "À contacter" },
@@ -10,21 +10,6 @@ const COLUMNS = [
   { key: "Négociation", label: "Négociation" },
   { key: "closed", label: "Gagné / Perdu" },
 ];
-
-function computeScore(p) {
-  let score = STAGE_PROGRESS[p.stage] ?? 15;
-  score += (p.priority - 50) / 5;
-  if (p.stage !== "À contacter") {
-    if (!p.last_contact_at) {
-      score -= 15;
-    } else {
-      const days = Math.floor((Date.now() - new Date(p.last_contact_at)) / 86400000);
-      if (days > 14) score -= 15;
-      else if (days > 7) score -= 8;
-    }
-  }
-  return Math.max(5, Math.min(100, Math.round(score)));
-}
 
 export default function Opportunities({ prospects, onOpenProspect, onNewOpportunity }) {
   const [tasks, setTasks] = useState([]);
@@ -93,7 +78,7 @@ export default function Opportunities({ prospects, onOpenProspect, onNewOpportun
 }
 
 function OpportunityCard({ prospect: p, nextTask, onClick }) {
-  const score = computeScore(p);
+  const score = computeDealScore(p);
   const scoreColor = score >= 70 ? "#0ea968" : score >= 40 ? "var(--amber)" : "var(--red)";
 
   return (
