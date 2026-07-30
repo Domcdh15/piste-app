@@ -91,6 +91,7 @@ export default function Today({ prospects, setActiveTab, session, reload, onOpen
   const nbOpportunites = opportunitesList.length;
   const firstName = getFirstName(session.user);
   const [showBrief, setShowBrief] = useState(false);
+  const [openTile, setOpenTile] = useState(null);
 
   async function updateStatus(id, status) {
     await supabase.from("prospects").update({ status }).eq("id", id);
@@ -211,34 +212,30 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
     <div>
       <div
         style={{
-          background: "linear-gradient(135deg, #2f5bff, #1d3fc4)",
+          background: "linear-gradient(135deg, #3b6cff, #1631a8)",
           color: "#fff",
-          padding: "32px 32px 26px",
+          padding: "32px 32px 30px",
+          position: "relative",
+          overflow: "hidden",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "20px", flexWrap: "wrap" }}>
-          <div style={{ flex: 1, minWidth: "240px" }}>
-            <div className="display" style={{ fontWeight: 700, fontSize: "32px", display: "flex", alignItems: "center", gap: "10px" }}>
-              Bonjour{firstName ? ` ${firstName}` : ""} <span>👋</span>
-            </div>
-            <div style={{ opacity: 0.85, fontSize: "14px", marginTop: "6px", marginBottom: "18px" }}>{todayLabel()}</div>
+        <div style={{ position: "absolute", top: "-60px", right: "-40px", width: "220px", height: "220px", borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
+        <div style={{ position: "absolute", bottom: "-90px", right: "180px", width: "180px", height: "180px", borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
+        <div style={{ position: "absolute", top: "20px", left: "-50px", width: "140px", height: "140px", borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
 
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 600, opacity: 0.95, marginBottom: "10px" }}>
-              📋 Missions du jour
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-              <Pill icon="📞" text={`${nbAppels} appel(s)`} />
-              <Pill icon="🗓️" text={`${eventsLoading ? "…" : events.length} RDV`} />
-              <Pill icon="🔁" text={`${nbRelances} relance(s)`} />
-              <Pill icon="🎯" text={`${nbOpportunites} opportunité(s)`} />
-            </div>
+        <div style={{ position: "relative" }}>
+          <div className="display" style={{ fontWeight: 700, fontSize: "32px", display: "flex", alignItems: "center", gap: "10px" }}>
+            Bonjour{firstName ? ` ${firstName}` : ""} <span>👋</span>
           </div>
+          <div style={{ opacity: 0.85, fontSize: "14px", marginTop: "6px", marginBottom: "20px" }}>{todayLabel()}</div>
 
-          <div style={{ background: "rgba(255,255,255,0.14)", border: "0.5px solid rgba(255,255,255,0.25)", borderRadius: "12px", padding: "14px 16px", maxWidth: "280px", display: "flex", gap: "8px", alignItems: "flex-start" }}>
-            <SparklesIcon size={13} color="#fff" style={{ marginTop: "2px", flexShrink: 0 }} />
+          <div style={{ background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.28)", borderRadius: "14px", padding: "18px 20px", display: "flex", gap: "12px", alignItems: "flex-start" }}>
+            <span style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <SparklesIcon size={16} color="#fff" />
+            </span>
             <div>
-              <div style={{ fontSize: "10px", fontWeight: 700, opacity: 0.75, letterSpacing: "0.04em", marginBottom: "4px" }}>CONSEIL DU JOUR</div>
-              <span style={{ fontSize: "13px", opacity: 0.95, lineHeight: 1.4 }}>{tipLoading ? "Analyse de ta journée en cours..." : tip || FALLBACK_TIP}</span>
+              <div style={{ fontSize: "11px", fontWeight: 700, opacity: 0.8, letterSpacing: "0.05em", marginBottom: "5px" }}>CONSEIL DU JOUR</div>
+              <span style={{ fontSize: "16px", fontWeight: 500, opacity: 0.98, lineHeight: 1.45 }}>{tipLoading ? "Analyse de ta journée en cours..." : tip || FALLBACK_TIP}</span>
             </div>
           </div>
         </div>
@@ -252,6 +249,8 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
             label="RDV Aujourd'hui"
             value={eventsLoading ? "…" : events.length}
             items={events}
+            expanded={openTile === "rdv"}
+            onToggle={(v) => setOpenTile(v ? "rdv" : null)}
             renderItem={(e) => (
               <div key={e.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
                 <span style={{ color: "var(--text)" }}>{e.title}</span>
@@ -265,6 +264,8 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
             label="Appels à faire"
             value={nbAppels}
             items={appelsList}
+            expanded={openTile === "appels"}
+            onToggle={(v) => setOpenTile(v ? "appels" : null)}
             renderItem={(p) => <MissionRow key={p.id} prospect={p} onUpdateStatus={updateStatus} onOpen={onOpenProspect} />}
           />
           <StatTile
@@ -273,6 +274,8 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
             label="Emails en attente"
             value={nbRelances}
             items={relancesList}
+            expanded={openTile === "relances"}
+            onToggle={(v) => setOpenTile(v ? "relances" : null)}
             renderItem={(p) => <MissionRow key={p.id} prospect={p} onUpdateStatus={updateStatus} onOpen={onOpenProspect} />}
           />
           <StatTile
@@ -281,6 +284,8 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
             label="Opportunités prioritaires"
             value={nbOpportunites}
             items={opportunitesList}
+            expanded={openTile === "opportunites"}
+            onToggle={(v) => setOpenTile(v ? "opportunites" : null)}
             renderItem={(p) => <MissionRow key={p.id} prospect={p} onUpdateStatus={updateStatus} onOpen={onOpenProspect} />}
           />
         </div>
@@ -519,36 +524,23 @@ function PriorityCard({ priorities, loading, onOpen }) {
   );
 }
 
-function Pill({ icon, text }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "6px",
-        background: "rgba(255,255,255,0.14)",
-        border: "0.5px solid rgba(255,255,255,0.25)",
-        borderRadius: "999px",
-        padding: "6px 12px",
-        fontSize: "13px",
-        fontWeight: 500,
-      }}
-    >
-      <span>{icon}</span>
-      {text}
-    </div>
-  );
-}
-
-function StatTile({ accent, icon, label, value, items, renderItem }) {
-  const [expanded, setExpanded] = useState(false);
+function StatTile({ accent, icon, label, value, items, renderItem, expanded: controlledExpanded, onToggle }) {
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const isControlled = controlledExpanded !== undefined;
+  const expanded = isControlled ? controlledExpanded : localExpanded;
   const hasItems = items && items.length > 0;
+
+  function toggle() {
+    if (!hasItems) return;
+    if (isControlled) onToggle?.(!expanded);
+    else setLocalExpanded((e) => !e);
+  }
 
   return (
     <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderTop: `2.5px solid ${accent}`, borderRadius: "10px", padding: "16px 18px" }}>
       <button
         className="focusable"
-        onClick={() => hasItems && setExpanded((e) => !e)}
+        onClick={toggle}
         disabled={!hasItems}
         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", width: "100%", background: "none", border: "none", padding: 0, textAlign: "left", cursor: hasItems ? "pointer" : "default" }}
       >
