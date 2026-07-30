@@ -17,7 +17,11 @@ export default function Sidebar({ activeTab, setActiveTab, userEmail }) {
       style={{
         width: "220px",
         minWidth: "220px",
-        minHeight: "100vh",
+        height: "100vh",
+        position: "sticky",
+        top: 0,
+        alignSelf: "flex-start",
+        overflowY: "auto",
         background: "var(--bg)",
         borderRight: "0.5px solid var(--hairline)",
         display: "flex",
