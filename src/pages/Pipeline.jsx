@@ -27,10 +27,19 @@ import {
   TrophyIcon,
   PhoneIcon,
   MailIcon,
+  VideoIcon,
+  PinIcon,
   ArrowLeftIcon,
   inputStyle,
   selectStyle,
 } from "../lib/ui.jsx";
+
+const TASK_TYPE_META = {
+  appel_telephone: { label: "Appel téléphonique", color: "var(--amber)", Icon: PhoneIcon },
+  appel_visio: { label: "Appel visio", color: "#7c3aed", Icon: VideoIcon },
+  rdv_physique: { label: "RDV physique", color: "#0ea968", Icon: PinIcon },
+  relance_email: { label: "Relance mail", color: "var(--blue)", Icon: MailIcon },
+};
 
 const ACTIVITY_LABEL = {
   appel_abouti: "Appel abouti",
@@ -666,7 +675,7 @@ function ProspectDetailPage({ prospect, session, settings, onBack, onUpdate, onD
         {tab === "email" && <EmailGenerator prospect={prospect} history={history} session={session} settings={settings} />}
         {tab === "script" && <ScriptGenerator prospect={prospect} history={history} session={session} />}
         {tab === "analyse" && <AnalyseGenerator prospect={prospect} history={history} session={session} />}
-        {tab === "taches" && <TasksTab prospect={prospect} session={session} />}
+        {tab === "taches" && <TasksTab prospect={prospect} session={session} settings={settings} />}
         {tab === "historique" && <Historique history={history} />}
       </div>
     </div>
@@ -676,11 +685,28 @@ function ProspectDetailPage({ prospect, session, settings, onBack, onUpdate, onD
 function NoteAnalyzer({ prospect, history, session, onLogActivity }) {
   const [note, setNote] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
   const [selected, setSelected] = useState([]);
   const [creating, setCreating] = useState(false);
   const [showModal, setShowModal] = useState(false);
+
+  async function saveNote() {
+    const text = note.trim();
+    if (!text || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onLogActivity("note", text);
+      setNote("");
+      history.reload();
+    } catch (e) {
+      setError("L'enregistrement a échoué. Réessaie.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function analyze() {
     const text = note.trim();
@@ -690,9 +716,9 @@ function NoteAnalyzer({ prospect, history, session, onLogActivity }) {
     try {
       await onLogActivity("note", text);
       const prompt = `Tu es un assistant commercial. Un commercial vient de noter comment s'est passé un échange (appel, RDV ou autre) avec ce prospect. Analyse cette note et réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après, sans balises markdown, exactement dans ce format :
-{"summary": "résumé en 1-2 phrases de ce qu'il faut faire ensuite", "pain_points": ["...", "..."], "opportunities": ["...", "..."], "suggested_tasks": [{"type": "appeler", "note": "description courte", "due_in_days": 3}]}
+{"summary": "résumé en 1-2 phrases de ce qu'il faut faire ensuite", "pain_points": ["...", "..."], "opportunities": ["...", "..."], "suggested_tasks": [{"type": "appel_telephone", "note": "description courte", "due_in_days": 3}]}
 
-Limite chaque tableau à 3 éléments maximum, en français. "type" doit être "appeler" ou "email".
+Limite chaque tableau à 3 éléments maximum, en français. "type" doit être l'une de ces valeurs exactes : "appel_telephone", "appel_visio", "rdv_physique", "relance_email".
 
 Nom du contact : ${prospect.name}
 Entreprise : ${prospect.company}
@@ -726,7 +752,7 @@ ${buildHistoryContext(history)}`;
       await supabase.from("tasks").insert({
         user_id: session.user.id,
         prospect_id: prospect.id,
-        type: t.type === "email" ? "email" : "appeler",
+        type: TASK_TYPE_META[t.type] ? t.type : "appel_telephone",
         note: t.note,
         due_at: due.toISOString(),
       });
@@ -748,15 +774,25 @@ ${buildHistoryContext(history)}`;
         placeholder="Comment s'est passé l'appel, le RDV... ? Note ce qui compte, l'IA en tire les prochaines étapes."
         style={{ width: "100%", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", lineHeight: 1.5, padding: "10px 12px", minHeight: "70px", resize: "vertical", fontFamily: "Inter, sans-serif", marginBottom: "8px", boxSizing: "border-box" }}
       />
-      <button
-        className="focusable"
-        onClick={analyze}
-        disabled={!note.trim() || analyzing}
-        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: !note.trim() || analyzing ? 0.6 : 1 }}
-      >
-        <SparklesIcon size={14} color="var(--blue)" />
-        {analyzing ? "Analyse en cours..." : "Analyser la note"}
-      </button>
+      <div style={{ display: "flex", gap: "8px" }}>
+        <button
+          className="focusable"
+          onClick={saveNote}
+          disabled={!note.trim() || saving || analyzing}
+          style={{ flex: 1, background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: !note.trim() || saving || analyzing ? 0.6 : 1 }}
+        >
+          {saving ? "Enregistrement..." : "Enregistrer"}
+        </button>
+        <button
+          className="focusable"
+          onClick={analyze}
+          disabled={!note.trim() || analyzing || saving}
+          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: !note.trim() || analyzing || saving ? 0.6 : 1 }}
+        >
+          <SparklesIcon size={14} color="var(--blue)" />
+          {analyzing ? "Analyse en cours..." : "Analyser la note"}
+        </button>
+      </div>
       {error && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "6px" }}>{error}</div>}
 
       {showModal && result && (
@@ -790,7 +826,7 @@ ${buildHistoryContext(history)}`;
                 {result.suggested_tasks.map((t, i) => (
                   <label key={i} style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px 10px", fontSize: "12px", cursor: "pointer" }}>
                     <input type="checkbox" checked={selected.includes(i)} onChange={() => toggle(i)} />
-                    {t.type === "email" ? <MailIcon size={13} color="var(--text-dim)" /> : <PhoneIcon size={13} color="var(--text-dim)" />}
+                    {(() => { const meta = TASK_TYPE_META[t.type] || TASK_TYPE_META.appel_telephone; return <meta.Icon size={13} color={meta.color} />; })()}
                     <span style={{ flex: 1 }}>{t.note}</span>
                     <span className="mono" style={{ color: "var(--text-faint)", fontSize: "11px" }}>dans {t.due_in_days || 3}j</span>
                   </label>
@@ -973,12 +1009,13 @@ function Historique({ history }) {
   );
 }
 
-function TasksTab({ prospect, session }) {
+function TasksTab({ prospect, session, settings }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [type, setType] = useState("appeler");
+  const [type, setType] = useState("appel_telephone");
   const [note, setNote] = useState("");
-  const [dueAt, setDueAt] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [dueTime, setDueTime] = useState("");
   const [priority, setPriority] = useState("50");
   const [saving, setSaving] = useState(false);
 
@@ -1003,16 +1040,18 @@ function TasksTab({ prospect, session }) {
     e.preventDefault();
     if (!note.trim()) return;
     setSaving(true);
+    const time = dueTime || settings?.default_task_time || "17:00";
     await supabase.from("tasks").insert({
       user_id: session.user.id,
       prospect_id: prospect.id,
       type,
       note: note.trim(),
-      due_at: dueAt ? new Date(dueAt).toISOString() : null,
+      due_at: dueDate ? new Date(`${dueDate}T${time}`).toISOString() : null,
       priority: Number(priority),
     });
     setNote("");
-    setDueAt("");
+    setDueDate("");
+    setDueTime("");
     setPriority("50");
     setSaving(false);
     load();
@@ -1032,11 +1071,11 @@ function TasksTab({ prospect, session }) {
     <div>
       <form onSubmit={addTask} style={{ display: "flex", gap: "8px", marginBottom: "14px", flexWrap: "wrap" }}>
         <select value={type} onChange={(e) => setType(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
-          <option value="appeler">Appeler</option>
-          <option value="email">Emailer</option>
+          {Object.entries(TASK_TYPE_META).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}
         </select>
         <input placeholder="Ex : relancer sur le budget" value={note} onChange={(e) => setNote(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: "160px" }} />
-        <input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={inputStyle} />
+        <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={inputStyle} />
+        <input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} title={`Heure (défaut : ${settings?.default_task_time || "17:00"})`} style={inputStyle} />
         <select value={priority} onChange={(e) => setPriority(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
           {PRIORITY_LEVELS.map((l) => <option key={l.value} value={l.value}>Priorité : {l.label}</option>)}
         </select>
@@ -1051,21 +1090,24 @@ function TasksTab({ prospect, session }) {
         <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Aucune tâche pour ce prospect.</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {tasks.map((t) => (
-            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "10px", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px", opacity: t.done ? 0.55 : 1 }}>
-              <button className="focusable" onClick={() => toggleDone(t)} style={{ background: "none", border: "none", padding: 0, display: "flex" }}>
-                <CheckIcon size={18} color={t.done ? "#0ea968" : "var(--text-faint)"} />
-              </button>
-              {t.type === "appeler" ? <PhoneIcon size={13} color="var(--text-dim)" /> : <MailIcon size={13} color="var(--text-dim)" />}
-              <div style={{ flex: 1, fontSize: "13px", textDecoration: t.done ? "line-through" : "none" }}>{t.note}</div>
-              {t.due_at && (
-                <span className="mono" style={{ fontSize: "11px", color: !t.done && isOverdue(t.due_at) ? "var(--red)" : "var(--text-faint)" }}>
-                  {formatShortDate(t.due_at)}
-                </span>
-              )}
-              <button className="focusable" onClick={() => removeTask(t.id)} style={{ background: "none", border: "none", padding: "2px", color: "var(--text-faint)", fontSize: "12px" }}>✕</button>
-            </div>
-          ))}
+          {tasks.map((t) => {
+            const meta = TASK_TYPE_META[t.type] || TASK_TYPE_META.appel_telephone;
+            return (
+              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "10px", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px", opacity: t.done ? 0.55 : 1 }}>
+                <button className="focusable" onClick={() => toggleDone(t)} style={{ background: "none", border: "none", padding: 0, display: "flex" }}>
+                  <CheckIcon size={18} color={t.done ? "#0ea968" : "var(--text-faint)"} />
+                </button>
+                <meta.Icon size={13} color={meta.color} />
+                <div style={{ flex: 1, fontSize: "13px", textDecoration: t.done ? "line-through" : "none" }}>{t.note}</div>
+                {t.due_at && (
+                  <span className="mono" style={{ fontSize: "11px", color: !t.done && isOverdue(t.due_at) ? "var(--red)" : "var(--text-faint)" }}>
+                    {formatShortDate(t.due_at)}
+                  </span>
+                )}
+                <button className="focusable" onClick={() => removeTask(t.id)} style={{ background: "none", border: "none", padding: "2px", color: "var(--text-faint)", fontSize: "12px" }}>✕</button>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

@@ -4,6 +4,8 @@ import {
   CalendarIcon,
   PhoneIcon,
   MailIcon,
+  VideoIcon,
+  PinIcon,
   TargetIcon,
   CheckIcon,
   SparklesIcon,
@@ -18,6 +20,13 @@ import {
   isOverdue,
   computeDealScore,
 } from "../lib/ui.jsx";
+
+const TASK_TYPE_ICONS = {
+  appel_telephone: { Icon: PhoneIcon, color: "var(--text-dim)" },
+  appel_visio: { Icon: VideoIcon, color: "#7c3aed" },
+  rdv_physique: { Icon: PinIcon, color: "#0ea968" },
+  relance_email: { Icon: MailIcon, color: "var(--text-dim)" },
+};
 
 function todayLabel() {
   const d = new Date();
@@ -570,7 +579,7 @@ function TaskRow({ task, prospect, onOpen }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
-        {task.type === "email" ? <MailIcon size={12} color="var(--text-dim)" /> : <PhoneIcon size={12} color="var(--text-dim)" />}
+        {(() => { const meta = TASK_TYPE_ICONS[task.type] || TASK_TYPE_ICONS.appel_telephone; return <meta.Icon size={12} color={meta.color} />; })()}
         {prospect ? (
           <button className="focusable" onClick={() => onOpen?.(prospect.id)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", ...nameStyle }}>
             {prospect.name} — <span style={{ color: "var(--text)" }}>{task.note}</span>
