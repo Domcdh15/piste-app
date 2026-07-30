@@ -7,7 +7,7 @@ import {
   TargetIcon,
   CheckIcon,
   SparklesIcon,
-  getFirstName,
+  getUserDisplayName,
   callAI,
   STATUS_META,
   CLOSED_STAGES,
@@ -17,7 +17,8 @@ import {
 
 function todayLabel() {
   const d = new Date();
-  return `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`;
+  const label = d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 function formatEventTime(iso) {
@@ -39,7 +40,7 @@ export default function Today({ prospects, setActiveTab, session }) {
   const nbRelances = prospects.filter((p) => p.status === "relancer").length;
   const nbRetard = prospects.filter((p) => p.status === "retard").length;
   const nbOpportunites = prospects.filter((p) => p.priority >= 75).length;
-  const firstName = getFirstName(session.user);
+  const displayName = getUserDisplayName(session.user);
 
   useEffect(() => {
     async function loadEvents() {
@@ -109,7 +110,7 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
         }}
       >
         <div className="display" style={{ fontWeight: 700, fontSize: "32px", display: "flex", alignItems: "center", gap: "10px" }}>
-          Bonjour{firstName ? ` ${firstName}` : ""} <span>👋</span>
+          Bonjour{displayName ? ` ${displayName}` : ""} <span>👋</span>
         </div>
         <div style={{ opacity: 0.85, fontSize: "14px", marginTop: "6px", marginBottom: "18px" }}>{todayLabel()}</div>
 
