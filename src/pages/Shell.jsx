@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 import Sidebar from "../components/Sidebar.jsx";
 import Today from "./Today.jsx";
 import Pipeline from "./Pipeline.jsx";
+import Tasks from "./Tasks.jsx";
 import Assistant from "./Assistant.jsx";
 import Activities from "./Activities.jsx";
 import Settings from "./Settings.jsx";
@@ -29,6 +30,7 @@ export default function Shell({ session }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} />}
         {activeTab === "pipeline" && <Pipeline prospects={prospects} loading={loading} reload={loadProspects} session={session} />}
+        {activeTab === "tasks" && <Tasks prospects={prospects} session={session} />}
         {activeTab === "assistant" && <Assistant session={session} />}
         {activeTab === "activities" && <Activities prospects={prospects} />}
         {activeTab === "settings" && <Settings session={session} />}

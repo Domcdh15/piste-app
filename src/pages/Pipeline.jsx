@@ -781,6 +781,7 @@ function TasksTab({ prospect, session }) {
   const [type, setType] = useState("appeler");
   const [note, setNote] = useState("");
   const [dueAt, setDueAt] = useState("");
+  const [priority, setPriority] = useState("50");
   const [saving, setSaving] = useState(false);
 
   async function load() {
@@ -810,9 +811,11 @@ function TasksTab({ prospect, session }) {
       type,
       note: note.trim(),
       due_at: dueAt ? new Date(dueAt).toISOString() : null,
+      priority: Number(priority),
     });
     setNote("");
     setDueAt("");
+    setPriority("50");
     setSaving(false);
     load();
   }
@@ -836,6 +839,9 @@ function TasksTab({ prospect, session }) {
         </select>
         <input placeholder="Ex : relancer sur le budget" value={note} onChange={(e) => setNote(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: "160px" }} />
         <input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={inputStyle} />
+        <select value={priority} onChange={(e) => setPriority(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
+          {PRIORITY_LEVELS.map((l) => <option key={l.value} value={l.value}>Priorité : {l.label}</option>)}
+        </select>
         <button type="submit" disabled={saving || !note.trim()} className="focusable" style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "8px 14px", fontSize: "13px" }}>
           Ajouter
         </button>
