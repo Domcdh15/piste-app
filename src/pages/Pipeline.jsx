@@ -3,6 +3,8 @@ import { supabase } from "../lib/supabaseClient";
 import {
   STATUS_META,
   SCRIPT_SECTIONS,
+  OPEN_STAGES,
+  CLOSED_STAGES,
   formatEuros,
   formatDate,
   formatShortDate,
@@ -11,6 +13,11 @@ import {
   Avatar,
   SparklesIcon,
   CalendarIcon,
+  CheckIcon,
+  XIcon,
+  PhoneIcon,
+  MailIcon,
+  ArrowLeftIcon,
   inputStyle,
   selectStyle,
 } from "../lib/ui.jsx";
@@ -20,7 +27,6 @@ export default function Pipeline({ prospects, loading, reload, session }) {
   const [form, setForm] = useState({ name: "", company: "", stage: "Découverte", status: "attente", priority: 50, deal_value: "" });
   const [saving, setSaving] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
-  const [tab, setTab] = useState("email");
 
   async function handleAddProspect(e) {
     e.preventDefault();
@@ -55,107 +61,129 @@ export default function Pipeline({ prospects, loading, reload, session }) {
     }
   }
 
+  async function logActivity(prospectId, type, note) {
+    await supabase.from("activities").insert({ user_id: session.user.id, prospect_id: prospectId, type, note, source: "manual" });
+  }
+
   const selected = prospects.find((p) => p.id === selectedId);
+
+  if (selected) {
+    return (
+      <ProspectDetailPage
+        prospect={selected}
+        session={session}
+        onBack={() => setSelectedId(null)}
+        onUpdate={(changes) => handleUpdateProspect(selected.id, changes)}
+        onDelete={() => handleDeleteProspect(selected.id)}
+        onLogActivity={(type, note) => logActivity(selected.id, type, note)}
+      />
+    );
+  }
 
   return (
     <div style={{ padding: "28px 32px 48px" }}>
-      <div style={{ display: "grid", gridTemplateColumns: selected ? "minmax(0,1.4fr) minmax(0,1fr)" : "1fr", gap: "20px" }}>
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-            <div className="display" style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.06em", color: "var(--text-dim)" }}>FILE DE PRIORITÉ</div>
-            <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "7px 12px", fontSize: "13px" }}>
-              {showForm ? "Annuler" : "+ Ajouter un prospect"}
-            </button>
-          </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+        <div className="display" style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.06em", color: "var(--text-dim)" }}>FILE DE PRIORITÉ</div>
+        <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "7px 12px", fontSize: "13px" }}>
+          {showForm ? "Annuler" : "+ Ajouter un prospect"}
+        </button>
+      </div>
 
-          {showForm && (
-            <form onSubmit={handleAddProspect} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "16px", marginBottom: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-              <input required placeholder="Nom du contact" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={inputStyle} />
-              <input required placeholder="Entreprise" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} style={inputStyle} />
-              <select value={form.stage} onChange={(e) => setForm({ ...form, stage: e.target.value })} style={inputStyle}>
-                <option>Découverte</option>
-                <option>Qualification</option>
-                <option>Négociation</option>
-              </select>
-              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} style={inputStyle}>
-                <option value="appeler">À appeler</option>
-                <option value="relancer">À relancer</option>
-                <option value="attente">En attente</option>
-                <option value="retard">En retard</option>
-              </select>
-              <input type="number" min="0" max="100" placeholder="Priorité (0-100)" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} style={inputStyle} />
-              <input type="number" min="0" placeholder="Valeur du deal (€)" value={form.deal_value} onChange={(e) => setForm({ ...form, deal_value: e.target.value })} style={inputStyle} />
-              <button type="submit" disabled={saving} className="focusable" style={{ gridColumn: "1 / -1", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px" }}>
-                {saving ? "Enregistrement..." : "Enregistrer le prospect"}
+      {showForm && (
+        <form onSubmit={handleAddProspect} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "16px", marginBottom: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+          <input required placeholder="Nom du contact" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={inputStyle} />
+          <input required placeholder="Entreprise" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} style={inputStyle} />
+          <select value={form.stage} onChange={(e) => setForm({ ...form, stage: e.target.value })} style={inputStyle}>
+            {OPEN_STAGES.map((s) => <option key={s}>{s}</option>)}
+          </select>
+          <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} style={inputStyle}>
+            <option value="appeler">À appeler</option>
+            <option value="relancer">À relancer</option>
+            <option value="attente">En attente</option>
+            <option value="retard">En retard</option>
+          </select>
+          <input type="number" min="0" max="100" placeholder="Priorité (0-100)" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} style={inputStyle} />
+          <input type="number" min="0" placeholder="Valeur du deal (€)" value={form.deal_value} onChange={(e) => setForm({ ...form, deal_value: e.target.value })} style={inputStyle} />
+          <button type="submit" disabled={saving} className="focusable" style={{ gridColumn: "1 / -1", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px" }}>
+            {saving ? "Enregistrement..." : "Enregistrer le prospect"}
+          </button>
+        </form>
+      )}
+
+      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "10px" }}>
+        {loading ? (
+          <div style={{ color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Chargement...</div>
+        ) : prospects.length === 0 ? (
+          <div style={{ color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun prospect pour l'instant. Ajoute ton premier prospect ci-dessus.</div>
+        ) : (
+          prospects.map((p) => {
+            const meta = STATUS_META[p.status] || STATUS_META.attente;
+            return (
+              <button
+                key={p.id}
+                onClick={() => setSelectedId(p.id)}
+                className="focusable"
+                style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px", width: "100%", textAlign: "left", background: "transparent", border: "0.5px solid transparent", borderRadius: "8px" }}
+              >
+                <Avatar name={p.name} stage={p.stage} size={32} />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div className="display" style={{ fontWeight: 500, fontSize: "14px" }}>{p.name}</div>
+                  <div style={{ color: "var(--text-dim)", fontSize: "12px" }}>{p.company} · {p.stage}</div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "3px", minWidth: "110px" }}>
+                  <div className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, color: meta.color, background: meta.dim, border: `0.5px solid ${meta.color}55`, borderRadius: "6px", padding: "4px 8px" }}>
+                    <meta.Icon size={11} color={meta.color} />
+                    {meta.label}
+                  </div>
+                  {p.next_contact_at && (
+                    <div className="mono" style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "10px", color: isOverdue(p.next_contact_at) ? "var(--red)" : "var(--text-faint)" }}>
+                      <CalendarIcon size={10} color={isOverdue(p.next_contact_at) ? "var(--red)" : "var(--text-faint)"} />
+                      {formatShortDate(p.next_contact_at)}
+                    </div>
+                  )}
+                </div>
+                <div className="mono" style={{ fontSize: "13px", color: "var(--blue)", width: "90px", textAlign: "right" }}>{formatEuros(p.deal_value)}</div>
               </button>
-            </form>
-          )}
-
-          <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "10px" }}>
-            {loading ? (
-              <div style={{ color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Chargement...</div>
-            ) : prospects.length === 0 ? (
-              <div style={{ color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun prospect pour l'instant. Ajoute ton premier prospect ci-dessus.</div>
-            ) : (
-              prospects.map((p) => {
-                const meta = STATUS_META[p.status] || STATUS_META.attente;
-                const isSelected = p.id === selectedId;
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => { setSelectedId(p.id); setTab("email"); }}
-                    className="focusable"
-                    style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px", width: "100%", textAlign: "left", background: isSelected ? "var(--panel2)" : "transparent", border: isSelected ? "0.5px solid var(--hairline-strong)" : "0.5px solid transparent", borderRadius: "8px" }}
-                  >
-                    <Avatar name={p.name} stage={p.stage} size={32} />
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div className="display" style={{ fontWeight: 500, fontSize: "14px" }}>{p.name}</div>
-                      <div style={{ color: "var(--text-dim)", fontSize: "12px" }}>{p.company} · {p.stage}</div>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "3px", minWidth: "110px" }}>
-                      <div className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, color: meta.color, background: meta.dim, border: `0.5px solid ${meta.color}55`, borderRadius: "6px", padding: "4px 8px" }}>
-                        <meta.Icon size={11} color={meta.color} />
-                        {meta.label}
-                      </div>
-                      {p.next_contact_at && (
-                        <div className="mono" style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "10px", color: isOverdue(p.next_contact_at) ? "var(--red)" : "var(--text-faint)" }}>
-                          <CalendarIcon size={10} color={isOverdue(p.next_contact_at) ? "var(--red)" : "var(--text-faint)"} />
-                          {formatShortDate(p.next_contact_at)}
-                        </div>
-                      )}
-                    </div>
-                    <div className="mono" style={{ fontSize: "13px", color: "var(--blue)", width: "90px", textAlign: "right" }}>{formatEuros(p.deal_value)}</div>
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {selected && (
-          <ProspectPanel
-            prospect={selected}
-            tab={tab}
-            setTab={setTab}
-            onUpdate={(changes) => handleUpdateProspect(selected.id, changes)}
-            onDelete={() => handleDeleteProspect(selected.id)}
-          />
+            );
+          })
         )}
       </div>
     </div>
   );
 }
 
-function ProspectPanel({ prospect, tab, setTab, onUpdate, onDelete }) {
+function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onLogActivity }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [tab, setTab] = useState("email");
+  const [logged, setLogged] = useState("");
+
+  async function handleStageChange(stage) {
+    const changes = { stage };
+    if (CLOSED_STAGES.includes(stage) && !CLOSED_STAGES.includes(prospect.stage)) {
+      changes.closed_at = new Date().toISOString();
+      await onLogActivity(stage === "Gagné" ? "deal_gagne" : "deal_perdu");
+    }
+    onUpdate(changes);
+  }
+
+  async function handleCallLog(outcome) {
+    await onLogActivity(outcome);
+    onUpdate({ last_contact_at: new Date().toISOString() });
+    setLogged(outcome);
+    setTimeout(() => setLogged(""), 1500);
+  }
 
   return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "18px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <Avatar name={prospect.name} stage={prospect.stage} size={42} />
+    <div style={{ padding: "24px 32px 48px", maxWidth: "820px", margin: "0 auto" }}>
+      <button className="focusable" onClick={onBack} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: "4px 0", marginBottom: "16px", color: "var(--text-dim)", fontSize: "13px" }}>
+        <ArrowLeftIcon size={14} color="var(--text-dim)" /> Retour à la file de priorité
+      </button>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "18px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+          <Avatar name={prospect.name} stage={prospect.stage} size={52} />
           <div>
-            <div className="display" style={{ fontWeight: 700, fontSize: "16px" }}>{prospect.name}</div>
+            <div className="display" style={{ fontWeight: 700, fontSize: "20px" }}>{prospect.name}</div>
             <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>{prospect.company}</div>
           </div>
         </div>
@@ -169,7 +197,7 @@ function ProspectPanel({ prospect, tab, setTab, onUpdate, onDelete }) {
         )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "14px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
         <div>
           <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>STATUT</div>
           <select value={prospect.status} onChange={(e) => onUpdate({ status: e.target.value })} style={{ ...selectStyle }}>
@@ -181,10 +209,13 @@ function ProspectPanel({ prospect, tab, setTab, onUpdate, onDelete }) {
         </div>
         <div>
           <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>ÉTAPE</div>
-          <select value={prospect.stage} onChange={(e) => onUpdate({ stage: e.target.value })} style={{ ...selectStyle }}>
-            <option>Découverte</option>
-            <option>Qualification</option>
-            <option>Négociation</option>
+          <select value={prospect.stage} onChange={(e) => handleStageChange(e.target.value)} style={{ ...selectStyle }}>
+            <optgroup label="En cours">
+              {OPEN_STAGES.map((s) => <option key={s}>{s}</option>)}
+            </optgroup>
+            <optgroup label="Clôturé">
+              {CLOSED_STAGES.map((s) => <option key={s}>{s}</option>)}
+            </optgroup>
           </select>
         </div>
       </div>
@@ -217,21 +248,48 @@ function ProspectPanel({ prospect, tab, setTab, onUpdate, onDelete }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: "4px", marginBottom: "14px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
-        {[["email", "Email"], ["script", "Script"], ["analyse", "Analyse"], ["historique", "Historique"]].map(([key, label]) => (
+      <div style={{ display: "flex", gap: "8px", marginBottom: "18px" }}>
+        <button
+          className="focusable"
+          onClick={() => handleCallLog("appel_abouti")}
+          style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, justifyContent: "center", background: logged === "appel_abouti" ? "var(--blue-dim)" : "var(--panel2)", color: logged === "appel_abouti" ? "var(--blue)" : "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px", fontSize: "12px" }}
+        >
+          <PhoneIcon size={13} /> {logged === "appel_abouti" ? "Appel enregistré" : "Appel abouti"}
+        </button>
+        <button
+          className="focusable"
+          onClick={() => handleCallLog("appel_manque")}
+          style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, justifyContent: "center", background: logged === "appel_manque" ? "var(--red-dim)" : "var(--panel2)", color: logged === "appel_manque" ? "var(--red)" : "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px", fontSize: "12px" }}
+        >
+          <XIcon size={13} /> {logged === "appel_manque" ? "Enregistré" : "Appel manqué"}
+        </button>
+      </div>
+
+      <div style={{ display: "flex", gap: "4px", marginBottom: "16px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
+        {[["email", "Email"], ["script", "Script"], ["analyse", "Analyse"], ["taches", "Tâches"], ["historique", "Historique"]].map(([key, label]) => (
           <button key={key} className="focusable" onClick={() => setTab(key)} style={{ flex: 1, padding: "7px 6px", borderRadius: "6px", fontSize: "11px", fontWeight: 500, background: tab === key ? "var(--hairline)" : "transparent", color: tab === key ? "var(--text)" : "var(--text-dim)" }}>
             {label}
           </button>
         ))}
       </div>
 
-      {tab === "email" && <EmailGenerator prospect={prospect} />}
-      {tab === "script" && <ScriptGenerator prospect={prospect} />}
-      {tab === "analyse" && <AnalyseGenerator prospect={prospect} />}
-      {tab === "historique" && <Historique prospect={prospect} />}
+      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "18px" }}>
+        {tab === "email" && <EmailGenerator prospect={prospect} />}
+        {tab === "script" && <ScriptGenerator prospect={prospect} />}
+        {tab === "analyse" && <AnalyseGenerator prospect={prospect} />}
+        {tab === "taches" && <TasksTab prospect={prospect} session={session} />}
+        {tab === "historique" && <Historique prospect={prospect} />}
+      </div>
     </div>
   );
 }
+
+const ACTIVITY_LABEL = {
+  appel_abouti: "Appel abouti",
+  appel_manque: "Appel manqué",
+  deal_gagne: "Deal gagné",
+  deal_perdu: "Deal perdu",
+};
 
 function Historique({ prospect }) {
   const [items, setItems] = useState([]);
@@ -240,15 +298,17 @@ function Historique({ prospect }) {
   useEffect(() => {
     async function load() {
       setLoading(true);
-      const [emails, scripts, analyses] = await Promise.all([
+      const [emails, scripts, analyses, activities] = await Promise.all([
         supabase.from("emails_generes").select("*").eq("prospect_id", prospect.id),
         supabase.from("scripts_appel").select("*").eq("prospect_id", prospect.id),
         supabase.from("analyses_ia").select("*").eq("prospect_id", prospect.id),
+        supabase.from("activities").select("*").eq("prospect_id", prospect.id),
       ]);
       const all = [
         ...(emails.data || []).map((x) => ({ ...x, kind: "Email" })),
         ...(scripts.data || []).map((x) => ({ ...x, kind: `Script — ${x.section}` })),
         ...(analyses.data || []).map((x) => ({ ...x, kind: "Analyse" })),
+        ...(activities.data || []).map((x) => ({ ...x, kind: ACTIVITY_LABEL[x.type] || x.type, content: x.note || "" })),
       ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       setItems(all);
       setLoading(false);
@@ -267,9 +327,102 @@ function Historique({ prospect }) {
             <span className="mono" style={{ fontSize: "11px", color: "var(--blue)" }}>{item.kind}</span>
             <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>{formatDate(item.created_at)}</span>
           </div>
-          <div style={{ fontSize: "12px", color: "var(--text-dim)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{item.content}</div>
+          {item.content && <div style={{ fontSize: "12px", color: "var(--text-dim)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{item.content}</div>}
         </div>
       ))}
+    </div>
+  );
+}
+
+function TasksTab({ prospect, session }) {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [type, setType] = useState("appeler");
+  const [note, setNote] = useState("");
+  const [dueAt, setDueAt] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase
+      .from("tasks")
+      .select("*")
+      .eq("prospect_id", prospect.id)
+      .order("done", { ascending: true })
+      .order("due_at", { ascending: true, nullsFirst: false });
+    setTasks(data || []);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prospect.id]);
+
+  async function addTask(e) {
+    e.preventDefault();
+    if (!note.trim()) return;
+    setSaving(true);
+    await supabase.from("tasks").insert({
+      user_id: session.user.id,
+      prospect_id: prospect.id,
+      type,
+      note: note.trim(),
+      due_at: dueAt ? new Date(dueAt).toISOString() : null,
+    });
+    setNote("");
+    setDueAt("");
+    setSaving(false);
+    load();
+  }
+
+  async function toggleDone(task) {
+    await supabase.from("tasks").update({ done: !task.done }).eq("id", task.id);
+    load();
+  }
+
+  async function removeTask(id) {
+    await supabase.from("tasks").delete().eq("id", id);
+    load();
+  }
+
+  return (
+    <div>
+      <form onSubmit={addTask} style={{ display: "flex", gap: "8px", marginBottom: "14px", flexWrap: "wrap" }}>
+        <select value={type} onChange={(e) => setType(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
+          <option value="appeler">Appeler</option>
+          <option value="email">Emailer</option>
+        </select>
+        <input placeholder="Ex : relancer sur le budget" value={note} onChange={(e) => setNote(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: "160px" }} />
+        <input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} style={inputStyle} />
+        <button type="submit" disabled={saving || !note.trim()} className="focusable" style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "8px 14px", fontSize: "13px" }}>
+          Ajouter
+        </button>
+      </form>
+
+      {loading ? (
+        <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Chargement...</div>
+      ) : tasks.length === 0 ? (
+        <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Aucune tâche pour ce prospect.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {tasks.map((t) => (
+            <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "10px", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px", opacity: t.done ? 0.55 : 1 }}>
+              <button className="focusable" onClick={() => toggleDone(t)} style={{ background: "none", border: "none", padding: 0, display: "flex" }}>
+                <CheckIcon size={18} color={t.done ? "#0ea968" : "var(--text-faint)"} />
+              </button>
+              {t.type === "appeler" ? <PhoneIcon size={13} color="var(--text-dim)" /> : <MailIcon size={13} color="var(--text-dim)" />}
+              <div style={{ flex: 1, fontSize: "13px", textDecoration: t.done ? "line-through" : "none" }}>{t.note}</div>
+              {t.due_at && (
+                <span className="mono" style={{ fontSize: "11px", color: !t.done && isOverdue(t.due_at) ? "var(--red)" : "var(--text-faint)" }}>
+                  {formatShortDate(t.due_at)}
+                </span>
+              )}
+              <button className="focusable" onClick={() => removeTask(t.id)} style={{ background: "none", border: "none", padding: "2px", color: "var(--text-faint)", fontSize: "12px" }}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

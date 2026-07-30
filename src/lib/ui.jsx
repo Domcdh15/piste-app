@@ -9,7 +9,12 @@ export const STAGE_META = {
   "Découverte": { color: "#7c3aed", dim: "#f1e9fe" },
   "Qualification": { color: "#2563eb", dim: "#e8f0fe" },
   "Négociation": { color: "#e2492a", dim: "#fde9e3" },
+  "Gagné": { color: "#0ea968", dim: "#e2f7ec" },
+  "Perdu": { color: "#5b6b85", dim: "#eef1f6" },
 };
+
+export const OPEN_STAGES = ["Découverte", "Qualification", "Négociation"];
+export const CLOSED_STAGES = ["Gagné", "Perdu"];
 
 export const SCRIPT_SECTIONS = [
   "Introduction",
@@ -34,6 +39,22 @@ export function formatShortDate(d) {
 
 export function isOverdue(d) {
   return !!d && new Date(d) < new Date();
+}
+
+export function periodRange(period) {
+  const now = new Date();
+  const start = new Date(now);
+  if (period === "day") {
+    start.setHours(0, 0, 0, 0);
+  } else if (period === "week") {
+    const day = (start.getDay() + 6) % 7; // lundi = 0
+    start.setDate(start.getDate() - day);
+    start.setHours(0, 0, 0, 0);
+  } else {
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+  }
+  return { start, end: now };
 }
 
 export function getInitials(name) {
@@ -187,6 +208,38 @@ export function CheckIcon(props) {
     <Icon {...props}>
       <circle cx="12" cy="12" r="9" />
       <path d="M8 12.5l2.5 2.5L16 9.5" />
+    </Icon>
+  );
+}
+
+export function XIcon(props) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <line x1="9" y1="9" x2="15" y2="15" />
+      <line x1="15" y1="9" x2="9" y2="15" />
+    </Icon>
+  );
+}
+
+export function TrophyIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M7 4h10v4a5 5 0 0 1-10 0V4z" />
+      <path d="M7 5H4a3 3 0 0 0 3 4" />
+      <path d="M17 5h3a3 3 0 0 1-3 4" />
+      <line x1="12" y1="13" x2="12" y2="17" />
+      <path d="M8.5 20.5h7" />
+      <line x1="12" y1="17" x2="12" y2="20.5" />
+    </Icon>
+  );
+}
+
+export function ArrowLeftIcon(props) {
+  return (
+    <Icon {...props}>
+      <line x1="19" y1="12" x2="5" y2="12" />
+      <path d="M11 6l-6 6 6 6" />
     </Icon>
   );
 }

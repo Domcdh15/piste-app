@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
 import { CalendarIcon, PhoneIcon, MailIcon, TargetIcon, CheckIcon, SparklesIcon, getFirstName, callAI } from "../lib/ui.jsx";
 
 function todayLabel() {
@@ -18,6 +19,8 @@ export default function Today({ prospects, setActiveTab, session }) {
   const [eventsLoading, setEventsLoading] = useState(true);
   const [tip, setTip] = useState("");
   const [tipLoading, setTipLoading] = useState(true);
+  const [nbTaches, setNbTaches] = useState(0);
+  const [tachesLoading, setTachesLoading] = useState(true);
 
   const nbAppels = prospects.filter((p) => p.status === "appeler").length;
   const nbRelances = prospects.filter((p) => p.status === "relancer").length;
@@ -40,6 +43,22 @@ export default function Today({ prospects, setActiveTab, session }) {
     }
     loadEvents();
   }, [session.access_token]);
+
+  useEffect(() => {
+    async function loadTaches() {
+      setTachesLoading(true);
+      const endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
+      const { data } = await supabase
+        .from("tasks")
+        .select("id")
+        .eq("done", false)
+        .lte("due_at", endOfDay.toISOString());
+      setNbTaches((data || []).length);
+      setTachesLoading(false);
+    }
+    loadTaches();
+  }, []);
 
   useEffect(() => {
     if (eventsLoading) return;
@@ -129,7 +148,7 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
               </div>
             )}
           </div>
-          <StatTile accent="#7c3aed" icon={<CheckIcon size={15} color="#7c3aed" />} label="Mes tâches" value={0} />
+          <StatTile accent="#7c3aed" icon={<CheckIcon size={15} color="#7c3aed" />} label="Mes tâches" value={tachesLoading ? "…" : nbTaches} onClick={() => setActiveTab("pipeline")} />
         </div>
 
         <button
