@@ -94,6 +94,8 @@ export default function Pipeline({ prospects, loading, reload, session }) {
   const [form, setForm] = useState({ name: "", company: "", stage: "Découverte", status: "attente", priority: 50, deal_value: "" });
   const [saving, setSaving] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  const [search, setSearch] = useState("");
+  const [showClosed, setShowClosed] = useState(false);
 
   async function handleAddProspect(e) {
     e.preventDefault();
@@ -133,6 +135,11 @@ export default function Pipeline({ prospects, loading, reload, session }) {
   }
 
   const selected = prospects.find((p) => p.id === selectedId);
+  const closedCount = prospects.filter((p) => CLOSED_STAGES.includes(p.stage)).length;
+  const q = search.trim().toLowerCase();
+  const visibleProspects = prospects
+    .filter((p) => showClosed || !CLOSED_STAGES.includes(p.stage))
+    .filter((p) => !q || p.name.toLowerCase().includes(q) || p.company.toLowerCase().includes(q));
 
   if (selected) {
     return (
@@ -149,9 +156,15 @@ export default function Pipeline({ prospects, loading, reload, session }) {
 
   return (
     <div style={{ padding: "28px 32px 48px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-        <div className="display" style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.06em", color: "var(--text-dim)" }}>FILE DE PRIORITÉ</div>
-        <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "7px 12px", fontSize: "13px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "12px" }}>
+        <div className="display" style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.06em", color: "var(--text-dim)", whiteSpace: "nowrap" }}>FILE DE PRIORITÉ</div>
+        <input
+          placeholder="Rechercher un nom ou une entreprise..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ ...inputStyle, flex: 1, maxWidth: "320px" }}
+        />
+        <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "7px 12px", fontSize: "13px", whiteSpace: "nowrap" }}>
           {showForm ? "Annuler" : "+ Ajouter un prospect"}
         </button>
       </div>
@@ -182,15 +195,18 @@ export default function Pipeline({ prospects, loading, reload, session }) {
           <div style={{ color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Chargement...</div>
         ) : prospects.length === 0 ? (
           <div style={{ color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun prospect pour l'instant. Ajoute ton premier prospect ci-dessus.</div>
+        ) : visibleProspects.length === 0 ? (
+          <div style={{ color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun résultat pour cette recherche.</div>
         ) : (
-          prospects.map((p) => {
+          visibleProspects.map((p) => {
             const meta = STATUS_META[p.status] || STATUS_META.attente;
+            const closed = CLOSED_STAGES.includes(p.stage);
             return (
               <button
                 key={p.id}
                 onClick={() => setSelectedId(p.id)}
                 className="focusable"
-                style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px", width: "100%", textAlign: "left", background: "transparent", border: "0.5px solid transparent", borderRadius: "8px" }}
+                style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px", width: "100%", textAlign: "left", background: "transparent", border: "0.5px solid transparent", borderRadius: "8px", opacity: closed ? 0.6 : 1 }}
               >
                 <Avatar name={p.name} stage={p.stage} size={32} />
                 <div style={{ minWidth: 0, flex: 1 }}>
@@ -215,6 +231,16 @@ export default function Pipeline({ prospects, loading, reload, session }) {
           })
         )}
       </div>
+
+      {closedCount > 0 && (
+        <button
+          className="focusable"
+          onClick={() => setShowClosed((s) => !s)}
+          style={{ background: "none", border: "none", padding: "10px 2px", color: "var(--text-faint)", fontSize: "12px" }}
+        >
+          {showClosed ? "Masquer les clôturés" : `${closedCount} prospect(s) clôturé(s) masqué(s) — Afficher`}
+        </button>
+      )}
     </div>
   );
 }
