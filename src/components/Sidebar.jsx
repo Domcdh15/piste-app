@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { key: "tasks", label: "Tâches", emoji: "✅" },
   { key: "assistant", label: "Assistant IA", emoji: "☕" },
   { key: "activities", label: "Activités", emoji: "⚡" },
+  { key: "integrations", label: "Intégrations", emoji: "🔌" },
 ];
 
 export default function Sidebar({ activeTab, setActiveTab, userEmail }) {

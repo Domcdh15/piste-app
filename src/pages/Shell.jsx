@@ -8,6 +8,7 @@ import Tasks from "./Tasks.jsx";
 import Assistant from "./Assistant.jsx";
 import Activities from "./Activities.jsx";
 import Settings from "./Settings.jsx";
+import Integrations from "./Integrations.jsx";
 
 export default function Shell({ session }) {
   const [activeTab, setActiveTab] = useState("today");
@@ -62,6 +63,7 @@ export default function Shell({ session }) {
         {activeTab === "assistant" && <Assistant session={session} />}
         {activeTab === "activities" && <Activities prospects={prospects} />}
         {activeTab === "settings" && <Settings session={session} />}
+        {activeTab === "integrations" && <Integrations session={session} />}
       </div>
     </div>
   );
