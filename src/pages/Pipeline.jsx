@@ -11,6 +11,8 @@ import {
   isOverdue,
   callAI,
   parseJsonLoose,
+  PRIORITY_LEVELS,
+  nearestPriorityLevel,
   Avatar,
   SparklesIcon,
   CalendarIcon,
@@ -211,7 +213,9 @@ export default function Pipeline({ prospects, loading, reload, session }) {
             <option value="attente">En attente</option>
             <option value="retard">En retard</option>
           </select>
-          <input type="number" min="0" max="100" placeholder="Priorité (0-100)" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} style={inputStyle} />
+          <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} style={inputStyle}>
+            {PRIORITY_LEVELS.map((l) => <option key={l.value} value={l.value}>Priorité : {l.label}</option>)}
+          </select>
           <input type="number" min="0" placeholder="Valeur du deal (€)" value={form.deal_value} onChange={(e) => setForm({ ...form, deal_value: e.target.value })} style={inputStyle} />
           <button type="submit" disabled={saving} className="focusable" style={{ gridColumn: "1 / -1", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px" }}>
             {saving ? "Enregistrement..." : "Enregistrer le prospect"}
@@ -583,7 +587,7 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
   const [firstName, setFirstName] = useState(nameParts[0] || "");
   const [lastName, setLastName] = useState(nameParts.slice(1).join(" "));
   const [company, setCompany] = useState(prospect.company);
-  const [priority, setPriority] = useState(prospect.priority);
+  const [priority, setPriority] = useState(nearestPriorityLevel(prospect.priority));
   const [dealValue, setDealValue] = useState(prospect.deal_value);
   const [saving, setSaving] = useState(false);
 
@@ -611,7 +615,9 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
       <input required placeholder="Prénom" value={firstName} onChange={(e) => setFirstName(e.target.value)} style={inputStyle} />
       <input required placeholder="Nom" value={lastName} onChange={(e) => setLastName(e.target.value)} style={inputStyle} />
       <input required placeholder="Entreprise" value={company} onChange={(e) => setCompany(e.target.value)} style={{ ...inputStyle, gridColumn: "1 / -1" }} />
-      <input type="number" min="0" max="100" placeholder="Priorité (0-100)" value={priority} onChange={(e) => setPriority(e.target.value)} style={inputStyle} />
+      <select value={priority} onChange={(e) => setPriority(e.target.value)} style={inputStyle}>
+        {PRIORITY_LEVELS.map((l) => <option key={l.value} value={l.value}>Priorité : {l.label}</option>)}
+      </select>
       <input type="number" min="0" placeholder="Valeur du deal (€)" value={dealValue} onChange={(e) => setDealValue(e.target.value)} style={inputStyle} />
       <div style={{ display: "flex", gap: "8px", gridColumn: "1 / -1" }}>
         <button type="submit" disabled={saving} className="focusable" style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px" }}>

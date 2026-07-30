@@ -16,6 +16,18 @@ export const STAGE_META = {
 export const OPEN_STAGES = ["Découverte", "Qualification", "Négociation"];
 export const CLOSED_STAGES = ["Gagné", "Perdu"];
 
+export const PRIORITY_LEVELS = [
+  { value: 25, label: "Faible" },
+  { value: 50, label: "Moyenne" },
+  { value: 75, label: "Élevée" },
+  { value: 100, label: "Urgente" },
+];
+
+export function nearestPriorityLevel(value) {
+  const n = Number(value) || 0;
+  return PRIORITY_LEVELS.reduce((closest, level) => (Math.abs(level.value - n) < Math.abs(closest.value - n) ? level : closest)).value;
+}
+
 export const SCRIPT_SECTIONS = [
   "Introduction",
   "Questions de découverte",
