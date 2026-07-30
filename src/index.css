@@ -1,18 +1,18 @@
 :root {
-  --ink: #0e1116;
-  --panel: #171b22;
-  --panel2: #1d222b;
-  --hairline: #262b34;
-  --hairline-strong: #333a46;
-  --text: #e8eaed;
-  --text-dim: #8a93a3;
-  --text-faint: #5b6472;
-  --amber: #f5a623;
-  --amber-dim: #4a3a1c;
-  --teal: #2dd4bf;
-  --teal-dim: #173b36;
-  --red: #ef4444;
-  --red-dim: #3d1e1e;
+  --bg: #ffffff;
+  --panel: #f6f8fc;
+  --panel2: #edf1f9;
+  --hairline: #dbe4f0;
+  --hairline-strong: #bccce4;
+  --text: #101828;
+  --text-dim: #5b6b85;
+  --text-faint: #94a3b8;
+  --amber: #b45309;
+  --amber-dim: #fdf0dc;
+  --blue: #2563eb;
+  --blue-dim: #e8f0fe;
+  --red: #dc2626;
+  --red-dim: #fbe7e7;
 }
 
 * {
@@ -21,7 +21,7 @@
 
 body {
   margin: 0;
-  background: var(--ink);
+  background: var(--bg);
   color: var(--text);
   font-family: "Inter", sans-serif;
 }
@@ -46,6 +46,6 @@ button {
 }
 
 .focusable:focus-visible {
-  outline: 2px solid var(--teal);
+  outline: 2px solid var(--blue);
   outline-offset: 2px;
 }

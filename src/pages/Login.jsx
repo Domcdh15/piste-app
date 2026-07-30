@@ -83,9 +83,9 @@ export default function Login() {
           style={{
             width: "100%",
             marginTop: "20px",
-            background: "var(--teal-dim)",
-            color: "var(--teal)",
-            border: "0.5px solid #2dd4bf55",
+            background: "var(--blue-dim)",
+            color: "var(--blue)",
+            border: "0.5px solid #2563eb55",
             borderRadius: "8px",
             padding: "10px 14px",
             fontSize: "14px",

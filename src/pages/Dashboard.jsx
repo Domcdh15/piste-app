@@ -2,10 +2,16 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 const STATUS_META = {
-  appeler: { label: "APPELER", color: "var(--amber)", dim: "var(--amber-dim)" },
-  relancer: { label: "RELANCER", color: "var(--teal)", dim: "var(--teal-dim)" },
-  attente: { label: "EN ATTENTE", color: "var(--text-faint)", dim: "transparent" },
-  retard: { label: "EN RETARD", color: "var(--red)", dim: "var(--red-dim)" },
+  appeler: { label: "APPELER", color: "var(--amber)", dim: "var(--amber-dim)", Icon: PhoneIcon },
+  relancer: { label: "RELANCER", color: "var(--blue)", dim: "var(--blue-dim)", Icon: MailIcon },
+  attente: { label: "EN ATTENTE", color: "var(--text-faint)", dim: "transparent", Icon: ClockIcon },
+  retard: { label: "EN RETARD", color: "var(--red)", dim: "var(--red-dim)", Icon: AlertIcon },
+};
+
+const STAGE_META = {
+  "Découverte": { color: "#7c3aed", dim: "#f1e9fe" },
+  "Qualification": { color: "#2563eb", dim: "#e8f0fe" },
+  "Négociation": { color: "#e2492a", dim: "#fde9e3" },
 };
 
 const SCRIPT_SECTIONS = [
@@ -22,6 +28,112 @@ function formatEuros(n) {
 
 function formatDate(d) {
   return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+function getInitials(name) {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function Avatar({ name, stage, size = 34 }) {
+  const meta = STAGE_META[stage] || { color: "var(--text-faint)", dim: "var(--panel2)" };
+  return (
+    <div
+      className="mono"
+      style={{
+        width: size,
+        height: size,
+        minWidth: size,
+        borderRadius: "50%",
+        background: meta.dim,
+        color: meta.color,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: Math.round(size * 0.36),
+        fontWeight: 700,
+        border: `0.5px solid ${meta.color}40`,
+      }}
+    >
+      {getInitials(name)}
+    </div>
+  );
+}
+
+function Icon({ children, size = 14, color = "currentColor", style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, ...style }}>
+      {children}
+    </svg>
+  );
+}
+
+function PhoneIcon(props) {
+  return (
+    <Icon {...props}>
+      <rect x="7" y="2" width="10" height="20" rx="2" />
+      <line x1="11" y1="18" x2="13" y2="18" />
+    </Icon>
+  );
+}
+
+function MailIcon(props) {
+  return (
+    <Icon {...props}>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="M2 6l10 7 10-7" />
+    </Icon>
+  );
+}
+
+function ClockIcon(props) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <line x1="12" y1="7" x2="12" y2="12" />
+      <line x1="12" y1="12" x2="15.5" y2="14" />
+    </Icon>
+  );
+}
+
+function AlertIcon({ color = "currentColor", ...props }) {
+  return (
+    <Icon color={color} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <line x1="12" y1="8" x2="12" y2="13" />
+      <circle cx="12" cy="16.3" r="0.6" fill={color} stroke="none" />
+    </Icon>
+  );
+}
+
+function SparklesIcon({ size = 14, color = "currentColor", style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0, ...style }}>
+      <path d="M12 3l1.4 4.3L18 9l-4.6 1.7L12 15l-1.4-4.3L6 9l4.6-1.7z" fill={color} />
+      <path d="M19 13.5l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6z" fill={color} />
+    </svg>
+  );
+}
+
+function FlameIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M12 22a7 7 0 0 0 7-7c0-3.5-2-5.5-3.5-8.5-.2 2.3-1.8 3-1.8 5.2a1.7 1.7 0 0 1-3.4 0c0-1 .4-1.8.9-2.6C8.5 10.5 7 13 7 15a7 7 0 0 0 5 7z" />
+    </Icon>
+  );
+}
+
+function UsersIcon(props) {
+  return (
+    <Icon {...props}>
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3 20c0-3.5 2.8-6.2 6-6.2s6 2.7 6 6.2" />
+      <circle cx="17.5" cy="9" r="2.4" />
+      <path d="M15.8 14.3c2.6.5 4.2 2.7 4.2 5.7" />
+    </Icon>
+  );
 }
 
 async function callAI(prompt) {
@@ -105,16 +217,16 @@ export default function Dashboard({ session }) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "20px" }}>
-        <StatCard label="Actions aujourd'hui" value={nbActions} color="var(--amber)" />
-        <StatCard label="En retard" value={nbRetard} color={nbRetard > 0 ? "var(--red)" : "var(--text-dim)"} />
-        <StatCard label="Prospects au total" value={prospects.length} color="var(--teal)" />
+        <StatCard label="Actions aujourd'hui" value={nbActions} color="var(--amber)" Icon={FlameIcon} />
+        <StatCard label="En retard" value={nbRetard} color={nbRetard > 0 ? "var(--red)" : "var(--text-dim)"} Icon={AlertIcon} />
+        <StatCard label="Prospects au total" value={prospects.length} color="var(--blue)" Icon={UsersIcon} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: selected ? "minmax(0,1.4fr) minmax(0,1fr)" : "1fr", gap: "20px" }}>
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
             <div className="display" style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.06em", color: "var(--text-dim)" }}>FILE DE PRIORITÉ</div>
-            <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--teal-dim)", color: "var(--teal)", border: "0.5px solid #2dd4bf55", borderRadius: "8px", padding: "7px 12px", fontSize: "13px" }}>
+            <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "7px 12px", fontSize: "13px" }}>
               {showForm ? "Annuler" : "+ Ajouter un prospect"}
             </button>
           </div>
@@ -136,7 +248,7 @@ export default function Dashboard({ session }) {
               </select>
               <input type="number" min="0" max="100" placeholder="Priorité (0-100)" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} style={inputStyle} />
               <input type="number" min="0" placeholder="Valeur du deal (€)" value={form.deal_value} onChange={(e) => setForm({ ...form, deal_value: e.target.value })} style={inputStyle} />
-              <button type="submit" disabled={saving} className="focusable" style={{ gridColumn: "1 / -1", background: "var(--teal-dim)", color: "var(--teal)", border: "0.5px solid #2dd4bf55", borderRadius: "8px", padding: "9px", fontSize: "13px" }}>
+              <button type="submit" disabled={saving} className="focusable" style={{ gridColumn: "1 / -1", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px" }}>
                 {saving ? "Enregistrement..." : "Enregistrer le prospect"}
               </button>
             </form>
@@ -158,14 +270,16 @@ export default function Dashboard({ session }) {
                     className="focusable"
                     style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px", width: "100%", textAlign: "left", background: isSelected ? "var(--panel2)" : "transparent", border: isSelected ? "0.5px solid var(--hairline-strong)" : "0.5px solid transparent", borderRadius: "8px" }}
                   >
+                    <Avatar name={p.name} stage={p.stage} size={32} />
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div className="display" style={{ fontWeight: 500, fontSize: "14px" }}>{p.name}</div>
                       <div style={{ color: "var(--text-dim)", fontSize: "12px" }}>{p.company} · {p.stage}</div>
                     </div>
-                    <div className="mono" style={{ fontSize: "11px", fontWeight: 700, color: meta.color, background: meta.dim, border: `0.5px solid ${meta.color}55`, borderRadius: "6px", padding: "4px 8px" }}>
+                    <div className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, color: meta.color, background: meta.dim, border: `0.5px solid ${meta.color}55`, borderRadius: "6px", padding: "4px 8px" }}>
+                      <meta.Icon size={11} color={meta.color} />
                       {meta.label}
                     </div>
-                    <div className="mono" style={{ fontSize: "13px", color: "var(--teal)", width: "90px", textAlign: "right" }}>{formatEuros(p.deal_value)}</div>
+                    <div className="mono" style={{ fontSize: "13px", color: "var(--blue)", width: "90px", textAlign: "right" }}>{formatEuros(p.deal_value)}</div>
                   </button>
                 );
               })
@@ -193,9 +307,12 @@ function ProspectPanel({ prospect, tab, setTab, onUpdate, onDelete }) {
   return (
     <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "18px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
-        <div>
-          <div className="display" style={{ fontWeight: 700, fontSize: "16px" }}>{prospect.name}</div>
-          <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>{prospect.company}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <Avatar name={prospect.name} stage={prospect.stage} size={42} />
+          <div>
+            <div className="display" style={{ fontWeight: 700, fontSize: "16px" }}>{prospect.name}</div>
+            <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>{prospect.company}</div>
+          </div>
         </div>
         {confirmDelete ? (
           <div style={{ display: "flex", gap: "6px" }}>
@@ -274,7 +391,7 @@ function Historique({ prospect }) {
       {items.map((item) => (
         <div key={`${item.kind}-${item.id}`} style={{ background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-            <span className="mono" style={{ fontSize: "11px", color: "var(--teal)" }}>{item.kind}</span>
+            <span className="mono" style={{ fontSize: "11px", color: "var(--blue)" }}>{item.kind}</span>
             <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>{formatDate(item.created_at)}</span>
           </div>
           <div style={{ fontSize: "12px", color: "var(--text-dim)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{item.content}</div>
@@ -350,7 +467,7 @@ Statut : ${prospect.status}`;
     <div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "12px" }}>
         {SCRIPT_SECTIONS.map((s) => (
-          <button key={s} className="focusable" onClick={() => { setSection(s); setContent(""); }} style={{ fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: section === s ? "var(--teal-dim)" : "var(--panel2)", color: section === s ? "var(--teal)" : "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
+          <button key={s} className="focusable" onClick={() => { setSection(s); setContent(""); }} style={{ fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: section === s ? "var(--blue-dim)" : "var(--panel2)", color: section === s ? "var(--blue)" : "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
             {s}
           </button>
         ))}
@@ -404,7 +521,8 @@ function GeneratorBlock({ label, loading, error, content, setContent, onGenerate
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-      <button className="focusable" onClick={onGenerate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "var(--teal-dim)", color: "var(--teal)", border: "0.5px solid #2dd4bf55", borderRadius: "8px", padding: "10px", fontSize: "13px", opacity: loading ? 0.7 : 1 }}>
+      <button className="focusable" onClick={onGenerate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "10px", fontSize: "13px", opacity: loading ? 0.7 : 1 }}>
+        <SparklesIcon size={14} color="var(--blue)" />
         {loading ? "Génération en cours..." : label}
       </button>
 
@@ -427,10 +545,13 @@ function GeneratorBlock({ label, loading, error, content, setContent, onGenerate
   );
 }
 
-function StatCard({ label, value, color }) {
+function StatCard({ label, value, color, Icon }) {
   return (
     <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "14px 16px" }}>
-      <div style={{ color: "var(--text-dim)", fontSize: "11px", letterSpacing: "0.05em", marginBottom: "6px" }}>{label.toUpperCase()}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--text-dim)", fontSize: "11px", letterSpacing: "0.05em", marginBottom: "6px" }}>
+        {Icon && <Icon size={12} color="var(--text-dim)" />}
+        {label.toUpperCase()}
+      </div>
       <div className="mono" style={{ fontWeight: 700, fontSize: "22px", color }}>{value}</div>
     </div>
   );
