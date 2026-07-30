@@ -1,171 +1,23 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import {
+  STATUS_META,
+  SCRIPT_SECTIONS,
+  formatEuros,
+  formatDate,
+  callAI,
+  Avatar,
+  SparklesIcon,
+  inputStyle,
+  selectStyle,
+} from "../lib/ui.jsx";
 
-const STATUS_META = {
-  appeler: { label: "APPELER", color: "var(--amber)", dim: "var(--amber-dim)", Icon: PhoneIcon },
-  relancer: { label: "RELANCER", color: "var(--blue)", dim: "var(--blue-dim)", Icon: MailIcon },
-  attente: { label: "EN ATTENTE", color: "var(--text-faint)", dim: "transparent", Icon: ClockIcon },
-  retard: { label: "EN RETARD", color: "var(--red)", dim: "var(--red-dim)", Icon: AlertIcon },
-};
-
-const STAGE_META = {
-  "Découverte": { color: "#7c3aed", dim: "#f1e9fe" },
-  "Qualification": { color: "#2563eb", dim: "#e8f0fe" },
-  "Négociation": { color: "#e2492a", dim: "#fde9e3" },
-};
-
-const SCRIPT_SECTIONS = [
-  "Introduction",
-  "Questions de découverte",
-  "Pitch personnalisé",
-  "Gestion des objections",
-  "Closing",
-];
-
-function formatEuros(n) {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n || 0);
-}
-
-function formatDate(d) {
-  return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-}
-
-function getInitials(name) {
-  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-function Avatar({ name, stage, size = 34 }) {
-  const meta = STAGE_META[stage] || { color: "var(--text-faint)", dim: "var(--panel2)" };
-  return (
-    <div
-      className="mono"
-      style={{
-        width: size,
-        height: size,
-        minWidth: size,
-        borderRadius: "50%",
-        background: meta.dim,
-        color: meta.color,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: Math.round(size * 0.36),
-        fontWeight: 700,
-        border: `0.5px solid ${meta.color}40`,
-      }}
-    >
-      {getInitials(name)}
-    </div>
-  );
-}
-
-function Icon({ children, size = 14, color = "currentColor", style }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, ...style }}>
-      {children}
-    </svg>
-  );
-}
-
-function PhoneIcon(props) {
-  return (
-    <Icon {...props}>
-      <rect x="7" y="2" width="10" height="20" rx="2" />
-      <line x1="11" y1="18" x2="13" y2="18" />
-    </Icon>
-  );
-}
-
-function MailIcon(props) {
-  return (
-    <Icon {...props}>
-      <rect x="2" y="4" width="20" height="16" rx="2" />
-      <path d="M2 6l10 7 10-7" />
-    </Icon>
-  );
-}
-
-function ClockIcon(props) {
-  return (
-    <Icon {...props}>
-      <circle cx="12" cy="12" r="9" />
-      <line x1="12" y1="7" x2="12" y2="12" />
-      <line x1="12" y1="12" x2="15.5" y2="14" />
-    </Icon>
-  );
-}
-
-function AlertIcon({ color = "currentColor", ...props }) {
-  return (
-    <Icon color={color} {...props}>
-      <circle cx="12" cy="12" r="9" />
-      <line x1="12" y1="8" x2="12" y2="13" />
-      <circle cx="12" cy="16.3" r="0.6" fill={color} stroke="none" />
-    </Icon>
-  );
-}
-
-function SparklesIcon({ size = 14, color = "currentColor", style }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0, ...style }}>
-      <path d="M12 3l1.4 4.3L18 9l-4.6 1.7L12 15l-1.4-4.3L6 9l4.6-1.7z" fill={color} />
-      <path d="M19 13.5l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6z" fill={color} />
-    </svg>
-  );
-}
-
-function FlameIcon(props) {
-  return (
-    <Icon {...props}>
-      <path d="M12 22a7 7 0 0 0 7-7c0-3.5-2-5.5-3.5-8.5-.2 2.3-1.8 3-1.8 5.2a1.7 1.7 0 0 1-3.4 0c0-1 .4-1.8.9-2.6C8.5 10.5 7 13 7 15a7 7 0 0 0 5 7z" />
-    </Icon>
-  );
-}
-
-function UsersIcon(props) {
-  return (
-    <Icon {...props}>
-      <circle cx="9" cy="8" r="3.2" />
-      <path d="M3 20c0-3.5 2.8-6.2 6-6.2s6 2.7 6 6.2" />
-      <circle cx="17.5" cy="9" r="2.4" />
-      <path d="M15.8 14.3c2.6.5 4.2 2.7 4.2 5.7" />
-    </Icon>
-  );
-}
-
-async function callAI(prompt) {
-  const res = await fetch("/api/generate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Erreur inconnue");
-  return data.text;
-}
-
-export default function Dashboard({ session }) {
-  const [prospects, setProspects] = useState([]);
-  const [loading, setLoading] = useState(true);
+export default function Pipeline({ prospects, loading, reload, session }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", company: "", stage: "Découverte", status: "attente", priority: 50, deal_value: "" });
   const [saving, setSaving] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [tab, setTab] = useState("email");
-
-  async function loadProspects() {
-    setLoading(true);
-    const { data, error } = await supabase.from("prospects").select("*").order("priority", { ascending: false });
-    if (!error) setProspects(data || []);
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    loadProspects();
-  }, []);
 
   async function handleAddProspect(e) {
     e.preventDefault();
@@ -183,45 +35,27 @@ export default function Dashboard({ session }) {
     if (!error) {
       setForm({ name: "", company: "", stage: "Découverte", status: "attente", priority: 50, deal_value: "" });
       setShowForm(false);
-      loadProspects();
+      reload();
     }
   }
 
   async function handleUpdateProspect(id, changes) {
     const { error } = await supabase.from("prospects").update(changes).eq("id", id);
-    if (!error) loadProspects();
+    if (!error) reload();
   }
 
   async function handleDeleteProspect(id) {
     const { error } = await supabase.from("prospects").delete().eq("id", id);
     if (!error) {
       setSelectedId(null);
-      loadProspects();
+      reload();
     }
   }
 
-  const nbActions = prospects.filter((p) => p.status === "appeler" || p.status === "retard").length;
-  const nbRetard = prospects.filter((p) => p.status === "retard").length;
   const selected = prospects.find((p) => p.id === selectedId);
 
   return (
-    <div style={{ maxWidth: "1180px", margin: "0 auto", padding: "28px 24px 48px" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "22px" }}>
-        <div>
-          <div className="display" style={{ fontWeight: 700, fontSize: "22px", letterSpacing: "0.08em" }}>PISTE</div>
-          <div style={{ color: "var(--text-dim)", fontSize: "13px", marginTop: "2px" }}>{session.user.email}</div>
-        </div>
-        <button className="focusable" onClick={() => supabase.auth.signOut()} style={{ background: "transparent", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 12px", fontSize: "13px" }}>
-          Se déconnecter
-        </button>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "20px" }}>
-        <StatCard label="Actions aujourd'hui" value={nbActions} color="var(--amber)" Icon={FlameIcon} />
-        <StatCard label="En retard" value={nbRetard} color={nbRetard > 0 ? "var(--red)" : "var(--text-dim)"} Icon={AlertIcon} />
-        <StatCard label="Prospects au total" value={prospects.length} color="var(--blue)" Icon={UsersIcon} />
-      </div>
-
+    <div style={{ padding: "28px 32px 48px" }}>
       <div style={{ display: "grid", gridTemplateColumns: selected ? "minmax(0,1.4fr) minmax(0,1fr)" : "1fr", gap: "20px" }}>
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -544,34 +378,3 @@ function GeneratorBlock({ label, loading, error, content, setContent, onGenerate
     </div>
   );
 }
-
-function StatCard({ label, value, color, Icon }) {
-  return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "14px 16px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--text-dim)", fontSize: "11px", letterSpacing: "0.05em", marginBottom: "6px" }}>
-        {Icon && <Icon size={12} color="var(--text-dim)" />}
-        {label.toUpperCase()}
-      </div>
-      <div className="mono" style={{ fontWeight: 700, fontSize: "22px", color }}>{value}</div>
-    </div>
-  );
-}
-
-const inputStyle = {
-  background: "var(--panel2)",
-  border: "0.5px solid var(--hairline)",
-  borderRadius: "8px",
-  color: "var(--text)",
-  fontSize: "13px",
-  padding: "8px 10px",
-};
-
-const selectStyle = {
-  width: "100%",
-  background: "var(--panel2)",
-  border: "0.5px solid var(--hairline)",
-  borderRadius: "6px",
-  color: "var(--text)",
-  fontSize: "12px",
-  padding: "6px 8px",
-};
