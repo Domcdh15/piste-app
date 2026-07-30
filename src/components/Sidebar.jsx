@@ -3,6 +3,7 @@ import { getInitials } from "../lib/ui.jsx";
 const NAV_ITEMS = [
   { key: "today", label: "Aujourd'hui", emoji: "🏠" },
   { key: "pipeline", label: "Pipeline", emoji: "🎯" },
+  { key: "opportunities", label: "Opportunités", emoji: "💼" },
   { key: "tasks", label: "Tâches", emoji: "✅" },
   { key: "assistant", label: "Assistant IA", emoji: "☕" },
   { key: "activities", label: "Activités", emoji: "⚡" },

@@ -94,14 +94,20 @@ function buildHistoryContext(history) {
   return parts.length > 0 ? parts.join("\n\n") : "Aucun échange précédent enregistré — premier contact.";
 }
 
-export default function Pipeline({ prospects, loading, reload, session }) {
-  const [showForm, setShowForm] = useState(false);
+export default function Pipeline({ prospects, loading, reload, session, initialSelectedId, onConsumeInitialSelection, initialShowForm, onConsumeInitialShowForm }) {
+  const [showForm, setShowForm] = useState(!!initialShowForm);
   const [form, setForm] = useState({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", email: "", phone: "", stage: "À contacter", status: "attente", priority: 50, deal_value: "" });
   const [saving, setSaving] = useState(false);
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedId, setSelectedId] = useState(initialSelectedId || null);
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("Toutes");
   const [statusFilter, setStatusFilter] = useState("Tous");
+
+  useEffect(() => {
+    if (initialSelectedId) onConsumeInitialSelection?.();
+    if (initialShowForm) onConsumeInitialShowForm?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleAddProspect(e) {
     e.preventDefault();

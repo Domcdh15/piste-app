@@ -46,6 +46,27 @@ export function formatDate(d) {
   return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
+export const STAGE_PROGRESS = {
+  "À contacter": 15,
+  "Contact établi": 30,
+  "Rendez-vous prévu": 50,
+  "Proposition envoyée": 70,
+  "Négociation": 85,
+  "Gagné": 100,
+  "Perdu": 0,
+};
+
+export function formatRelative(d) {
+  if (!d) return null;
+  const diffDays = Math.floor((new Date() - new Date(d)) / 86400000);
+  if (diffDays <= 0) return "Aujourd'hui";
+  if (diffDays === 1) return "Il y a 1 jour";
+  if (diffDays < 7) return `Il y a ${diffDays} jours`;
+  if (diffDays < 14) return "Il y a 1 semaine";
+  if (diffDays < 30) return `Il y a ${Math.floor(diffDays / 7)} semaines`;
+  return `Il y a ${Math.floor(diffDays / 30)} mois`;
+}
+
 export function formatShortDate(d) {
   if (!d) return null;
   return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
