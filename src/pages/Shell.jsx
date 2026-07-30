@@ -29,7 +29,7 @@ export default function Shell({ session }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} />}
         {activeTab === "pipeline" && <Pipeline prospects={prospects} loading={loading} reload={loadProspects} session={session} />}
-        {activeTab === "assistant" && <Assistant />}
+        {activeTab === "assistant" && <Assistant session={session} />}
         {activeTab === "activities" && <Activities prospects={prospects} />}
         {activeTab === "settings" && <Settings session={session} />}
       </div>

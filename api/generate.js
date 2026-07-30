@@ -1,6 +1,13 @@
+import { getUserFromToken, bearerToken } from "./_lib/supabase.js";
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Méthode non autorisée" });
+  }
+
+  const user = await getUserFromToken(bearerToken(req));
+  if (!user) {
+    return res.status(401).json({ error: "Non authentifié" });
   }
 
   const { prompt } = req.body || {};

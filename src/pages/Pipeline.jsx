@@ -22,6 +22,73 @@ import {
   selectStyle,
 } from "../lib/ui.jsx";
 
+const ACTIVITY_LABEL = {
+  appel_abouti: "Appel abouti",
+  appel_manque: "Appel manqué",
+  deal_gagne: "Deal gagné",
+  deal_perdu: "Deal perdu",
+};
+
+function truncate(text, max) {
+  if (!text) return "";
+  return text.length > max ? text.slice(0, max).trim() + "…" : text;
+}
+
+function useProspectHistory(prospectId) {
+  const [history, setHistory] = useState({ emails: [], scripts: [], analyses: [], activities: [], loading: true });
+
+  async function load() {
+    setHistory((h) => ({ ...h, loading: true }));
+    const [emails, scripts, analyses, activities] = await Promise.all([
+      supabase.from("emails_generes").select("*").eq("prospect_id", prospectId).order("created_at", { ascending: false }),
+      supabase.from("scripts_appel").select("*").eq("prospect_id", prospectId).order("created_at", { ascending: false }),
+      supabase.from("analyses_ia").select("*").eq("prospect_id", prospectId).order("created_at", { ascending: false }),
+      supabase.from("activities").select("*").eq("prospect_id", prospectId).order("created_at", { ascending: false }),
+    ]);
+    setHistory({
+      emails: emails.data || [],
+      scripts: scripts.data || [],
+      analyses: analyses.data || [],
+      activities: activities.data || [],
+      loading: false,
+    });
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prospectId]);
+
+  return { ...history, reload: load };
+}
+
+// Condense les échanges passés en un texte exploitable par le prompt IA,
+// pour que les générations s'appuient sur le vrai historique du prospect
+// plutôt que sur son seul statut/étape actuels.
+function buildHistoryContext(history) {
+  const parts = [];
+
+  const callsAbouti = history.activities.filter((a) => a.type === "appel_abouti").length;
+  const callsManque = history.activities.filter((a) => a.type === "appel_manque").length;
+  if (callsAbouti + callsManque > 0) {
+    parts.push(`Appels précédents : ${callsAbouti} abouti(s), ${callsManque} manqué(s) sans réponse.`);
+  }
+
+  if (history.emails.length > 0) {
+    parts.push(`Dernier email envoyé (${formatShortDate(history.emails[0].created_at)}) :\n"${truncate(history.emails[0].content, 400)}"`);
+  }
+
+  if (history.scripts.length > 0) {
+    parts.push(`Dernier script d'appel préparé (${history.scripts[0].section}) :\n"${truncate(history.scripts[0].content, 300)}"`);
+  }
+
+  if (history.analyses.length > 0) {
+    parts.push(`Dernière analyse du prospect (${formatShortDate(history.analyses[0].created_at)}) :\n${history.analyses[0].content}`);
+  }
+
+  return parts.length > 0 ? parts.join("\n\n") : "Aucun échange précédent enregistré — premier contact.";
+}
+
 export default function Pipeline({ prospects, loading, reload, session }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", company: "", stage: "Découverte", status: "attente", priority: 50, deal_value: "" });
@@ -156,6 +223,7 @@ function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onL
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [tab, setTab] = useState("email");
   const [logged, setLogged] = useState("");
+  const history = useProspectHistory(prospect.id);
 
   async function handleStageChange(stage) {
     const changes = { stage };
@@ -265,6 +333,8 @@ function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onL
         </button>
       </div>
 
+      <CoachingCard prospect={prospect} history={history} session={session} />
+
       <div style={{ display: "flex", gap: "4px", marginBottom: "16px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
         {[["email", "Email"], ["script", "Script"], ["analyse", "Analyse"], ["taches", "Tâches"], ["historique", "Historique"]].map(([key, label]) => (
           <button key={key} className="focusable" onClick={() => setTab(key)} style={{ flex: 1, padding: "7px 6px", borderRadius: "6px", fontSize: "11px", fontWeight: 500, background: tab === key ? "var(--hairline)" : "transparent", color: tab === key ? "var(--text)" : "var(--text-dim)" }}>
@@ -274,49 +344,82 @@ function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onL
       </div>
 
       <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "18px" }}>
-        {tab === "email" && <EmailGenerator prospect={prospect} />}
-        {tab === "script" && <ScriptGenerator prospect={prospect} />}
-        {tab === "analyse" && <AnalyseGenerator prospect={prospect} />}
+        {tab === "email" && <EmailGenerator prospect={prospect} history={history} session={session} />}
+        {tab === "script" && <ScriptGenerator prospect={prospect} history={history} session={session} />}
+        {tab === "analyse" && <AnalyseGenerator prospect={prospect} history={history} session={session} />}
         {tab === "taches" && <TasksTab prospect={prospect} session={session} />}
-        {tab === "historique" && <Historique prospect={prospect} />}
+        {tab === "historique" && <Historique history={history} />}
       </div>
     </div>
   );
 }
 
-const ACTIVITY_LABEL = {
-  appel_abouti: "Appel abouti",
-  appel_manque: "Appel manqué",
-  deal_gagne: "Deal gagné",
-  deal_perdu: "Deal perdu",
-};
+function CoachingCard({ prospect, history, session }) {
+  const [regenerating, setRegenerating] = useState(false);
+  const [error, setError] = useState("");
+  const latest = history.analyses[0];
 
-function Historique({ prospect }) {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  async function regenerate() {
+    setRegenerating(true);
+    setError("");
+    try {
+      const prompt = `Tu es un coach commercial. Sur la base des échanges réels ci-dessous avec ce prospect, donne en français deux sections courtes : "Points forts" (ce qui fonctionne dans la relation ou l'approche actuelle) et "Points à améliorer" (ce qui freine la vente ou pourrait être mieux exploité), 2 à 3 puces courtes chacune. Termine par une ligne "Conseil : " avec une recommandation concrète et actionnable pour le prochain échange (appel ou email).
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const [emails, scripts, analyses, activities] = await Promise.all([
-        supabase.from("emails_generes").select("*").eq("prospect_id", prospect.id),
-        supabase.from("scripts_appel").select("*").eq("prospect_id", prospect.id),
-        supabase.from("analyses_ia").select("*").eq("prospect_id", prospect.id),
-        supabase.from("activities").select("*").eq("prospect_id", prospect.id),
-      ]);
-      const all = [
-        ...(emails.data || []).map((x) => ({ ...x, kind: "Email" })),
-        ...(scripts.data || []).map((x) => ({ ...x, kind: `Script — ${x.section}` })),
-        ...(analyses.data || []).map((x) => ({ ...x, kind: "Analyse" })),
-        ...(activities.data || []).map((x) => ({ ...x, kind: ACTIVITY_LABEL[x.type] || x.type, content: x.note || "" })),
-      ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      setItems(all);
-      setLoading(false);
+Nom du contact : ${prospect.name}
+Entreprise : ${prospect.company}
+Étape du pipeline : ${prospect.stage}
+
+${buildHistoryContext(history)}`;
+      const text = await callAI(prompt, session.access_token);
+      await supabase.from("analyses_ia").insert({ prospect_id: prospect.id, type: "points_forts_faibles", content: text });
+      await history.reload();
+    } catch (e) {
+      setError("La génération a échoué. Réessaie.");
+    } finally {
+      setRegenerating(false);
     }
-    load();
-  }, [prospect.id]);
+  }
 
-  if (loading) return <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Chargement...</div>;
+  return (
+    <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2563eb40", borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <SparklesIcon size={13} color="var(--blue)" />
+          <span className="display" style={{ fontWeight: 700, fontSize: "13px", color: "var(--blue)" }}>Points forts / points faibles</span>
+        </div>
+        <button className="focusable" onClick={regenerate} disabled={regenerating} style={{ fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--panel)", color: "var(--blue)", border: "0.5px solid #2563eb40" }}>
+          {regenerating ? "Analyse..." : latest ? "Régénérer" : "Générer"}
+        </button>
+      </div>
+
+      {error && <div style={{ color: "var(--red)", fontSize: "12px", marginBottom: "6px" }}>{error}</div>}
+
+      {history.loading ? (
+        <div style={{ color: "var(--text-dim)", fontSize: "12px" }}>Chargement de l'historique...</div>
+      ) : latest ? (
+        <>
+          <div style={{ fontSize: "12px", color: "var(--text)", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{latest.content}</div>
+          <div style={{ fontSize: "10px", color: "var(--text-faint)", marginTop: "8px" }}>Basé sur les échanges jusqu'au {formatShortDate(latest.created_at)}</div>
+        </>
+      ) : (
+        <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>
+          Pas encore d'analyse pour ce prospect — génère-la pour voir ce qui fonctionne et ce qui freine la vente, et pour que les emails générés s'en inspirent.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Historique({ history }) {
+  if (history.loading) return <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Chargement...</div>;
+
+  const items = [
+    ...history.emails.map((x) => ({ ...x, kind: "Email" })),
+    ...history.scripts.map((x) => ({ ...x, kind: `Script — ${x.section}` })),
+    ...history.analyses.map((x) => ({ ...x, kind: "Analyse" })),
+    ...history.activities.map((x) => ({ ...x, kind: ACTIVITY_LABEL[x.type] || x.type, content: x.note || "" })),
+  ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
   if (items.length === 0) return <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Rien d'enregistré pour ce prospect pour l'instant.</div>;
 
   return (
@@ -427,7 +530,7 @@ function TasksTab({ prospect, session }) {
   );
 }
 
-function EmailGenerator({ prospect }) {
+function EmailGenerator({ prospect, history, session }) {
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -436,13 +539,16 @@ function EmailGenerator({ prospect }) {
     setLoading(true);
     setError("");
     try {
-      const prompt = `Tu es un assistant commercial. Rédige un email de relance court (5 à 6 phrases maximum), professionnel mais chaleureux, en français. Ne mets pas d'objet, uniquement le corps de l'email, termine par "— [Ton prénom]".
+      const prompt = `Tu es un assistant commercial. Rédige un email de relance court (5 à 6 phrases maximum), professionnel mais chaleureux, en français. Ne mets pas d'objet, uniquement le corps de l'email, termine par "— [Ton prénom]". Appuie-toi sur les points forts identifiés dans l'historique pour renforcer l'argumentaire, et adresse discrètement les points faibles ou objections potentielles. Ne répète pas ce qui a déjà été dit dans les échanges précédents.
 
 Nom du contact : ${prospect.name}
 Entreprise : ${prospect.company}
 Étape du pipeline : ${prospect.stage}
-Statut : ${prospect.status}`;
-      const text = await callAI(prompt);
+Statut : ${prospect.status}
+
+Historique des échanges avec ce prospect :
+${buildHistoryContext(history)}`;
+      const text = await callAI(prompt, session.access_token);
       setContent(text);
     } catch (e) {
       setError("La génération a échoué. Réessaie.");
@@ -453,6 +559,7 @@ Statut : ${prospect.status}`;
 
   async function save() {
     await supabase.from("emails_generes").insert({ prospect_id: prospect.id, type: "relance", content });
+    history.reload();
   }
 
   return (
@@ -460,7 +567,7 @@ Statut : ${prospect.status}`;
   );
 }
 
-function ScriptGenerator({ prospect }) {
+function ScriptGenerator({ prospect, history, session }) {
   const [section, setSection] = useState(SCRIPT_SECTIONS[0]);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
@@ -470,13 +577,16 @@ function ScriptGenerator({ prospect }) {
     setLoading(true);
     setError("");
     try {
-      const prompt = `Tu es un assistant commercial. Rédige la section "${section}" d'un script d'appel de vente B2B, en français, sous forme de puces courtes et actionnables (pas de phrases longues), 3 à 5 puces maximum.
+      const prompt = `Tu es un assistant commercial. Rédige la section "${section}" d'un script d'appel de vente B2B, en français, sous forme de puces courtes et actionnables (pas de phrases longues), 3 à 5 puces maximum. Tiens compte de l'historique des échanges pour éviter de répéter ce qui a déjà été abordé.
 
 Nom du contact : ${prospect.name}
 Entreprise : ${prospect.company}
 Étape du pipeline : ${prospect.stage}
-Statut : ${prospect.status}`;
-      const text = await callAI(prompt);
+Statut : ${prospect.status}
+
+Historique des échanges avec ce prospect :
+${buildHistoryContext(history)}`;
+      const text = await callAI(prompt, session.access_token);
       setContent(text);
     } catch (e) {
       setError("La génération a échoué. Réessaie.");
@@ -487,6 +597,7 @@ Statut : ${prospect.status}`;
 
   async function save() {
     await supabase.from("scripts_appel").insert({ prospect_id: prospect.id, section, content });
+    history.reload();
   }
 
   return (
@@ -503,7 +614,7 @@ Statut : ${prospect.status}`;
   );
 }
 
-function AnalyseGenerator({ prospect }) {
+function AnalyseGenerator({ prospect, history, session }) {
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -512,13 +623,16 @@ function AnalyseGenerator({ prospect }) {
     setLoading(true);
     setError("");
     try {
-      const prompt = `Tu es un assistant commercial. Analyse ce prospect et donne, en français, deux sections claires : "Points positifs" (ce qui va dans le bon sens) et "Points à améliorer" (ce qui freine la vente), chacune en 2 à 3 puces courtes.
+      const prompt = `Tu es un assistant commercial. Analyse ce prospect et donne, en français, deux sections claires : "Points positifs" (ce qui va dans le bon sens) et "Points à améliorer" (ce qui freine la vente), chacune en 2 à 3 puces courtes. Base ton analyse sur les échanges réels ci-dessous, pas seulement sur le statut actuel.
 
 Nom du contact : ${prospect.name}
 Entreprise : ${prospect.company}
 Étape du pipeline : ${prospect.stage}
-Statut : ${prospect.status}`;
-      const text = await callAI(prompt);
+Statut : ${prospect.status}
+
+Historique des échanges avec ce prospect :
+${buildHistoryContext(history)}`;
+      const text = await callAI(prompt, session.access_token);
       setContent(text);
     } catch (e) {
       setError("La génération a échoué. Réessaie.");
@@ -529,6 +643,7 @@ Statut : ${prospect.status}`;
 
   async function save() {
     await supabase.from("analyses_ia").insert({ prospect_id: prospect.id, type: "points_forts_faibles", content });
+    history.reload();
   }
 
   return (

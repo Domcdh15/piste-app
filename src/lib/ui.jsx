@@ -72,10 +72,13 @@ export function getFirstName(user) {
   return first ? first.charAt(0).toUpperCase() + first.slice(1) : "";
 }
 
-export async function callAI(prompt) {
+export async function callAI(prompt, token) {
   const res = await fetch("/api/generate", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({ prompt }),
   });
   const data = await res.json();

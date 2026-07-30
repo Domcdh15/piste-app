@@ -7,7 +7,7 @@ const SUGGESTIONS = [
   "Aide-moi à préparer un appel de découverte pour une PME industrielle.",
 ];
 
-export default function Assistant() {
+export default function Assistant({ session }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,7 +24,7 @@ export default function Assistant() {
       const prompt = `Tu es l'assistant commercial intégré à Piste, un outil de gestion de pipeline de vente. Réponds en français, de façon concise et actionnable, avec des conseils concrets de vente B2B.
 
 Question : ${q}`;
-      const text = await callAI(prompt);
+      const text = await callAI(prompt, session.access_token);
       setMessages((m) => [...m, { role: "assistant", text }]);
     } catch (e) {
       setError("La génération a échoué. Réessaie.");

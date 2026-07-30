@@ -74,7 +74,7 @@ Prospects à relancer par email : ${relances.map((p) => `${p.name} (${p.company}
 Rendez-vous à l'agenda aujourd'hui : ${events.map((e) => `${e.title} à ${formatEventTime(e.start)}`).join(", ") || "aucun"}
 
 Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
-        const text = await callAI(prompt);
+        const text = await callAI(prompt, session.access_token);
         setTip(text.trim());
       } catch (e) {
         setTip(FALLBACK_TIP);
