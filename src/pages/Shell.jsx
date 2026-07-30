@@ -69,7 +69,7 @@ export default function Shell({ session }) {
           />
         )}
         {activeTab === "assistant" && <Assistant session={session} prospects={prospects} onOpenProspect={openProspect} settings={settings} />}
-        {activeTab === "activities" && <Activities prospects={prospects} onOpenProspect={openProspect} />}
+        {activeTab === "activities" && <Activities prospects={prospects} onOpenProspect={openProspect} session={session} />}
         {activeTab === "settings" && <Settings session={session} prospects={prospects} settings={settings} reloadSettings={loadSettings} />}
         {activeTab === "integrations" && <Integrations session={session} />}
       </div>

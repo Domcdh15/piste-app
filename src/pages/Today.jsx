@@ -216,23 +216,31 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
           padding: "32px 32px 26px",
         }}
       >
-        <div className="display" style={{ fontWeight: 700, fontSize: "32px", display: "flex", alignItems: "center", gap: "10px" }}>
-          Bonjour{firstName ? ` ${firstName}` : ""} <span>👋</span>
-        </div>
-        <div style={{ opacity: 0.85, fontSize: "14px", marginTop: "6px", marginBottom: "18px" }}>{todayLabel()}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "20px", flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: "240px" }}>
+            <div className="display" style={{ fontWeight: 700, fontSize: "32px", display: "flex", alignItems: "center", gap: "10px" }}>
+              Bonjour{firstName ? ` ${firstName}` : ""} <span>👋</span>
+            </div>
+            <div style={{ opacity: 0.85, fontSize: "14px", marginTop: "6px", marginBottom: "18px" }}>{todayLabel()}</div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 600, opacity: 0.95, marginBottom: "10px" }}>
-          📋 Missions du jour
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "16px" }}>
-          <Pill icon="📞" text={`${nbAppels} appel(s)`} />
-          <Pill icon="🗓️" text={`${eventsLoading ? "…" : events.length} RDV`} />
-          <Pill icon="🔁" text={`${nbRelances} relance(s)`} />
-          <Pill icon="🎯" text={`${nbOpportunites} opportunité(s)`} />
-        </div>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "6px", fontSize: "13px", opacity: 0.95 }}>
-          <SparklesIcon size={13} color="#fff" style={{ marginTop: "2px" }} />
-          <span>{tipLoading ? "Analyse de ta journée en cours..." : tip || FALLBACK_TIP}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: 600, opacity: 0.95, marginBottom: "10px" }}>
+              📋 Missions du jour
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+              <Pill icon="📞" text={`${nbAppels} appel(s)`} />
+              <Pill icon="🗓️" text={`${eventsLoading ? "…" : events.length} RDV`} />
+              <Pill icon="🔁" text={`${nbRelances} relance(s)`} />
+              <Pill icon="🎯" text={`${nbOpportunites} opportunité(s)`} />
+            </div>
+          </div>
+
+          <div style={{ background: "rgba(255,255,255,0.14)", border: "0.5px solid rgba(255,255,255,0.25)", borderRadius: "12px", padding: "14px 16px", maxWidth: "280px", display: "flex", gap: "8px", alignItems: "flex-start" }}>
+            <SparklesIcon size={13} color="#fff" style={{ marginTop: "2px", flexShrink: 0 }} />
+            <div>
+              <div style={{ fontSize: "10px", fontWeight: 700, opacity: 0.75, letterSpacing: "0.04em", marginBottom: "4px" }}>CONSEIL DU JOUR</div>
+              <span style={{ fontSize: "13px", opacity: 0.95, lineHeight: 1.4 }}>{tipLoading ? "Analyse de ta journée en cours..." : tip || FALLBACK_TIP}</span>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { Avatar, formatDate, formatEuros, periodRange, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, TargetIcon } from "../lib/ui.jsx";
+import { Avatar, formatDate, formatShortDate, formatEuros, periodRange, callAI, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, TargetIcon } from "../lib/ui.jsx";
 
 const PERIODS = [
   ["day", "Jour"],
@@ -28,12 +28,13 @@ const ICONS = {
   "Deal perdu": <XIcon size={13} color="var(--text-dim)" />,
 };
 
-export default function Activities({ prospects, onOpenProspect }) {
+export default function Activities({ prospects, onOpenProspect, session }) {
   const [period, setPeriod] = useState("week");
   const [filter, setFilter] = useState("Tous");
   const [activities, setActivities] = useState([]);
   const [feedItems, setFeedItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [expandedTile, setExpandedTile] = useState(null);
 
   useEffect(() => {
     async function load() {
@@ -68,19 +69,30 @@ export default function Activities({ prospects, onOpenProspect }) {
   const { start } = periodRange(period);
   const inRange = activities.filter((a) => new Date(a.created_at) >= start);
 
+  const appelsList = inRange.filter((a) => a.type === "appel_abouti" || a.type === "appel_manque");
   const nbAppelAbouti = inRange.filter((a) => a.type === "appel_abouti").length;
   const nbAppelManque = inRange.filter((a) => a.type === "appel_manque").length;
-  const nbDealGagne = inRange.filter((a) => a.type === "deal_gagne").length;
-  const nbDealPerdu = inRange.filter((a) => a.type === "deal_perdu").length;
   const totalAppels = nbAppelAbouti + nbAppelManque;
   const tauxReussite = totalAppels > 0 ? Math.round((nbAppelAbouti / totalAppels) * 100) : null;
 
-  const nbRdv = feedItems.filter((i) => i.filterKey === "Rendez-vous" && new Date(i.created_at) >= start).length;
-  const nbOpportunitesCreees = prospects.filter((p) => p.created_at && new Date(p.created_at) >= start).length;
+  const rdvList = feedItems.filter((i) => i.filterKey === "Rendez-vous" && new Date(i.created_at) >= start);
+  const opportunitesList = prospects.filter((p) => p.created_at && new Date(p.created_at) >= start);
+  const gagnesList = prospects.filter((p) => p.stage === "Gagné" && p.closed_at && new Date(p.closed_at) >= start);
+  const perdusList = prospects.filter((p) => p.stage === "Perdu" && p.closed_at && new Date(p.closed_at) >= start);
+  const nbDealGagne = gagnesList.length;
+  const nbDealPerdu = perdusList.length;
   const tauxConversion = nbDealGagne + nbDealPerdu > 0 ? Math.round((nbDealGagne / (nbDealGagne + nbDealPerdu)) * 100) : null;
-  const caGenere = prospects
-    .filter((p) => p.stage === "Gagné" && p.closed_at && new Date(p.closed_at) >= start)
-    .reduce((sum, p) => sum + (p.deal_value || 0), 0);
+  const caGenere = gagnesList.reduce((sum, p) => sum + (p.deal_value || 0), 0);
+
+  const TILES = {
+    appels: { label: "Nombre d'appels", items: appelsList, kind: "activities" },
+    rdv: { label: "Nombre de rendez-vous", items: rdvList, kind: "feed" },
+    opportunites: { label: "Opportunités créées", items: opportunitesList, kind: "prospects", dateField: "created_at" },
+    gagnes: { label: "Deals gagnés", items: gagnesList, kind: "prospects", dateField: "closed_at" },
+    perdus: { label: "Deals perdus", items: perdusList, kind: "prospects", dateField: "closed_at" },
+    conversion: { label: "Taux de conversion", items: [...gagnesList, ...perdusList], kind: "prospects", dateField: "closed_at" },
+    ca: { label: "CA généré", items: [...gagnesList].sort((a, b) => (b.deal_value || 0) - (a.deal_value || 0)), kind: "revenue", dateField: "closed_at" },
+  };
 
   const visibleFeed = filter === "Tous" ? feedItems : feedItems.filter((item) => item.filterKey === filter);
 
@@ -103,15 +115,25 @@ export default function Activities({ prospects, onOpenProspect }) {
       </div>
       <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "20px" }}>Mémoire commerciale chronologique, tous prospects confondus.</div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "24px", maxWidth: "820px" }}>
-        <ReportTile icon={<PhoneIcon size={14} color="#0ea968" />} accent="#0ea968" label="Nombre d'appels" value={totalAppels} />
-        <ReportTile icon={<CalendarIcon size={14} color="var(--blue)" />} accent="var(--blue)" label="Nombre de rendez-vous" value={nbRdv} />
-        <ReportTile icon={<TargetIcon size={14} color="#7c3aed" />} accent="#7c3aed" label="Opportunités créées" value={nbOpportunitesCreees} />
-        <ReportTile icon={<TrophyIcon size={14} color="#0ea968" />} accent="#0ea968" label="Deals gagnés" value={nbDealGagne} />
-        <ReportTile icon={<XIcon size={14} color="var(--text-dim)" />} accent="var(--text-dim)" label="Deals perdus" value={nbDealPerdu} />
-        <ReportTile icon={<TrophyIcon size={14} color="var(--amber)" />} accent="var(--amber)" label="Taux de conversion" value={tauxConversion !== null ? `${tauxConversion}%` : "—"} />
-        <ReportTile icon={<TargetIcon size={14} color="#0ea968" />} accent="#0ea968" label="CA généré" value={formatEuros(caGenere)} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: expandedTile ? "0" : "24px", maxWidth: "820px" }}>
+        <ReportTile tileKey="appels" expanded={expandedTile === "appels"} onClick={setExpandedTile} icon={<PhoneIcon size={14} color="#0ea968" />} accent="#0ea968" label="Nombre d'appels" value={totalAppels} />
+        <ReportTile tileKey="rdv" expanded={expandedTile === "rdv"} onClick={setExpandedTile} icon={<CalendarIcon size={14} color="var(--blue)" />} accent="var(--blue)" label="Nombre de rendez-vous" value={rdvList.length} />
+        <ReportTile tileKey="opportunites" expanded={expandedTile === "opportunites"} onClick={setExpandedTile} icon={<TargetIcon size={14} color="#7c3aed" />} accent="#7c3aed" label="Opportunités créées" value={opportunitesList.length} />
+        <ReportTile tileKey="gagnes" expanded={expandedTile === "gagnes"} onClick={setExpandedTile} icon={<TrophyIcon size={14} color="#0ea968" />} accent="#0ea968" label="Deals gagnés" value={nbDealGagne} />
+        <ReportTile tileKey="perdus" expanded={expandedTile === "perdus"} onClick={setExpandedTile} icon={<XIcon size={14} color="var(--text-dim)" />} accent="var(--text-dim)" label="Deals perdus" value={nbDealPerdu} />
+        <ReportTile tileKey="conversion" expanded={expandedTile === "conversion"} onClick={setExpandedTile} icon={<TrophyIcon size={14} color="var(--amber)" />} accent="var(--amber)" label="Taux de conversion" value={tauxConversion !== null ? `${tauxConversion}%` : "—"} />
+        <ReportTile tileKey="ca" expanded={expandedTile === "ca"} onClick={setExpandedTile} icon={<TargetIcon size={14} color="#0ea968" />} accent="#0ea968" label="CA généré" value={formatEuros(caGenere)} />
       </div>
+
+      {expandedTile && (
+        <ExpandedTilePanel
+          tileKey={expandedTile}
+          config={TILES[expandedTile]}
+          onOpenProspect={onOpenProspect}
+          onClose={() => setExpandedTile(null)}
+          session={session}
+        />
+      )}
 
       {tauxReussite !== null && (
         <div style={{ color: "var(--text-dim)", fontSize: "12px", marginBottom: "20px" }}>
@@ -174,14 +196,107 @@ export default function Activities({ prospects, onOpenProspect }) {
   );
 }
 
-function ReportTile({ icon, accent, label, value }) {
+function ReportTile({ tileKey, expanded, onClick, icon, accent, label, value }) {
   return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderTop: `2.5px solid ${accent}`, borderRadius: "10px", padding: "14px 16px" }}>
+    <button
+      className="focusable"
+      onClick={() => onClick((k) => (k === tileKey ? null : tileKey))}
+      style={{
+        textAlign: "left", cursor: "pointer", background: expanded ? "var(--panel2)" : "var(--panel)",
+        border: expanded ? `0.5px solid ${accent}88` : "0.5px solid var(--hairline)",
+        borderTop: `2.5px solid ${accent}`, borderRadius: expanded ? "10px 10px 0 0" : "10px", padding: "14px 16px",
+      }}
+    >
       <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--text-dim)", fontSize: "11px", marginBottom: "8px" }}>
         {icon}
         {label}
+        <span style={{ marginLeft: "auto", fontSize: "10px", color: "var(--text-faint)" }}>{expanded ? "▲" : "▼"}</span>
       </div>
       <div className="mono" style={{ fontWeight: 700, fontSize: "22px", color: accent }}>{value}</div>
+    </button>
+  );
+}
+
+function detailDate(item, config) {
+  if (config.kind === "activities" || config.kind === "feed") return item.created_at;
+  return item[config.dateField] || item.created_at;
+}
+
+function ExpandedTilePanel({ tileKey, config, onOpenProspect, onClose, session }) {
+  const [summary, setSummary] = useState("");
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [error, setError] = useState("");
+  const { items, label, kind } = config;
+
+  useEffect(() => {
+    setSummary("");
+    setError("");
+  }, [tileKey]);
+
+  async function generateSummary() {
+    setLoadingSummary(true);
+    setError("");
+    try {
+      const context = items.slice(0, 30).map((item) => {
+        if (kind === "activities") return `${item.type} — ${item.prospect?.name || "prospect supprimé"} (${item.prospect?.company || ""}) le ${formatShortDate(item.created_at)}`;
+        if (kind === "feed") return `${item.kind} — ${item.prospect?.name || ""} le ${formatShortDate(item.created_at)}`;
+        return `${item.name} (${item.company}) — ${item.stage}, ${formatEuros(item.deal_value)}, ${formatShortDate(detailDate(item, config))}`;
+      }).join("\n");
+      const prompt = `Tu es un coach commercial. Voici les données de la catégorie "${label}" sur la période sélectionnée (${items.length} élément(s)). Rédige un résumé en français, 2-3 phrases maximum, avec une observation utile ou une tendance à noter. Réponds uniquement avec le résumé, sans préambule.
+
+${context || "Aucune donnée sur cette période."}`;
+      const text = await callAI(prompt, session.access_token);
+      setSummary(text.trim());
+    } catch (e) {
+      setError("Le résumé a échoué. Réessaie.");
+    } finally {
+      setLoadingSummary(false);
+    }
+  }
+
+  return (
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "0 0 10px 10px", padding: "16px", marginBottom: "24px", maxWidth: "820px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+        <span className="display" style={{ fontWeight: 700, fontSize: "13px" }}>{label} · {items.length}</span>
+        <button className="focusable" onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "13px" }}>✕</button>
+      </div>
+
+      <button className="focusable" onClick={generateSummary} disabled={loadingSummary || items.length === 0} style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "7px 12px", fontSize: "12px", marginBottom: "12px", opacity: items.length === 0 ? 0.5 : 1 }}>
+        <SparklesIcon size={12} color="var(--blue)" /> {loadingSummary ? "Analyse..." : "Générer un résumé IA"}
+      </button>
+      {error && <div style={{ color: "var(--red)", fontSize: "12px", marginBottom: "10px" }}>{error}</div>}
+      {summary && <div style={{ background: "var(--blue-dim)", color: "var(--blue)", borderRadius: "8px", padding: "10px 12px", fontSize: "12px", marginBottom: "14px", lineHeight: 1.5 }}>{summary}</div>}
+
+      {items.length === 0 ? (
+        <div style={{ color: "var(--text-faint)", fontSize: "12px" }}>Aucun élément sur cette période.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "320px", overflowY: "auto" }}>
+          {items.map((item) => {
+            if (kind === "activities" || kind === "feed") {
+              const prospect = item.prospect;
+              return (
+                <button key={item.id} className="focusable" onClick={() => prospect && onOpenProspect?.(prospect.id)} style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", textAlign: "left", cursor: prospect ? "pointer" : "default" }}>
+                  {prospect && <Avatar name={prospect.name} stage={prospect.stage} size={20} />}
+                  <span style={{ fontSize: "12px", fontWeight: 500, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{prospect ? prospect.name : "Prospect supprimé"}</span>
+                  <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>{formatShortDate(item.created_at)}</span>
+                </button>
+              );
+            }
+            const isRevenue = kind === "revenue";
+            return (
+              <button key={item.id} className="focusable" onClick={() => onOpenProspect?.(item.id)} style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", textAlign: "left" }}>
+                <Avatar name={item.name} stage={item.stage} size={20} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "12px", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
+                  <div style={{ fontSize: "10px", color: "var(--text-faint)" }}>{item.company}</div>
+                </div>
+                {isRevenue && <span className="mono" style={{ fontSize: "12px", fontWeight: 700, color: "#0ea968" }}>{formatEuros(item.deal_value)}</span>}
+                <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>{formatShortDate(detailDate(item, config))}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
