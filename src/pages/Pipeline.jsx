@@ -722,13 +722,25 @@ function EmailGenerator({ prospect, history, session }) {
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [keywords, setKeywords] = useState("");
 
-  async function generate() {
+  function template() {
+    const firstName = prospect.name.trim().split(/\s+/)[0];
+    return `Bonjour ${firstName},\n\nJe me permets de revenir vers vous au sujet de ${prospect.company}. N'hésitez pas à me faire signe si vous avez des questions ou si vous souhaitez qu'on échange à ce sujet.\n\nBonne journée,\n— [Ton prénom]`;
+  }
+
+  function useTemplate() {
+    setContent(template());
+    setShowModal(false);
+  }
+
+  async function generateWithAI() {
     setLoading(true);
     setError("");
     try {
       const prompt = `Tu es un assistant commercial. Rédige un email de relance court (5 à 6 phrases maximum), professionnel mais chaleureux, en français. Ne mets pas d'objet, uniquement le corps de l'email, termine par "— [Ton prénom]". Appuie-toi sur les points forts identifiés dans l'historique pour renforcer l'argumentaire, et adresse discrètement les points faibles ou objections potentielles. Ne répète pas ce qui a déjà été dit dans les échanges précédents.
-
+${keywords.trim() ? `\nÉléments à intégrer absolument, donnés par le commercial : ${keywords.trim()}\n` : ""}
 Nom du contact : ${prospect.name}
 Entreprise : ${prospect.company}
 Étape du pipeline : ${prospect.stage}
@@ -738,6 +750,8 @@ Historique des échanges avec ce prospect :
 ${buildHistoryContext(history)}`;
       const text = await callAI(prompt, session.access_token);
       setContent(text);
+      setShowModal(false);
+      setKeywords("");
     } catch (e) {
       setError("La génération a échoué. Réessaie.");
     } finally {
@@ -751,7 +765,41 @@ ${buildHistoryContext(history)}`;
   }
 
   return (
-    <GeneratorBlock label="Générer un email de relance" loading={loading} error={error} content={content} setContent={setContent} onGenerate={generate} onSave={save} />
+    <>
+      <GeneratorBlock label="Générer un email de relance" loading={false} error={error} content={content} setContent={setContent} onGenerate={() => setShowModal(true)} onSave={save} />
+
+      {showModal && (
+        <Modal onClose={() => setShowModal(false)}>
+          <div className="display" style={{ fontWeight: 700, fontSize: "16px", marginBottom: "14px" }}>Nouvel email</div>
+
+          <div style={{ background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px", marginBottom: "16px" }}>
+            <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "8px" }}>Modèle rapide</div>
+            <div style={{ fontSize: "12px", color: "var(--text-dim)", whiteSpace: "pre-wrap", lineHeight: 1.5, marginBottom: "10px" }}>{template()}</div>
+            <button className="focusable" onClick={useTemplate} style={{ width: "100%", background: "var(--panel)", color: "var(--text)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px", fontSize: "12px" }}>
+              Utiliser ce modèle
+            </button>
+          </div>
+
+          <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "8px" }}>Ou personnalise avec l'IA</div>
+          <input
+            value={keywords}
+            onChange={(e) => setKeywords(e.target.value)}
+            placeholder="Mots-clés (ex : insister sur le prix, mentionner la démo de mardi)"
+            style={{ ...inputStyle, width: "100%", marginBottom: "10px", boxSizing: "border-box" }}
+          />
+          <button
+            className="focusable"
+            onClick={generateWithAI}
+            disabled={loading}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: loading ? 0.6 : 1 }}
+          >
+            <SparklesIcon size={13} color="var(--blue)" />
+            {loading ? "Génération..." : "Générer avec l'IA"}
+          </button>
+          {error && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "8px" }}>{error}</div>}
+        </Modal>
+      )}
+    </>
   );
 }
 
