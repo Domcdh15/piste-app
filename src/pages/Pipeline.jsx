@@ -943,7 +943,7 @@ Entreprise : ${prospect.company}
 
 ${buildHistoryContext(history)}`;
       const text = await callAI(prompt, session.access_token);
-      await supabase.from("analyses_ia").insert({ prospect_id: prospect.id, type: "points_forts_faibles", content: text });
+      await supabase.from("analyses_ia").insert({ user_id: session.user.id, prospect_id: prospect.id, type: "points_forts_faibles", content: text });
       await history.reload();
     } catch (e) {
       setError("La génération a échoué. Réessaie.");
@@ -1152,7 +1152,7 @@ ${buildHistoryContext(history)}`;
   }
 
   async function save() {
-    await supabase.from("emails_generes").insert({ prospect_id: prospect.id, type: "relance", content });
+    await supabase.from("emails_generes").insert({ user_id: session.user.id, prospect_id: prospect.id, type: "relance", content });
     history.reload();
   }
 
@@ -1231,7 +1231,7 @@ ${buildHistoryContext(history)}`;
   }
 
   async function save() {
-    await supabase.from("scripts_appel").insert({ prospect_id: prospect.id, section, content });
+    await supabase.from("scripts_appel").insert({ user_id: session.user.id, prospect_id: prospect.id, section, content });
     history.reload();
   }
 
@@ -1287,7 +1287,7 @@ ${buildHistoryContext(history)}`;
   }
 
   async function save() {
-    await supabase.from("analyses_ia").insert({ prospect_id: prospect.id, type: "points_forts_faibles", content });
+    await supabase.from("analyses_ia").insert({ user_id: session.user.id, prospect_id: prospect.id, type: "points_forts_faibles", content });
     history.reload();
   }
 
