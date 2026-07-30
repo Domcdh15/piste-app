@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { PhoneIcon, MailIcon, CheckIcon, ClockIcon, AlertIcon, formatShortDate, isOverdue, PRIORITY_LEVELS, inputStyle } from "../lib/ui.jsx";
+import { PhoneIcon, MailIcon, VideoIcon, PinIcon, CheckIcon, ClockIcon, AlertIcon, formatShortDate, isOverdue, PRIORITY_LEVELS, inputStyle } from "../lib/ui.jsx";
 
 const TYPE_META = {
-  appeler: { label: "Appel", color: "var(--amber)", dim: "var(--amber-dim)", Icon: PhoneIcon },
-  email: { label: "Email", color: "var(--blue)", dim: "var(--blue-dim)", Icon: MailIcon },
+  appel_telephone: { label: "Appel téléphonique", short: "Appel", color: "var(--amber)", dim: "var(--amber-dim)", Icon: PhoneIcon },
+  appel_visio: { label: "Appel visio", short: "Visio", color: "#7c3aed", dim: "#f1e9fe", Icon: VideoIcon },
+  rdv_physique: { label: "RDV physique", short: "RDV", color: "#0ea968", dim: "#e2f7ec", Icon: PinIcon },
+  relance_email: { label: "Relance mail", short: "Email", color: "var(--blue)", dim: "var(--blue-dim)", Icon: MailIcon },
 };
 
 const PRIORITY_COLORS = {
@@ -28,7 +30,7 @@ export default function Tasks({ prospects, session }) {
   const [typeFilter, setTypeFilter] = useState("Tous");
   const [dateFilter, setDateFilter] = useState("Toutes");
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ note: "", prospectId: "", type: "appeler", dueAt: "", priority: "50" });
+  const [form, setForm] = useState({ note: "", prospectId: "", type: "appel_telephone", dueAt: "", priority: "50" });
   const [saving, setSaving] = useState(false);
   const [justDone, setJustDone] = useState(null);
 
@@ -59,7 +61,7 @@ export default function Tasks({ prospects, session }) {
       due_at: form.dueAt ? new Date(form.dueAt).toISOString() : null,
       priority: Number(form.priority),
     });
-    setForm({ note: "", prospectId: "", type: "appeler", dueAt: "", priority: "50" });
+    setForm({ note: "", prospectId: "", type: "appel_telephone", dueAt: "", priority: "50" });
     setSaving(false);
     setShowForm(false);
     load();
@@ -172,7 +174,7 @@ export default function Tasks({ prospects, session }) {
       </div>
 
       <div style={{ display: "flex", gap: "6px", marginBottom: "20px", flexWrap: "wrap" }}>
-        {["Tous", "appeler", "email"].map((t) => {
+        {["Tous", ...Object.keys(TYPE_META)].map((t) => {
           const activeState = typeFilter === t;
           const meta = TYPE_META[t];
           return (
@@ -188,7 +190,7 @@ export default function Tasks({ prospects, session }) {
               }}
             >
               {meta && <meta.Icon size={11} color={activeState ? meta.color : "var(--text-faint)"} />}
-              {t === "Tous" ? "Tous les types" : meta.label}
+              {t === "Tous" ? "Tous les types" : meta.short}
             </button>
           );
         })}
@@ -202,8 +204,7 @@ export default function Tasks({ prospects, session }) {
             {prospects.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.company}</option>)}
           </select>
           <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} style={inputStyle}>
-            <option value="appeler">Appel</option>
-            <option value="email">Email</option>
+            {Object.entries(TYPE_META).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}
           </select>
           <input type="date" value={form.dueAt} onChange={(e) => setForm({ ...form, dueAt: e.target.value })} style={inputStyle} />
           <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} style={inputStyle}>
@@ -262,7 +263,7 @@ export default function Tasks({ prospects, session }) {
 function TaskRow({ t, prospect, onToggle, onRemove, justDone }) {
   const level = PRIORITY_LEVELS.find((l) => l.value === t.priority) || PRIORITY_LEVELS[1];
   const priorityColor = PRIORITY_COLORS[level.value] || PRIORITY_COLORS[50];
-  const type = TYPE_META[t.type] || TYPE_META.appeler;
+  const type = TYPE_META[t.type] || TYPE_META.appel_telephone;
   const overdue = !t.done && t.due_at && isOverdue(t.due_at);
 
   return (

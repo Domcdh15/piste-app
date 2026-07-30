@@ -236,6 +236,24 @@ export function PhoneIcon(props) {
   );
 }
 
+export function VideoIcon(props) {
+  return (
+    <Icon {...props}>
+      <rect x="2" y="6" width="14" height="12" rx="2" />
+      <path d="M16 10.5l5-3v9l-5-3z" />
+    </Icon>
+  );
+}
+
+export function PinIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" />
+      <circle cx="12" cy="9.5" r="2.3" />
+    </Icon>
+  );
+}
+
 export function MailIcon(props) {
   return (
     <Icon {...props}>

@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import {
   STATUS_META,
+  STAGE_META,
+  computeDealScore,
+  formatRelative,
   SCRIPT_SECTIONS,
   OPEN_STAGES,
   CLOSED_STAGES,
@@ -107,6 +110,12 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
   const [statusFilter, setStatusFilter] = useState("Tous");
   const [sortKey, setSortKey] = useState("priority");
   const [sortDir, setSortDir] = useState("desc");
+  const [viewMode, setViewMode] = useState("table");
+  const [openTasks, setOpenTasks] = useState([]);
+
+  useEffect(() => {
+    supabase.from("tasks").select("*").eq("done", false).order("due_at", { ascending: true, nullsFirst: false }).then(({ data }) => setOpenTasks(data || []));
+  }, []);
 
   function toggleSort(key) {
     if (sortKey === key) {
@@ -205,7 +214,17 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
   return (
     <div style={{ padding: "28px 32px 48px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "12px", flexWrap: "wrap" }}>
-        <div className="display" style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.06em", color: "var(--text-dim)", whiteSpace: "nowrap" }}>FILE DE PRIORITÉ</div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div className="display" style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.06em", color: "var(--text-dim)", whiteSpace: "nowrap" }}>FILE DE PRIORITÉ</div>
+          <div style={{ display: "flex", gap: "4px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
+            <button className="focusable" onClick={() => setViewMode("table")} style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: viewMode === "table" ? "var(--bg)" : "transparent", color: viewMode === "table" ? "var(--blue)" : "var(--text-dim)", boxShadow: viewMode === "table" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
+              📋 Tableau
+            </button>
+            <button className="focusable" onClick={() => setViewMode("kanban")} style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: viewMode === "kanban" ? "var(--bg)" : "transparent", color: viewMode === "kanban" ? "var(--blue)" : "var(--text-dim)", boxShadow: viewMode === "kanban" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
+              💼 Kanban
+            </button>
+          </div>
+        </div>
         <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "7px 12px", fontSize: "13px", whiteSpace: "nowrap" }}>
           {showForm ? "Annuler" : "+ Ajouter un prospect"}
         </button>
@@ -275,9 +294,108 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
         <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun prospect pour l'instant. Ajoute ton premier prospect ci-dessus.</div>
       ) : visibleProspects.length === 0 ? (
         <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun résultat pour cette recherche ou ces filtres.</div>
+      ) : viewMode === "kanban" ? (
+        <KanbanBoard list={combinedList} tasks={openTasks} onOpenProspect={setSelectedId} />
       ) : (
         <ProspectTable list={combinedList} onSelect={setSelectedId} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
       )}
+    </div>
+  );
+}
+
+const KANBAN_COLUMNS = [
+  { key: "À contacter", label: "À contacter" },
+  { key: "Contact établi", label: "Contact établi" },
+  { key: "Rendez-vous prévu", label: "Rendez-vous prévu" },
+  { key: "Proposition envoyée", label: "Proposition envoyée" },
+  { key: "Négociation", label: "Négociation" },
+  { key: "closed", label: "Gagné / Perdu" },
+];
+
+function KanbanBoard({ list, tasks, onOpenProspect }) {
+  const nextTaskByProspect = {};
+  for (const t of tasks) {
+    if (!nextTaskByProspect[t.prospect_id]) nextTaskByProspect[t.prospect_id] = t;
+  }
+
+  return (
+    <div style={{ display: "flex", gap: "14px", overflowX: "auto", paddingBottom: "8px" }}>
+      {KANBAN_COLUMNS.map((col) => {
+        const items = list.filter((p) => (col.key === "closed" ? p.stage === "Gagné" || p.stage === "Perdu" : p.stage === col.key));
+        const columnValue = items.reduce((sum, p) => sum + (p.deal_value || 0), 0);
+        const accent = col.key === "closed" ? "#0ea968" : (STAGE_META[col.key]?.color || "var(--text-dim)");
+        return (
+          <div key={col.key} style={{ minWidth: "260px", width: "260px", display: "flex", flexDirection: "column", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", flexShrink: 0 }}>
+            <div style={{ padding: "12px 14px", borderBottom: "0.5px solid var(--hairline)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "3px" }}>
+                <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: accent, flexShrink: 0 }} />
+                <span className="display" style={{ fontWeight: 700, fontSize: "12px", letterSpacing: "0.03em" }}>{col.label.toUpperCase()}</span>
+                <span className="mono" style={{ marginLeft: "auto", color: "var(--text-faint)", fontSize: "11px" }}>{items.length}</span>
+              </div>
+              {columnValue > 0 && <div className="mono" style={{ color: "var(--text-faint)", fontSize: "11px" }}>{formatEuros(columnValue)}</div>}
+            </div>
+
+            <div style={{ padding: "10px", display: "flex", flexDirection: "column", gap: "8px", overflowY: "auto" }}>
+              {items.length === 0 ? (
+                <div style={{ color: "var(--text-faint)", fontSize: "11px", padding: "8px" }}>Vide</div>
+              ) : (
+                items.map((p) => (
+                  <OpportunityCard key={p.id} prospect={p} nextTask={nextTaskByProspect[p.id]} onClick={() => onOpenProspect(p.id)} />
+                ))
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function OpportunityCard({ prospect: p, nextTask, onClick }) {
+  const score = computeDealScore(p);
+  const scoreColor = score >= 70 ? "#0ea968" : score >= 40 ? "var(--amber)" : "var(--red)";
+
+  return (
+    <button
+      onClick={onClick}
+      className="focusable"
+      style={{ textAlign: "left", background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px", display: "flex", flexDirection: "column", gap: "8px" }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+        <div className="display" style={{ fontWeight: 700, fontSize: "13px", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.company}</div>
+        <span className="mono" style={{ background: "#e2f7ec", color: "#0ea968", borderRadius: "999px", fontSize: "11px", fontWeight: 700, padding: "2px 8px", flexShrink: 0 }}>
+          {formatEuros(p.deal_value)}
+        </span>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--text-dim)", fontSize: "11px" }}>
+        <Avatar name={p.name} stage={p.stage} size={18} />
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+      </div>
+
+      <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "8px", display: "flex", flexDirection: "column", gap: "4px" }}>
+        <KanbanRow label="Dernière activité" value={p.last_contact_at ? formatRelative(p.last_contact_at) : "Jamais"} />
+        <KanbanRow
+          label="Prochaine action"
+          value={nextTask ? `${nextTask.note}${nextTask.due_at ? ` (${formatShortDate(nextTask.due_at)})` : ""}` : p.next_contact_at ? `Relance le ${formatShortDate(p.next_contact_at)}` : "Aucune prévue"}
+        />
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "0.5px solid var(--hairline)", paddingTop: "8px" }}>
+        <span className="mono" style={{ background: "var(--panel2)", color: scoreColor, borderRadius: "999px", fontSize: "11px", fontWeight: 700, padding: "2px 8px" }}>
+          {score} %
+        </span>
+        <SparklesIcon size={12} color="var(--blue)" />
+      </div>
+    </button>
+  );
+}
+
+function KanbanRow({ label, value }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", fontSize: "11px" }}>
+      <span style={{ color: "var(--text-faint)" }}>{label}</span>
+      <span style={{ color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</span>
     </div>
   );
 }

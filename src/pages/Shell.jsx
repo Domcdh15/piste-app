@@ -4,7 +4,6 @@ import Sidebar from "../components/Sidebar.jsx";
 import Today from "./Today.jsx";
 import Planning from "./Planning.jsx";
 import Pipeline from "./Pipeline.jsx";
-import Opportunities from "./Opportunities.jsx";
 import Assistant from "./Assistant.jsx";
 import Activities from "./Activities.jsx";
 import Settings from "./Settings.jsx";
@@ -49,11 +48,6 @@ export default function Shell({ session }) {
     setActiveTab("pipeline");
   }
 
-  function openNewProspectForm() {
-    setJumpToShowForm(true);
-    setActiveTab("pipeline");
-  }
-
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} userEmail={session.user.email} />
@@ -74,7 +68,6 @@ export default function Shell({ session }) {
             settings={settings}
           />
         )}
-        {activeTab === "opportunities" && <Opportunities prospects={prospects} onOpenProspect={openProspect} onNewOpportunity={openNewProspectForm} />}
         {activeTab === "assistant" && <Assistant session={session} prospects={prospects} onOpenProspect={openProspect} settings={settings} />}
         {activeTab === "activities" && <Activities prospects={prospects} onOpenProspect={openProspect} />}
         {activeTab === "settings" && <Settings session={session} prospects={prospects} settings={settings} reloadSettings={loadSettings} />}

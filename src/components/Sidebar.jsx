@@ -9,7 +9,6 @@ const NAV_GROUPS = [
     section: "Pipeline commercial",
     items: [
       { key: "pipeline", label: "Pipeline", emoji: "🎯" },
-      { key: "opportunities", label: "Opportunités", emoji: "💼" },
       { key: "planning", label: "Tâches & Agenda", emoji: "🗓️" },
     ],
   },

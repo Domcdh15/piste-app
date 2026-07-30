@@ -1,8 +1,15 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { callAI, parseJsonLoose, formatEuros, formatShortDate, Avatar, SparklesIcon } from "../lib/ui.jsx";
+import { callAI, parseJsonLoose, formatEuros, formatShortDate, Avatar, SparklesIcon, PhoneIcon, MailIcon, VideoIcon, PinIcon } from "../lib/ui.jsx";
 
 const VIEWS = ["Jour", "Semaine", "Mois"];
+
+const TASK_TYPE_META = {
+  appel_telephone: { color: "var(--amber)", dim: "var(--amber-dim)", Icon: PhoneIcon },
+  appel_visio: { color: "#7c3aed", dim: "#f1e9fe", Icon: VideoIcon },
+  rdv_physique: { color: "#0ea968", dim: "#e2f7ec", Icon: PinIcon },
+  relance_email: { color: "var(--blue)", dim: "var(--blue-dim)", Icon: MailIcon },
+};
 const GRID_START_HOUR = 7;
 const GRID_END_HOUR = 20;
 const ROW_HEIGHT = 56;
@@ -237,14 +244,15 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
               <div key={d.toDateString()} style={{ padding: "4px", borderLeft: "0.5px solid var(--hairline)", display: "flex", flexDirection: "column", gap: "2px" }}>
                 {dayTasks.map((t) => {
                   const prospect = prospectById?.[t.prospect_id];
-                  const urgent = t.priority >= 75;
+                  const meta = TASK_TYPE_META[t.type] || TASK_TYPE_META.appel_telephone;
                   return (
-                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "4px", background: urgent ? "var(--red-dim)" : "var(--amber-dim)", borderRadius: "4px", padding: "2px 5px" }}>
-                      <button className="focusable" onClick={() => onToggleTask(t)} style={{ width: "11px", height: "11px", borderRadius: "50%", border: `1.5px solid ${urgent ? "var(--red)" : "var(--amber)"}`, background: "transparent", flexShrink: 0, padding: 0 }} title="Marquer comme fait" />
+                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "4px", background: meta.dim, borderRadius: "4px", padding: "2px 5px" }}>
+                      <button className="focusable" onClick={() => onToggleTask(t)} style={{ width: "11px", height: "11px", borderRadius: "50%", border: `1.5px solid ${meta.color}`, background: "transparent", flexShrink: 0, padding: 0 }} title="Marquer comme fait" />
+                      <meta.Icon size={9} color={meta.color} style={{ flexShrink: 0 }} />
                       <button
                         className="focusable"
                         onClick={() => prospect && onOpenProspect?.(prospect.id)}
-                        style={{ background: "none", border: "none", padding: 0, textAlign: "left", fontSize: "10px", color: urgent ? "var(--red)" : "var(--amber)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: prospect ? "pointer" : "default" }}
+                        style={{ background: "none", border: "none", padding: 0, textAlign: "left", fontSize: "10px", color: meta.color, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: prospect ? "pointer" : "default" }}
                       >
                         {t.note}
                       </button>
