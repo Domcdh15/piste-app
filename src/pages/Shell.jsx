@@ -61,7 +61,7 @@ export default function Shell({ session }) {
         {activeTab === "opportunities" && <Opportunities prospects={prospects} onOpenProspect={openProspect} onNewOpportunity={openNewProspectForm} />}
         {activeTab === "tasks" && <Tasks prospects={prospects} session={session} />}
         {activeTab === "assistant" && <Assistant session={session} prospects={prospects} onOpenProspect={openProspect} />}
-        {activeTab === "activities" && <Activities prospects={prospects} />}
+        {activeTab === "activities" && <Activities prospects={prospects} onOpenProspect={openProspect} />}
         {activeTab === "settings" && <Settings session={session} />}
         {activeTab === "integrations" && <Integrations session={session} />}
       </div>
