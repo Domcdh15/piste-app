@@ -27,6 +27,15 @@ export function formatDate(d) {
   return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
+export function formatShortDate(d) {
+  if (!d) return null;
+  return new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+}
+
+export function isOverdue(d) {
+  return !!d && new Date(d) < new Date();
+}
+
 export function getInitials(name) {
   const parts = (name || "").trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";

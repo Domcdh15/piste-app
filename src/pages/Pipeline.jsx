@@ -5,9 +5,12 @@ import {
   SCRIPT_SECTIONS,
   formatEuros,
   formatDate,
+  formatShortDate,
+  isOverdue,
   callAI,
   Avatar,
   SparklesIcon,
+  CalendarIcon,
   inputStyle,
   selectStyle,
 } from "../lib/ui.jsx";
@@ -109,9 +112,17 @@ export default function Pipeline({ prospects, loading, reload, session }) {
                       <div className="display" style={{ fontWeight: 500, fontSize: "14px" }}>{p.name}</div>
                       <div style={{ color: "var(--text-dim)", fontSize: "12px" }}>{p.company} · {p.stage}</div>
                     </div>
-                    <div className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, color: meta.color, background: meta.dim, border: `0.5px solid ${meta.color}55`, borderRadius: "6px", padding: "4px 8px" }}>
-                      <meta.Icon size={11} color={meta.color} />
-                      {meta.label}
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "3px", minWidth: "110px" }}>
+                      <div className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, color: meta.color, background: meta.dim, border: `0.5px solid ${meta.color}55`, borderRadius: "6px", padding: "4px 8px" }}>
+                        <meta.Icon size={11} color={meta.color} />
+                        {meta.label}
+                      </div>
+                      {p.next_contact_at && (
+                        <div className="mono" style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "10px", color: isOverdue(p.next_contact_at) ? "var(--red)" : "var(--text-faint)" }}>
+                          <CalendarIcon size={10} color={isOverdue(p.next_contact_at) ? "var(--red)" : "var(--text-faint)"} />
+                          {formatShortDate(p.next_contact_at)}
+                        </div>
+                      )}
                     </div>
                     <div className="mono" style={{ fontSize: "13px", color: "var(--blue)", width: "90px", textAlign: "right" }}>{formatEuros(p.deal_value)}</div>
                   </button>
@@ -175,6 +186,34 @@ function ProspectPanel({ prospect, tab, setTab, onUpdate, onDelete }) {
             <option>Qualification</option>
             <option>Négociation</option>
           </select>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "14px" }}>
+        <div>
+          <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>DERNIER CONTACT</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <span style={{ fontSize: "12px", color: prospect.last_contact_at ? "var(--text)" : "var(--text-faint)" }}>
+              {prospect.last_contact_at ? formatShortDate(prospect.last_contact_at) : "Jamais"}
+            </span>
+            <button
+              className="focusable"
+              onClick={() => onUpdate({ last_contact_at: new Date().toISOString() })}
+              title="Marquer contacté aujourd'hui"
+              style={{ fontSize: "10px", padding: "3px 7px", borderRadius: "5px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}
+            >
+              Aujourd'hui
+            </button>
+          </div>
+        </div>
+        <div>
+          <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>PROCHAIN CONTACT</div>
+          <input
+            type="date"
+            value={prospect.next_contact_at ? prospect.next_contact_at.slice(0, 10) : ""}
+            onChange={(e) => onUpdate({ next_contact_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
+            style={{ ...selectStyle, color: isOverdue(prospect.next_contact_at) ? "var(--red)" : "var(--text)" }}
+          />
         </div>
       </div>
 
