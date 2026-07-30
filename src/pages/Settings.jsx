@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { formatEuros } from "../lib/ui.jsx";
+import { formatEuros, buildSignatureBlock } from "../lib/ui.jsx";
 
 const TONES = ["Professionnel", "Chaleureux", "Direct"];
 
@@ -88,15 +88,34 @@ export default function Settings({ session, prospects, settings, reloadSettings 
       </Section>
 
       <Section title="Assistant IA">
-        <Field label="Ton par défaut des emails générés">
+        <Field label="Ton par défaut des emails générés" last>
           <select value={local.ai_default_tone} onChange={(e) => set({ ai_default_tone: e.target.value })} style={inputSm}>
             {TONES.map((t) => <option key={t}>{t}</option>)}
           </select>
         </Field>
-        <Field label="Signature utilisée en fin de mail" last>
-          <input value={local.ai_signature} onChange={(e) => set({ ai_signature: e.target.value })} style={inputSm} placeholder="ex : Camille Martin" />
+        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>S'applique aux prochains emails générés par l'IA (Assistant &amp; fiches prospect).</div>
+      </Section>
+
+      <Section title="Signature email">
+        <Field label="Nom complet">
+          <input value={local.sig_name || ""} onChange={(e) => set({ sig_name: e.target.value })} style={inputSm} placeholder="ex : Camille Martin" />
         </Field>
-        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>Ces préférences s'appliquent aux prochains emails générés par l'IA (Assistant &amp; fiches prospect).</div>
+        <Field label="Poste">
+          <input value={local.sig_job_title || ""} onChange={(e) => set({ sig_job_title: e.target.value })} style={inputSm} placeholder="ex : Responsable commercial" />
+        </Field>
+        <Field label="Entreprise">
+          <input value={local.sig_company || ""} onChange={(e) => set({ sig_company: e.target.value })} style={inputSm} placeholder="ex : Clos'IA" />
+        </Field>
+        <Field label="Téléphone (facultatif)" last>
+          <input value={local.sig_phone || ""} onChange={(e) => set({ sig_phone: e.target.value })} style={inputSm} placeholder="ex : 06 12 34 56 78" />
+        </Field>
+        {buildSignatureBlock(local) && (
+          <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "0.5px solid var(--hairline)" }}>
+            <div style={{ fontSize: "10px", color: "var(--text-faint)", marginBottom: "6px" }}>APERÇU</div>
+            <div style={{ fontSize: "12px", color: "var(--text-dim)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{buildSignatureBlock(local)}</div>
+          </div>
+        )}
+        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>Ajoutée automatiquement à la fin des emails générés par l'IA.</div>
       </Section>
 
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
@@ -107,7 +126,7 @@ export default function Settings({ session, prospects, settings, reloadSettings 
       </div>
 
       <Section title="Équipe">
-        <ComingSoon text="Invitez des coéquipiers et partagez votre pipeline. Nécessite un espace multi-utilisateur, pas encore disponible sur Piste." />
+        <ComingSoon text="Invitez des coéquipiers et partagez votre pipeline. Nécessite un espace multi-utilisateur, pas encore disponible sur Clos'IA." />
       </Section>
 
       <Section title="Permissions">

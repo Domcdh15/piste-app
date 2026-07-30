@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 const COMING_SOON = [
-  { key: "gmail", label: "Gmail", desc: "Lire et envoyer des emails depuis Piste.", permissions: "Lecture et envoi d'emails" },
+  { key: "gmail", label: "Gmail", desc: "Lire et envoyer des emails depuis Clos'IA.", permissions: "Lecture et envoi d'emails" },
   { key: "hubspot", label: "HubSpot", desc: "Synchroniser vos contacts et deals HubSpot.", permissions: "Lecture/écriture contacts et deals" },
   { key: "pipedrive", label: "Pipedrive", desc: "Synchroniser votre pipeline Pipedrive.", permissions: "Lecture/écriture pipeline" },
   { key: "salesforce", label: "Salesforce", desc: "Synchroniser comptes, contacts et opportunités.", permissions: "Lecture/écriture CRM" },
@@ -53,7 +53,7 @@ export default function Integrations({ session }) {
       <IntegrationRow
         emoji="📅"
         label="Google Calendar"
-        desc="Voir vos rendez-vous du jour directement dans Piste."
+        desc="Voir vos rendez-vous du jour directement dans Clos'IA."
         connected={status.google}
         loading={loading}
         onConnect={() => connect("google")}
@@ -63,7 +63,7 @@ export default function Integrations({ session }) {
       <IntegrationRow
         emoji="📆"
         label="Outlook / Microsoft"
-        desc="Voir vos rendez-vous du jour directement dans Piste."
+        desc="Voir vos rendez-vous du jour directement dans Clos'IA."
         connected={status.microsoft}
         loading={loading}
         onConnect={() => connect("microsoft")}

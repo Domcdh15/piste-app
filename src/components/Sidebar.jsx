@@ -1,22 +1,37 @@
 import { getInitials } from "../lib/ui.jsx";
 
-const NAV_ITEMS = [
-  { key: "today", label: "Aujourd'hui", emoji: "🏠" },
-  { key: "agenda", label: "Agenda", emoji: "🗓️" },
-  { key: "pipeline", label: "Pipeline", emoji: "🎯" },
-  { key: "opportunities", label: "Opportunités", emoji: "💼" },
-  { key: "tasks", label: "Tâches", emoji: "✅" },
-  { key: "assistant", label: "Assistant IA", emoji: "☕" },
-  { key: "activities", label: "Activités", emoji: "⚡" },
-  { key: "integrations", label: "Intégrations", emoji: "🔌" },
+const NAV_GROUPS = [
+  {
+    section: null,
+    items: [{ key: "today", label: "Aujourd'hui", emoji: "🏠" }],
+  },
+  {
+    section: "Pipeline commercial",
+    items: [
+      { key: "pipeline", label: "Pipeline", emoji: "🎯" },
+      { key: "opportunities", label: "Opportunités", emoji: "💼" },
+      { key: "planning", label: "Tâches & Agenda", emoji: "🗓️" },
+    ],
+  },
+  {
+    section: "Suivi & IA",
+    items: [
+      { key: "assistant", label: "Assistant IA", emoji: "☕" },
+      { key: "activities", label: "Activités", emoji: "⚡" },
+    ],
+  },
+  {
+    section: "Configuration",
+    items: [{ key: "integrations", label: "Intégrations", emoji: "🔌" }],
+  },
 ];
 
 export default function Sidebar({ activeTab, setActiveTab, userEmail }) {
   return (
     <div
       style={{
-        width: "220px",
-        minWidth: "220px",
+        width: "224px",
+        minWidth: "224px",
         height: "100vh",
         position: "sticky",
         top: 0,
@@ -29,20 +44,25 @@ export default function Sidebar({ activeTab, setActiveTab, userEmail }) {
         padding: "20px 14px",
       }}
     >
+      <div style={{ marginBottom: "20px", paddingLeft: "2px" }}>
+        <div className="display" style={{ fontWeight: 700, fontSize: "17px", letterSpacing: "0.02em" }}>Clos'IA</div>
+        <div style={{ color: "var(--blue)", fontSize: "10px", fontWeight: 500 }}>Mon assistant commercial</div>
+      </div>
+
       <div
         className="mono"
         style={{
-          width: "38px",
-          height: "38px",
+          width: "36px",
+          height: "36px",
           borderRadius: "50%",
           background: "var(--blue-dim)",
           color: "var(--blue)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: "13px",
+          fontSize: "12px",
           fontWeight: 700,
-          marginBottom: "28px",
+          marginBottom: "18px",
           border: "0.5px solid #2563eb40",
         }}
         title={userEmail}
@@ -50,28 +70,42 @@ export default function Sidebar({ activeTab, setActiveTab, userEmail }) {
         {getInitials(userEmail?.split("@")[0]?.replace(/[._]/g, " "))}
       </div>
 
-      <nav style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.key}
-            className="focusable"
-            onClick={() => setActiveTab(item.key)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              padding: "9px 10px",
-              borderRadius: "8px",
-              fontSize: "14px",
-              fontWeight: activeTab === item.key ? 600 : 500,
-              background: activeTab === item.key ? "var(--blue-dim)" : "transparent",
-              color: activeTab === item.key ? "var(--blue)" : "var(--text-dim)",
-              textAlign: "left",
-            }}
-          >
-            <span style={{ fontSize: "15px" }}>{item.emoji}</span>
-            {item.label}
-          </button>
+      <nav style={{ display: "flex", flexDirection: "column", gap: "18px", flex: 1 }}>
+        {NAV_GROUPS.map((group, i) => (
+          <div key={i}>
+            {group.section && (
+              <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.04em", textTransform: "uppercase", padding: "0 10px 6px" }}>
+                {group.section}
+              </div>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+              {group.items.map((item) => {
+                const active = activeTab === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    className="focusable"
+                    onClick={() => setActiveTab(item.key)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "9px 10px",
+                      borderRadius: "8px",
+                      fontSize: "13.5px",
+                      fontWeight: active ? 600 : 500,
+                      background: active ? "var(--blue-dim)" : "transparent",
+                      color: active ? "var(--blue)" : "var(--text-dim)",
+                      textAlign: "left",
+                    }}
+                  >
+                    <span style={{ fontSize: "15px" }}>{item.emoji}</span>
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         ))}
       </nav>
 
@@ -84,11 +118,12 @@ export default function Sidebar({ activeTab, setActiveTab, userEmail }) {
           gap: "10px",
           padding: "9px 10px",
           borderRadius: "8px",
-          fontSize: "14px",
+          fontSize: "13.5px",
           fontWeight: activeTab === "settings" ? 600 : 500,
           background: activeTab === "settings" ? "var(--blue-dim)" : "transparent",
           color: activeTab === "settings" ? "var(--blue)" : "var(--text-dim)",
           textAlign: "left",
+          marginTop: "12px",
         }}
       >
         <span style={{ fontSize: "15px" }}>⚙️</span>

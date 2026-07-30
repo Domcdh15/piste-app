@@ -3,6 +3,9 @@ import { supabase } from "../lib/supabaseClient";
 import { callAI, parseJsonLoose, formatEuros, formatShortDate, Avatar, SparklesIcon } from "../lib/ui.jsx";
 
 const VIEWS = ["Jour", "Semaine", "Mois"];
+const GRID_START_HOUR = 7;
+const GRID_END_HOUR = 20;
+const ROW_HEIGHT = 56;
 
 function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function endOfDay(d) { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; }
@@ -25,6 +28,38 @@ function durationLabel(start, end) {
   return m ? `${h}h${String(m).padStart(2, "0")}` : `${h}h`;
 }
 
+function topFor(iso) {
+  const d = new Date(iso);
+  const hours = d.getHours() + d.getMinutes() / 60;
+  return (hours - GRID_START_HOUR) * ROW_HEIGHT;
+}
+
+function heightFor(startIso, endIso) {
+  const start = new Date(startIso);
+  const end = new Date(endIso || startIso);
+  const mins = Math.max(24, (end - start) / 60000);
+  return (mins / 60) * ROW_HEIGHT;
+}
+
+function layoutDayEvents(dayEvents) {
+  const sorted = [...dayEvents].sort((a, b) => new Date(a.start) - new Date(b.start));
+  const columnEnds = [];
+  const placed = sorted.map((event) => {
+    const start = new Date(event.start).getTime();
+    const end = new Date(event.end || event.start).getTime();
+    let colIndex = columnEnds.findIndex((endTime) => endTime <= start);
+    if (colIndex === -1) {
+      colIndex = columnEnds.length;
+      columnEnds.push(end);
+    } else {
+      columnEnds[colIndex] = end;
+    }
+    return { event, colIndex };
+  });
+  const colCount = columnEnds.length || 1;
+  return placed.map((p) => ({ ...p, colCount }));
+}
+
 function rangeLabel(view, refDate) {
   if (view === "Jour") return refDate.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   if (view === "Mois") return refDate.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
@@ -39,10 +74,20 @@ export default function Agenda({ prospects, session, onOpenProspect }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedEventId, setSelectedEventId] = useState(null);
+  const [tasks, setTasks] = useState([]);
 
   const range = view === "Jour" ? [startOfDay(refDate), endOfDay(refDate)]
     : view === "Semaine" ? [startOfWeek(refDate), endOfWeek(refDate)]
     : [startOfMonth(refDate), endOfMonth(refDate)];
+
+  async function loadTasks() {
+    const { data } = await supabase.from("tasks").select("*").eq("done", false).not("due_at", "is", null);
+    setTasks(data || []);
+  }
+
+  useEffect(() => {
+    loadTasks();
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -64,6 +109,12 @@ export default function Agenda({ prospects, session, onOpenProspect }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, refDate.toDateString()]);
 
+  async function toggleTaskDone(task) {
+    setTasks((prev) => prev.filter((t) => t.id !== task.id));
+    await supabase.from("tasks").update({ done: true }).eq("id", task.id);
+  }
+
+  const prospectById = Object.fromEntries(prospects.map((p) => [p.id, p]));
   const prospectByEmail = Object.fromEntries(prospects.filter((p) => p.email).map((p) => [p.email.toLowerCase(), p]));
 
   function matchProspect(event) {
@@ -109,9 +160,9 @@ export default function Agenda({ prospects, session, onOpenProspect }) {
           {loading ? (
             <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Chargement...</div>
           ) : view === "Mois" ? (
-            <MonthGrid refDate={refDate} events={events} onSelectDay={(d) => { setRefDate(d); setView("Jour"); }} />
+            <MonthGrid refDate={refDate} events={events} tasks={tasks} onSelectDay={(d) => { setRefDate(d); setView("Jour"); }} />
           ) : (
-            <EventList events={events} view={view} refDate={refDate} onSelect={setSelectedEventId} selectedId={selectedEventId} matchProspect={matchProspect} />
+            <TimeGrid events={events} tasks={tasks} view={view} refDate={refDate} onSelect={setSelectedEventId} selectedId={selectedEventId} matchProspect={matchProspect} prospectById={prospectById} onToggleTask={toggleTaskDone} onOpenProspect={onOpenProspect} />
           )}
         </div>
 
@@ -125,73 +176,149 @@ export default function Agenda({ prospects, session, onOpenProspect }) {
 
 const navBtn = { fontSize: "12px", padding: "6px 10px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" };
 
-function EventList({ events, view, refDate, onSelect, selectedId, matchProspect }) {
-  if (view === "Jour") {
-    if (events.length === 0) return <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Aucun événement ce jour-là.</div>;
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        {events.map((e) => <EventCard key={e.id} event={e} prospect={matchProspect(e)} onClick={() => onSelect(e.id)} active={selectedId === e.id} />)}
-      </div>
-    );
-  }
+function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchProspect, prospectById, onToggleTask, onOpenProspect }) {
+  const days = view === "Jour"
+    ? [startOfDay(refDate)]
+    : (() => {
+        const s = startOfWeek(refDate);
+        return Array.from({ length: 7 }, (_, i) => { const d = new Date(s); d.setDate(d.getDate() + i); return d; });
+      })();
 
-  const days = [];
-  const start = startOfWeek(refDate);
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(start);
-    d.setDate(d.getDate() + i);
-    days.push(d);
-  }
+  const allDayEvents = events.filter((e) => !e.start || e.start.length <= 10);
+  const timedEvents = events.filter((e) => e.start && e.start.length > 10);
+
+  const hours = [];
+  for (let h = GRID_START_HOUR; h < GRID_END_HOUR; h++) hours.push(h);
+  const gridHeight = (GRID_END_HOUR - GRID_START_HOUR) * ROW_HEIGHT;
+
+  const now = new Date();
+  const nowTop = topFor(now.toISOString());
+  const showNowLine = nowTop >= 0 && nowTop <= gridHeight;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      {days.map((day) => {
-        const dayEvents = events.filter((e) => new Date(e.start).toDateString() === day.toDateString());
-        const isToday = day.toDateString() === new Date().toDateString();
-        return (
-          <div key={day.toDateString()}>
-            <div className="display" style={{ fontWeight: 600, fontSize: "13px", marginBottom: "8px", color: isToday ? "var(--blue)" : "var(--text)" }}>
-              {day.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", overflow: "hidden" }}>
+      <div style={{ display: "grid", gridTemplateColumns: `56px repeat(${days.length}, 1fr)`, borderBottom: "0.5px solid var(--hairline)" }}>
+        <div />
+        {days.map((d) => {
+          const isToday = d.toDateString() === now.toDateString();
+          return (
+            <div key={d.toDateString()} style={{ padding: "10px 8px", textAlign: "center", borderLeft: "0.5px solid var(--hairline)" }}>
+              <div style={{ fontSize: "10px", color: isToday ? "var(--blue)" : "var(--text-faint)", textTransform: "uppercase" }}>{d.toLocaleDateString("fr-FR", { weekday: "short" })}</div>
+              <div className="display" style={{ fontSize: "15px", fontWeight: 700, color: isToday ? "var(--blue)" : "var(--text)" }}>{d.getDate()}</div>
             </div>
-            {dayEvents.length === 0 ? (
-              <div style={{ color: "var(--text-faint)", fontSize: "12px", paddingLeft: "2px" }}>Aucun événement</div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {dayEvents.map((e) => <EventCard key={e.id} event={e} prospect={matchProspect(e)} onClick={() => onSelect(e.id)} active={selectedId === e.id} />)}
+          );
+        })}
+      </div>
+
+      {allDayEvents.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: `56px repeat(${days.length}, 1fr)`, borderBottom: "0.5px solid var(--hairline)", background: "var(--panel2)" }}>
+          <div style={{ fontSize: "9px", color: "var(--text-faint)", padding: "6px", display: "flex", alignItems: "center" }}>Jour</div>
+          {days.map((d) => {
+            const dayAllDay = allDayEvents.filter((e) => new Date(e.start).toDateString() === d.toDateString());
+            return (
+              <div key={d.toDateString()} style={{ padding: "4px", borderLeft: "0.5px solid var(--hairline)", display: "flex", flexDirection: "column", gap: "2px" }}>
+                {dayAllDay.map((e) => (
+                  <button key={e.id} className="focusable" onClick={() => onSelect(e.id)} style={{ fontSize: "10px", background: selectedId === e.id ? "var(--blue)" : "var(--blue-dim)", color: selectedId === e.id ? "#fff" : "var(--blue)", border: "none", borderRadius: "4px", padding: "2px 5px", textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {e.title}
+                  </button>
+                ))}
               </div>
-            )}
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      )}
+
+      {tasks.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: `56px repeat(${days.length}, 1fr)`, borderBottom: "0.5px solid var(--hairline)", background: "var(--panel2)" }}>
+          <div style={{ fontSize: "9px", color: "var(--text-faint)", padding: "6px", display: "flex", alignItems: "center" }}>Tâches</div>
+          {days.map((d) => {
+            const dayTasks = tasks.filter((t) => t.due_at && new Date(t.due_at).toDateString() === d.toDateString());
+            return (
+              <div key={d.toDateString()} style={{ padding: "4px", borderLeft: "0.5px solid var(--hairline)", display: "flex", flexDirection: "column", gap: "2px" }}>
+                {dayTasks.map((t) => {
+                  const prospect = prospectById?.[t.prospect_id];
+                  const urgent = t.priority >= 75;
+                  return (
+                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "4px", background: urgent ? "var(--red-dim)" : "var(--amber-dim)", borderRadius: "4px", padding: "2px 5px" }}>
+                      <button className="focusable" onClick={() => onToggleTask(t)} style={{ width: "11px", height: "11px", borderRadius: "50%", border: `1.5px solid ${urgent ? "var(--red)" : "var(--amber)"}`, background: "transparent", flexShrink: 0, padding: 0 }} title="Marquer comme fait" />
+                      <button
+                        className="focusable"
+                        onClick={() => prospect && onOpenProspect?.(prospect.id)}
+                        style={{ background: "none", border: "none", padding: 0, textAlign: "left", fontSize: "10px", color: urgent ? "var(--red)" : "var(--amber)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: prospect ? "pointer" : "default" }}
+                      >
+                        {t.note}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{ display: "flex", maxHeight: "640px", overflowY: "auto" }}>
+        <div style={{ width: "56px", flexShrink: 0 }}>
+          {hours.map((h) => (
+            <div key={h} style={{ height: ROW_HEIGHT, borderTop: "0.5px solid var(--hairline)", fontSize: "10px", color: "var(--text-faint)", textAlign: "right", paddingRight: "6px", boxSizing: "border-box", transform: "translateY(-6px)" }}>
+              {String(h).padStart(2, "0")}:00
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${days.length}, 1fr)`, flex: 1 }}>
+          {days.map((d) => {
+            const dayEvents = timedEvents.filter((e) => new Date(e.start).toDateString() === d.toDateString());
+            const laid = layoutDayEvents(dayEvents);
+            const isToday = d.toDateString() === now.toDateString();
+            return (
+              <div key={d.toDateString()} style={{ position: "relative", borderLeft: "0.5px solid var(--hairline)", height: gridHeight }}>
+                {hours.map((h) => (
+                  <div key={h} style={{ position: "absolute", top: (h - GRID_START_HOUR) * ROW_HEIGHT, left: 0, right: 0, borderTop: "0.5px solid var(--hairline)" }} />
+                ))}
+                {isToday && showNowLine && (
+                  <div style={{ position: "absolute", top: nowTop, left: 0, right: 0, height: "2px", background: "var(--red)", zIndex: 3 }}>
+                    <span style={{ position: "absolute", left: -4, top: -4, width: "8px", height: "8px", borderRadius: "50%", background: "var(--red)" }} />
+                  </div>
+                )}
+                {laid.map(({ event, colIndex, colCount }) => {
+                  const prospect = matchProspect(event);
+                  const top = Math.max(0, topFor(event.start));
+                  const height = Math.max(24, heightFor(event.start, event.end));
+                  const widthPct = 100 / colCount;
+                  const active = selectedId === event.id;
+                  return (
+                    <button
+                      key={event.id}
+                      className="focusable"
+                      onClick={() => onSelect(event.id)}
+                      style={{
+                        position: "absolute", top, height,
+                        left: `calc(${colIndex * widthPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
+                        background: active ? "var(--blue)" : "var(--blue-dim)",
+                        color: active ? "#fff" : "var(--blue)",
+                        border: "0.5px solid #2563eb55", borderRadius: "6px", padding: "4px 6px",
+                        textAlign: "left", overflow: "hidden", zIndex: 2, fontSize: "11px", cursor: "pointer",
+                      }}
+                    >
+                      <div className="display" style={{ fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{event.title}</div>
+                      {height > 34 && (
+                        <div style={{ fontSize: "10px", opacity: 0.85, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {formatTime(event.start)}{prospect ? ` · ${prospect.name}` : ""}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
 
-function EventCard({ event, prospect, onClick, active }) {
-  return (
-    <button className="focusable" onClick={onClick} style={{ display: "flex", alignItems: "center", gap: "12px", background: active ? "var(--blue-dim)" : "var(--panel)", border: active ? "0.5px solid #2563eb55" : "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px", textAlign: "left" }}>
-      <div style={{ minWidth: "60px" }}>
-        <div className="mono" style={{ fontSize: "13px", fontWeight: 700, color: "var(--blue)" }}>{formatTime(event.start)}</div>
-        <div className="mono" style={{ fontSize: "10px", color: "var(--text-faint)" }}>{durationLabel(event.start, event.end)}</div>
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div className="display" style={{ fontWeight: 600, fontSize: "13px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.title}</div>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "2px" }}>
-          {prospect ? (
-            <>
-              <Avatar name={prospect.name} stage={prospect.stage} size={18} />
-              <span style={{ fontSize: "11px", color: "var(--text-dim)" }}>{prospect.name} · {prospect.company}</span>
-            </>
-          ) : (event.location || event.meetingUrl) ? (
-            <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>{event.location || "Visio"}</span>
-          ) : null}
-        </div>
-      </div>
-    </button>
-  );
-}
-
-function MonthGrid({ refDate, events, onSelectDay }) {
+function MonthGrid({ refDate, events, tasks, onSelectDay }) {
   const start = startOfMonth(refDate);
   const gridStart = startOfWeek(start);
   const cells = [];
@@ -205,6 +332,12 @@ function MonthGrid({ refDate, events, onSelectDay }) {
     const key = new Date(e.start).toDateString();
     (eventsByDay[key] = eventsByDay[key] || []).push(e);
   });
+  const tasksByDay = {};
+  (tasks || []).forEach((t) => {
+    if (!t.due_at) return;
+    const key = new Date(t.due_at).toDateString();
+    (tasksByDay[key] = tasksByDay[key] || []).push(t);
+  });
 
   return (
     <div>
@@ -217,6 +350,7 @@ function MonthGrid({ refDate, events, onSelectDay }) {
         {cells.map((d, i) => {
           const inMonth = d.getMonth() === refDate.getMonth();
           const dayEvents = eventsByDay[d.toDateString()] || [];
+          const dayTasks = tasksByDay[d.toDateString()] || [];
           const isToday = d.toDateString() === new Date().toDateString();
           return (
             <button
@@ -225,7 +359,12 @@ function MonthGrid({ refDate, events, onSelectDay }) {
               onClick={() => onSelectDay(d)}
               style={{ minHeight: "72px", background: isToday ? "var(--blue-dim)" : "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "6px", textAlign: "left", opacity: inMonth ? 1 : 0.4, display: "flex", flexDirection: "column", gap: "3px", overflow: "hidden" }}
             >
-              <span className="mono" style={{ fontSize: "11px", color: isToday ? "var(--blue)" : "var(--text-dim)" }}>{d.getDate()}</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span className="mono" style={{ fontSize: "11px", color: isToday ? "var(--blue)" : "var(--text-dim)" }}>{d.getDate()}</span>
+                {dayTasks.length > 0 && (
+                  <span style={{ fontSize: "9px", fontWeight: 700, color: "var(--amber)", background: "var(--amber-dim)", borderRadius: "8px", padding: "1px 5px" }}>✓ {dayTasks.length}</span>
+                )}
+              </div>
               {dayEvents.slice(0, 2).map((e) => (
                 <span key={e.id} style={{ fontSize: "10px", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{formatTime(e.start)} {e.title}</span>
               ))}
@@ -309,7 +448,7 @@ ${context}`;
       )}
 
       {!prospect ? (
-        <div style={{ color: "var(--text-faint)", fontSize: "12px" }}>Aucun prospect associé — l'invité(e) de l'événement ne correspond à aucun email enregistré dans Piste.</div>
+        <div style={{ color: "var(--text-faint)", fontSize: "12px" }}>Aucun prospect associé — l'invité(e) de l'événement ne correspond à aucun email enregistré dans Clos'IA.</div>
       ) : (
         <>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px", paddingBottom: "14px", borderBottom: "0.5px solid var(--hairline)" }}>

@@ -10,6 +10,7 @@ import {
   PhoneIcon,
   MailIcon,
   TargetIcon,
+  appendSignature,
 } from "../lib/ui.jsx";
 
 const TONES = ["Professionnel", "Chaleureux", "Direct"];
@@ -200,8 +201,7 @@ function EmailGeneratorPanel({ prospects, session, settings }) {
     try {
       const context = await fetchProspectContext(prospect.id);
       const lengthGuide = { Court: "3-4 phrases", Moyen: "5-7 phrases", Détaillé: "8-10 phrases" }[length];
-      const signOff = settings?.ai_signature?.trim() || "[Ton prénom]";
-      const prompt = `Tu es un assistant commercial. Rédige un email en français, ton ${tone.toLowerCase()}, longueur ${lengthGuide}, avec pour objectif : ${objective.toLowerCase()}. Uniquement le corps de l'email, termine par "— ${signOff}".
+      const prompt = `Tu es un assistant commercial. Rédige un email en français, ton ${tone.toLowerCase()}, longueur ${lengthGuide}, avec pour objectif : ${objective.toLowerCase()}. Uniquement le corps de l'email, termine par une formule de politesse simple (ex : "Bonne journée,"), sans nom ni signature — la signature sera ajoutée automatiquement après.
 
 Nom du contact : ${prospect.name}
 Entreprise : ${prospect.company}
@@ -210,7 +210,7 @@ Entreprise : ${prospect.company}
 Contexte des échanges précédents :
 ${context}`;
       const text = await callAI(prompt, session.access_token);
-      setContent(text);
+      setContent(appendSignature(text, settings));
     } catch (e) {
       setError("La génération a échoué. Réessaie.");
     } finally {

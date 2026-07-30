@@ -39,8 +39,11 @@ export default function Login() {
           maxWidth: "360px",
         }}
       >
-        <div className="display" style={{ fontWeight: 700, fontSize: "22px", letterSpacing: "0.08em", marginBottom: "6px" }}>
-          PISTE
+        <div className="display" style={{ fontWeight: 700, fontSize: "22px", letterSpacing: "0.04em", marginBottom: "2px" }}>
+          Clos'IA
+        </div>
+        <div style={{ color: "var(--blue)", fontSize: "12px", fontWeight: 500, marginBottom: "16px" }}>
+          Mon assistant commercial
         </div>
         <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "24px" }}>
           Connecte-toi pour accéder à ton pipeline.

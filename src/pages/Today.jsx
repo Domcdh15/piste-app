@@ -90,11 +90,22 @@ export default function Today({ prospects, setActiveTab, session, reload, onOpen
   const nbRetard = prospects.filter((p) => p.status === "retard").length;
   const nbOpportunites = opportunitesList.length;
   const firstName = getFirstName(session.user);
+  const [showBrief, setShowBrief] = useState(false);
 
   async function updateStatus(id, status) {
     await supabase.from("prospects").update({ status }).eq("id", id);
     reload?.();
   }
+
+  useEffect(() => {
+    if (eventsLoading || tachesLoading) return;
+    const key = `closia_brief_${session.user.id}_${new Date().toDateString()}`;
+    if (!localStorage.getItem(key)) {
+      setShowBrief(true);
+      localStorage.setItem(key, "1");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventsLoading, tachesLoading]);
 
   useEffect(() => {
     async function loadEvents() {
@@ -133,7 +144,7 @@ export default function Today({ prospects, setActiveTab, session, reload, onOpen
       try {
         const urgents = prospects.filter((p) => p.status === "appeler" || p.status === "retard").slice(0, 5);
         const relances = prospects.filter((p) => p.status === "relancer").slice(0, 5);
-        const prompt = `Tu es l'assistant commercial de Piste. En une seule phrase (25 mots maximum), en français, dis au commercial sur quoi se concentrer en priorité aujourd'hui : un appel important, une relance email, ou la préparation d'une visio. Base-toi sur ces données réelles, sois concret et cite un nom si utile.
+        const prompt = `Tu es l'assistant commercial de Clos'IA. En une seule phrase (25 mots maximum), en français, dis au commercial sur quoi se concentrer en priorité aujourd'hui : un appel important, une relance email, ou la préparation d'une visio. Base-toi sur ces données réelles, sois concret et cite un nom si utile.
 
 Prospects à appeler ou en retard : ${urgents.map((p) => `${p.name} (${p.company}, ${p.status})`).join(", ") || "aucun"}
 Prospects à relancer par email : ${relances.map((p) => `${p.name} (${p.company})`).join(", ") || "aucun"}
@@ -355,6 +366,60 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
           )}
         </div>
       </div>
+
+      {showBrief && (
+        <DailyBriefModal
+          firstName={firstName}
+          nbAppels={nbAppels}
+          nbRelances={nbRelances}
+          nbTaches={nbTaches}
+          nbRdv={eventsLoading ? 0 : events.length}
+          tip={tipLoading ? FALLBACK_TIP : tip || FALLBACK_TIP}
+          onGoToPlanning={() => { setShowBrief(false); setActiveTab("planning"); }}
+          onClose={() => setShowBrief(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function DailyBriefModal({ firstName, nbAppels, nbRelances, nbTaches, nbRdv, tip, onGoToPlanning, onClose }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: "20px" }}>
+      <div style={{ background: "var(--bg)", borderRadius: "16px", padding: "28px", width: "100%", maxWidth: "420px", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+        <div className="display" style={{ fontWeight: 700, fontSize: "20px", marginBottom: "4px" }}>Bonjour{firstName ? ` ${firstName}` : ""} 👋</div>
+        <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "18px" }}>Voici ta journée en un coup d'œil.</div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", marginBottom: "18px" }}>
+          <BriefStat value={nbRdv} label="RDV" />
+          <BriefStat value={nbAppels} label="Appels" />
+          <BriefStat value={nbRelances} label="Relances" />
+          <BriefStat value={nbTaches} label="Tâches" />
+        </div>
+
+        <div style={{ background: "var(--blue-dim)", borderRadius: "10px", padding: "12px", fontSize: "12px", color: "var(--blue)", marginBottom: "20px", display: "flex", gap: "8px", alignItems: "flex-start" }}>
+          <SparklesIcon size={13} color="var(--blue)" style={{ marginTop: "2px", flexShrink: 0 }} />
+          <span>{tip}</span>
+        </div>
+
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button className="focusable" onClick={onGoToPlanning} style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
+            Organiser ma journée
+          </button>
+          <button className="focusable" onClick={onClose} style={{ flex: 1, background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px", fontSize: "13px" }}>
+            C'est parti
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BriefStat({ value, label }) {
+  return (
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "10px", textAlign: "center" }}>
+      <div className="mono" style={{ fontSize: "18px", fontWeight: 700, color: "var(--text)" }}>{value}</div>
+      <div style={{ fontSize: "10px", color: "var(--text-faint)" }}>{label}</div>
     </div>
   );
 }

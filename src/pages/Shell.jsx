@@ -2,10 +2,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import Sidebar from "../components/Sidebar.jsx";
 import Today from "./Today.jsx";
-import Agenda from "./Agenda.jsx";
+import Planning from "./Planning.jsx";
 import Pipeline from "./Pipeline.jsx";
 import Opportunities from "./Opportunities.jsx";
-import Tasks from "./Tasks.jsx";
 import Assistant from "./Assistant.jsx";
 import Activities from "./Activities.jsx";
 import Settings from "./Settings.jsx";
@@ -32,7 +31,14 @@ export default function Shell({ session }) {
     setSettings(data || {});
   }
 
+  async function rolloverOverdueTasks() {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    await supabase.from("tasks").update({ due_at: startOfToday.toISOString() }).eq("done", false).lt("due_at", startOfToday.toISOString());
+  }
+
   useEffect(() => {
+    rolloverOverdueTasks();
     loadProspects();
     loadSettings();
   }, []);
@@ -53,7 +59,7 @@ export default function Shell({ session }) {
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} userEmail={session.user.email} />
       <div style={{ flex: 1, minWidth: 0 }}>
         {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} onOpenProspect={openProspect} />}
-        {activeTab === "agenda" && <Agenda prospects={prospects} session={session} onOpenProspect={openProspect} />}
+        {activeTab === "planning" && <Planning prospects={prospects} session={session} onOpenProspect={openProspect} />}
         {activeTab === "pipeline" && (
           <Pipeline
             prospects={prospects}
@@ -69,7 +75,6 @@ export default function Shell({ session }) {
           />
         )}
         {activeTab === "opportunities" && <Opportunities prospects={prospects} onOpenProspect={openProspect} onNewOpportunity={openNewProspectForm} />}
-        {activeTab === "tasks" && <Tasks prospects={prospects} session={session} />}
         {activeTab === "assistant" && <Assistant session={session} prospects={prospects} onOpenProspect={openProspect} settings={settings} />}
         {activeTab === "activities" && <Activities prospects={prospects} onOpenProspect={openProspect} />}
         {activeTab === "settings" && <Settings session={session} prospects={prospects} settings={settings} reloadSettings={loadSettings} />}

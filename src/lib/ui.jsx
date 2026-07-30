@@ -37,21 +37,31 @@ function firstNameOf(p) {
 export const EMAIL_TEMPLATES = [
   {
     label: "Premier contact",
-    build: (p) => `Bonjour ${firstNameOf(p)},\n\nJe me permets de vous contacter au sujet de ${p.company}. [Présentez brièvement votre offre et pourquoi elle pourrait vous intéresser]\n\nSeriez-vous disponible pour un court échange cette semaine ?\n\nBonne journée,\n— [Ton prénom]`,
+    build: (p) => `Bonjour ${firstNameOf(p)},\n\nJe me permets de vous contacter au sujet de ${p.company}. [Présentez brièvement votre offre et pourquoi elle pourrait vous intéresser]\n\nSeriez-vous disponible pour un court échange cette semaine ?\n\nBonne journée,`,
   },
   {
     label: "Relance après devis",
-    build: (p) => `Bonjour ${firstNameOf(p)},\n\nJe voulais faire suite au devis transmis pour ${p.company}. N'hésitez pas à me faire part de vos retours ou de vos questions — je reste disponible pour en discuter.\n\nBonne journée,\n— [Ton prénom]`,
+    build: (p) => `Bonjour ${firstNameOf(p)},\n\nJe voulais faire suite au devis transmis pour ${p.company}. N'hésitez pas à me faire part de vos retours ou de vos questions — je reste disponible pour en discuter.\n\nBonne journée,`,
   },
   {
     label: "Relance silencieuse",
-    build: (p) => `Bonjour ${firstNameOf(p)},\n\nJe n'ai pas eu de retour de votre part depuis notre dernier échange. Êtes-vous toujours intéressé(e) par le sujet ? Je reste à votre disposition si vous avez des questions.\n\nBonne journée,\n— [Ton prénom]`,
+    build: (p) => `Bonjour ${firstNameOf(p)},\n\nJe n'ai pas eu de retour de votre part depuis notre dernier échange. Êtes-vous toujours intéressé(e) par le sujet ? Je reste à votre disposition si vous avez des questions.\n\nBonne journée,`,
   },
   {
     label: "Confirmation RDV",
-    build: (p) => `Bonjour ${firstNameOf(p)},\n\nJe vous confirme notre rendez-vous. N'hésitez pas à revenir vers moi si le créneau ne convient plus.\n\nÀ bientôt,\n— [Ton prénom]`,
+    build: (p) => `Bonjour ${firstNameOf(p)},\n\nJe vous confirme notre rendez-vous. N'hésitez pas à revenir vers moi si le créneau ne convient plus.\n\nÀ bientôt,`,
   },
 ];
+
+export function buildSignatureBlock(settings) {
+  if (!settings) return "";
+  return [settings.sig_name, settings.sig_job_title, settings.sig_company, settings.sig_phone].filter((v) => v && v.trim()).join("\n");
+}
+
+export function appendSignature(content, settings) {
+  const sig = buildSignatureBlock(settings);
+  return sig ? `${content}\n\n${sig}` : content;
+}
 
 export const SCRIPT_TEMPLATES = [
   {
