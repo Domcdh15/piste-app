@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { Avatar, formatDate, periodRange, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon } from "../lib/ui.jsx";
+import { Avatar, formatDate, formatEuros, periodRange, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, TargetIcon } from "../lib/ui.jsx";
 
 const PERIODS = [
   ["day", "Jour"],
@@ -75,6 +75,13 @@ export default function Activities({ prospects, onOpenProspect }) {
   const totalAppels = nbAppelAbouti + nbAppelManque;
   const tauxReussite = totalAppels > 0 ? Math.round((nbAppelAbouti / totalAppels) * 100) : null;
 
+  const nbRdv = feedItems.filter((i) => i.filterKey === "Rendez-vous" && new Date(i.created_at) >= start).length;
+  const nbOpportunitesCreees = prospects.filter((p) => p.created_at && new Date(p.created_at) >= start).length;
+  const tauxConversion = nbDealGagne + nbDealPerdu > 0 ? Math.round((nbDealGagne / (nbDealGagne + nbDealPerdu)) * 100) : null;
+  const caGenere = prospects
+    .filter((p) => p.stage === "Gagné" && p.closed_at && new Date(p.closed_at) >= start)
+    .reduce((sum, p) => sum + (p.deal_value || 0), 0);
+
   const visibleFeed = filter === "Tous" ? feedItems : feedItems.filter((item) => item.filterKey === filter);
 
   return (
@@ -97,10 +104,13 @@ export default function Activities({ prospects, onOpenProspect }) {
       <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "20px" }}>Mémoire commerciale chronologique, tous prospects confondus.</div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "24px", maxWidth: "820px" }}>
-        <ReportTile icon={<PhoneIcon size={14} color="#0ea968" />} accent="#0ea968" label="Appels aboutis" value={nbAppelAbouti} />
-        <ReportTile icon={<XIcon size={14} color="var(--red)" />} accent="var(--red)" label="Appels manqués" value={nbAppelManque} />
+        <ReportTile icon={<PhoneIcon size={14} color="#0ea968" />} accent="#0ea968" label="Nombre d'appels" value={totalAppels} />
+        <ReportTile icon={<CalendarIcon size={14} color="var(--blue)" />} accent="var(--blue)" label="Nombre de rendez-vous" value={nbRdv} />
+        <ReportTile icon={<TargetIcon size={14} color="#7c3aed" />} accent="#7c3aed" label="Opportunités créées" value={nbOpportunitesCreees} />
         <ReportTile icon={<TrophyIcon size={14} color="#0ea968" />} accent="#0ea968" label="Deals gagnés" value={nbDealGagne} />
         <ReportTile icon={<XIcon size={14} color="var(--text-dim)" />} accent="var(--text-dim)" label="Deals perdus" value={nbDealPerdu} />
+        <ReportTile icon={<TrophyIcon size={14} color="var(--amber)" />} accent="var(--amber)" label="Taux de conversion" value={tauxConversion !== null ? `${tauxConversion}%` : "—"} />
+        <ReportTile icon={<TargetIcon size={14} color="#0ea968" />} accent="#0ea968" label="CA généré" value={formatEuros(caGenere)} />
       </div>
 
       {tauxReussite !== null && (
