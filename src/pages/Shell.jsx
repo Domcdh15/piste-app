@@ -27,7 +27,7 @@ export default function Shell({ session }) {
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} userEmail={session.user.email} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} />}
+        {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} />}
         {activeTab === "pipeline" && <Pipeline prospects={prospects} loading={loading} reload={loadProspects} session={session} />}
         {activeTab === "assistant" && <Assistant />}
         {activeTab === "activities" && <Activities prospects={prospects} />}

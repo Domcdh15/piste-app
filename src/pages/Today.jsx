@@ -1,15 +1,16 @@
-import { CalendarIcon, PhoneIcon, MailIcon, TargetIcon, CheckIcon } from "../lib/ui.jsx";
+import { CalendarIcon, PhoneIcon, MailIcon, TargetIcon, CheckIcon, getFirstName } from "../lib/ui.jsx";
 
 function todayLabel() {
   const d = new Date();
   return `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`;
 }
 
-export default function Today({ prospects, setActiveTab }) {
+export default function Today({ prospects, setActiveTab, session }) {
   const nbAppels = prospects.filter((p) => p.status === "appeler").length;
   const nbRelances = prospects.filter((p) => p.status === "relancer").length;
   const nbRetard = prospects.filter((p) => p.status === "retard").length;
   const nbOpportunites = prospects.filter((p) => p.priority >= 75).length;
+  const firstName = getFirstName(session.user);
 
   return (
     <div>
@@ -21,7 +22,7 @@ export default function Today({ prospects, setActiveTab }) {
         }}
       >
         <div className="display" style={{ fontWeight: 700, fontSize: "32px", display: "flex", alignItems: "center", gap: "10px" }}>
-          Bonjour <span>👋</span>
+          Bonjour{firstName ? ` ${firstName}` : ""} <span>👋</span>
         </div>
         <div style={{ opacity: 0.85, fontSize: "14px", marginTop: "6px", marginBottom: "18px" }}>{todayLabel()}</div>
 

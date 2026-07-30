@@ -34,6 +34,14 @@ export function getInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+export function getFirstName(user) {
+  const fromMetadata = user?.user_metadata?.first_name || user?.user_metadata?.full_name?.split(/\s+/)[0];
+  if (fromMetadata) return fromMetadata;
+  const local = user?.email?.split("@")[0] || "";
+  const first = local.split(/[._-]/)[0];
+  return first ? first.charAt(0).toUpperCase() + first.slice(1) : "";
+}
+
 export async function callAI(prompt) {
   const res = await fetch("/api/generate", {
     method: "POST",
