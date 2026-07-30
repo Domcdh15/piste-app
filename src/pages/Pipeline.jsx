@@ -96,7 +96,7 @@ function buildHistoryContext(history) {
 
 export default function Pipeline({ prospects, loading, reload, session }) {
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", stage: "Découverte", status: "attente", priority: 50, deal_value: "" });
+  const [form, setForm] = useState({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", stage: "À contacter", status: "attente", priority: 50, deal_value: "" });
   const [saving, setSaving] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [search, setSearch] = useState("");
@@ -119,7 +119,7 @@ export default function Pipeline({ prospects, loading, reload, session }) {
     });
     setSaving(false);
     if (!error) {
-      setForm({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", stage: "Découverte", status: "attente", priority: 50, deal_value: "" });
+      setForm({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", stage: "À contacter", status: "attente", priority: 50, deal_value: "" });
       setShowForm(false);
       reload();
     }

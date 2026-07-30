@@ -13,6 +13,8 @@ import {
   CLOSED_STAGES,
   Avatar,
   formatEuros,
+  formatShortDate,
+  isOverdue,
 } from "../lib/ui.jsx";
 
 function todayLabel() {
@@ -33,8 +35,10 @@ export default function Today({ prospects, setActiveTab, session, reload }) {
   const [eventsLoading, setEventsLoading] = useState(true);
   const [tip, setTip] = useState("");
   const [tipLoading, setTipLoading] = useState(true);
-  const [nbTaches, setNbTaches] = useState(0);
+  const [taches, setTaches] = useState([]);
   const [tachesLoading, setTachesLoading] = useState(true);
+  const nbTaches = taches.length;
+  const prospectById = Object.fromEntries(prospects.map((p) => [p.id, p]));
 
   const appelsList = prospects.filter((p) => p.status === "appeler");
   const relancesList = prospects.filter((p) => p.status === "relancer");
@@ -69,14 +73,12 @@ export default function Today({ prospects, setActiveTab, session, reload }) {
   useEffect(() => {
     async function loadTaches() {
       setTachesLoading(true);
-      const endOfDay = new Date();
-      endOfDay.setHours(23, 59, 59, 999);
       const { data } = await supabase
         .from("tasks")
-        .select("id")
+        .select("*")
         .eq("done", false)
-        .lte("due_at", endOfDay.toISOString());
-      setNbTaches((data || []).length);
+        .order("due_at", { ascending: true, nullsFirst: false });
+      setTaches(data || []);
       setTachesLoading(false);
     }
     loadTaches();
@@ -203,7 +205,14 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
               </div>
             )}
           </div>
-          <StatTile accent="#7c3aed" icon={<CheckIcon size={15} color="#7c3aed" />} label="Mes tâches" value={tachesLoading ? "…" : nbTaches} />
+          <StatTile
+            accent="#7c3aed"
+            icon={<CheckIcon size={15} color="#7c3aed" />}
+            label="Mes tâches"
+            value={tachesLoading ? "…" : nbTaches}
+            items={taches}
+            renderItem={(t) => <TaskRow key={t.id} task={t} prospect={prospectById[t.prospect_id]} />}
+          />
         </div>
 
         <button
@@ -311,6 +320,22 @@ function StatTile({ accent, icon, label, value, items, renderItem }) {
           {items.map(renderItem)}
         </div>
       )}
+    </div>
+  );
+}
+
+function TaskRow({ task, prospect }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
+        {task.type === "email" ? <MailIcon size={12} color="var(--text-dim)" /> : <PhoneIcon size={12} color="var(--text-dim)" />}
+        <span style={{ fontSize: "12px", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {prospect ? `${prospect.name} — ` : ""}{task.note}
+        </span>
+      </div>
+      <span className="mono" style={{ fontSize: "11px", color: task.due_at && isOverdue(task.due_at) ? "var(--red)" : "var(--text-faint)", flexShrink: 0 }}>
+        {task.due_at ? formatShortDate(task.due_at) : "Sans échéance"}
+      </span>
     </div>
   );
 }
