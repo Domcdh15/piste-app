@@ -12,6 +12,8 @@ import {
   callAI,
   parseJsonLoose,
   PRIORITY_LEVELS,
+  EMAIL_TEMPLATES,
+  SCRIPT_TEMPLATES,
   nearestPriorityLevel,
   Avatar,
   SparklesIcon,
@@ -967,14 +969,10 @@ function EmailGenerator({ prospect, history, session }) {
   const [error, setError] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [keywords, setKeywords] = useState("");
-
-  function template() {
-    const firstName = prospect.name.trim().split(/\s+/)[0];
-    return `Bonjour ${firstName},\n\nJe me permets de revenir vers vous au sujet de ${prospect.company}. N'hésitez pas à me faire signe si vous avez des questions ou si vous souhaitez qu'on échange à ce sujet.\n\nBonne journée,\n— [Ton prénom]`;
-  }
+  const [templateIndex, setTemplateIndex] = useState(0);
 
   function useTemplate() {
-    setContent(template());
+    setContent(EMAIL_TEMPLATES[templateIndex].build(prospect));
     setShowModal(false);
   }
 
@@ -1016,8 +1014,15 @@ ${buildHistoryContext(history)}`;
           <div className="display" style={{ fontWeight: 700, fontSize: "16px", marginBottom: "14px" }}>Nouvel email</div>
 
           <div style={{ background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px", marginBottom: "16px" }}>
-            <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "8px" }}>Modèle rapide</div>
-            <div style={{ fontSize: "12px", color: "var(--text-dim)", whiteSpace: "pre-wrap", lineHeight: 1.5, marginBottom: "10px" }}>{template()}</div>
+            <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "8px" }}>Bibliothèque de modèles</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "10px" }}>
+              {EMAIL_TEMPLATES.map((t, i) => (
+                <button key={t.label} className="focusable" onClick={() => setTemplateIndex(i)} style={{ fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: templateIndex === i ? "var(--blue-dim)" : "var(--panel)", color: templateIndex === i ? "var(--blue)" : "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: "12px", color: "var(--text-dim)", whiteSpace: "pre-wrap", lineHeight: 1.5, marginBottom: "10px" }}>{EMAIL_TEMPLATES[templateIndex].build(prospect)}</div>
             <button className="focusable" onClick={useTemplate} style={{ width: "100%", background: "var(--panel)", color: "var(--text)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px", fontSize: "12px" }}>
               Utiliser ce modèle
             </button>
@@ -1081,6 +1086,16 @@ ${buildHistoryContext(history)}`;
 
   return (
     <div>
+      <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-dim)", marginBottom: "6px" }}>Modèles rapides</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "12px" }}>
+        {SCRIPT_TEMPLATES.map((t) => (
+          <button key={t.label} className="focusable" onClick={() => setContent(t.build(prospect))} style={{ fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-dim)", marginBottom: "6px" }}>Ou génère avec l'IA</div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "12px" }}>
         {SCRIPT_SECTIONS.map((s) => (
           <button key={s} className="focusable" onClick={() => { setSection(s); setContent(""); }} style={{ fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: section === s ? "var(--blue-dim)" : "var(--panel2)", color: section === s ? "var(--blue)" : "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>

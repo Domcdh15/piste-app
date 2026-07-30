@@ -30,6 +30,44 @@ export function nearestPriorityLevel(value) {
   return PRIORITY_LEVELS.reduce((closest, level) => (Math.abs(level.value - n) < Math.abs(closest.value - n) ? level : closest)).value;
 }
 
+function firstNameOf(p) {
+  return (p.name || "").trim().split(/\s+/)[0] || "";
+}
+
+export const EMAIL_TEMPLATES = [
+  {
+    label: "Premier contact",
+    build: (p) => `Bonjour ${firstNameOf(p)},\n\nJe me permets de vous contacter au sujet de ${p.company}. [Présentez brièvement votre offre et pourquoi elle pourrait vous intéresser]\n\nSeriez-vous disponible pour un court échange cette semaine ?\n\nBonne journée,\n— [Ton prénom]`,
+  },
+  {
+    label: "Relance après devis",
+    build: (p) => `Bonjour ${firstNameOf(p)},\n\nJe voulais faire suite au devis transmis pour ${p.company}. N'hésitez pas à me faire part de vos retours ou de vos questions — je reste disponible pour en discuter.\n\nBonne journée,\n— [Ton prénom]`,
+  },
+  {
+    label: "Relance silencieuse",
+    build: (p) => `Bonjour ${firstNameOf(p)},\n\nJe n'ai pas eu de retour de votre part depuis notre dernier échange. Êtes-vous toujours intéressé(e) par le sujet ? Je reste à votre disposition si vous avez des questions.\n\nBonne journée,\n— [Ton prénom]`,
+  },
+  {
+    label: "Confirmation RDV",
+    build: (p) => `Bonjour ${firstNameOf(p)},\n\nJe vous confirme notre rendez-vous. N'hésitez pas à revenir vers moi si le créneau ne convient plus.\n\nÀ bientôt,\n— [Ton prénom]`,
+  },
+];
+
+export const SCRIPT_TEMPLATES = [
+  {
+    label: "Découverte",
+    build: (p) => `• Se présenter brièvement et rappeler le contexte de l'appel avec ${p.company}\n• Poser des questions ouvertes sur leurs enjeux actuels\n• Identifier le processus de décision et les parties prenantes\n• Qualifier le budget et le calendrier`,
+  },
+  {
+    label: "Démo",
+    build: (p) => `• Rappeler les besoins exprimés par ${firstNameOf(p)}\n• Présenter les fonctionnalités qui répondent directement à ces besoins\n• Illustrer avec un cas d'usage concret\n• Recueillir les réactions et répondre aux questions`,
+  },
+  {
+    label: "Négociation",
+    build: (p) => `• Rappeler la valeur apportée et le ROI attendu pour ${p.company}\n• Écouter les objections sur le prix ou les conditions\n• Proposer des options (durée d'engagement, périmètre) plutôt qu'une simple remise\n• Fixer une prochaine étape claire avec une date`,
+  },
+];
+
 export const SCRIPT_SECTIONS = [
   "Introduction",
   "Questions de découverte",
