@@ -53,7 +53,7 @@ export default function Shell({ session }) {
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} userEmail={session.user.email} />
       <div style={{ flex: 1, minWidth: 0 }}>
         {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} onOpenProspect={openProspect} />}
-        {activeTab === "planning" && <Planning prospects={prospects} session={session} onOpenProspect={openProspect} />}
+        {activeTab === "planning" && <Planning prospects={prospects} session={session} onOpenProspect={openProspect} settings={settings} />}
         {activeTab === "pipeline" && (
           <Pipeline
             prospects={prospects}

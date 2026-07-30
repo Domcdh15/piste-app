@@ -2,7 +2,7 @@ import { useState } from "react";
 import Agenda from "./Agenda.jsx";
 import Tasks from "./Tasks.jsx";
 
-export default function Planning({ prospects, session, onOpenProspect }) {
+export default function Planning({ prospects, session, onOpenProspect, settings }) {
   const [mode, setMode] = useState("agenda");
 
   return (
@@ -29,7 +29,7 @@ export default function Planning({ prospects, session, onOpenProspect }) {
       {mode === "agenda" ? (
         <Agenda prospects={prospects} session={session} onOpenProspect={onOpenProspect} />
       ) : (
-        <Tasks prospects={prospects} session={session} />
+        <Tasks prospects={prospects} session={session} settings={settings} />
       )}
     </div>
   );

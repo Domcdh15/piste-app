@@ -87,6 +87,13 @@ export default function Settings({ session, prospects, settings, reloadSettings 
         ) : null}
       </Section>
 
+      <Section title="Organisation quotidienne">
+        <Field label="Créneau pour les tâches sans horaire" last>
+          <input type="time" value={local.default_task_time || "17:00"} onChange={(e) => set({ default_task_time: e.target.value })} style={inputSm} />
+        </Field>
+        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>Les tâches et relances créées sans horaire précis seront placées à ce créneau dans l'Agenda.</div>
+      </Section>
+
       <Section title="Assistant IA">
         <Field label="Ton par défaut des emails générés" last>
           <select value={local.ai_default_tone} onChange={(e) => set({ ai_default_tone: e.target.value })} style={inputSm}>

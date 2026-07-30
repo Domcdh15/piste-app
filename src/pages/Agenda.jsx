@@ -13,6 +13,7 @@ const TASK_TYPE_META = {
 const GRID_START_HOUR = 7;
 const GRID_END_HOUR = 20;
 const ROW_HEIGHT = 56;
+const TASK_LANE_PCT = 26;
 
 function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function endOfDay(d) { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; }
@@ -235,36 +236,6 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
         </div>
       )}
 
-      {tasks.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: `56px repeat(${days.length}, 1fr)`, borderBottom: "0.5px solid var(--hairline)", background: "var(--panel2)" }}>
-          <div style={{ fontSize: "9px", color: "var(--text-faint)", padding: "6px", display: "flex", alignItems: "center" }}>Tâches</div>
-          {days.map((d) => {
-            const dayTasks = tasks.filter((t) => t.due_at && new Date(t.due_at).toDateString() === d.toDateString());
-            return (
-              <div key={d.toDateString()} style={{ padding: "4px", borderLeft: "0.5px solid var(--hairline)", display: "flex", flexDirection: "column", gap: "2px" }}>
-                {dayTasks.map((t) => {
-                  const prospect = prospectById?.[t.prospect_id];
-                  const meta = TASK_TYPE_META[t.type] || TASK_TYPE_META.appel_telephone;
-                  return (
-                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "4px", background: meta.dim, borderRadius: "4px", padding: "2px 5px" }}>
-                      <button className="focusable" onClick={() => onToggleTask(t)} style={{ width: "11px", height: "11px", borderRadius: "50%", border: `1.5px solid ${meta.color}`, background: "transparent", flexShrink: 0, padding: 0 }} title="Marquer comme fait" />
-                      <meta.Icon size={9} color={meta.color} style={{ flexShrink: 0 }} />
-                      <button
-                        className="focusable"
-                        onClick={() => prospect && onOpenProspect?.(prospect.id)}
-                        style={{ background: "none", border: "none", padding: 0, textAlign: "left", fontSize: "10px", color: meta.color, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: prospect ? "pointer" : "default" }}
-                      >
-                        {t.note}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
       <div style={{ display: "flex", maxHeight: "640px", overflowY: "auto" }}>
         <div style={{ width: "56px", flexShrink: 0 }}>
           {hours.map((h) => (
@@ -277,7 +248,10 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
           {days.map((d) => {
             const dayEvents = timedEvents.filter((e) => new Date(e.start).toDateString() === d.toDateString());
             const laid = layoutDayEvents(dayEvents);
+            const dayTasks = tasks.filter((t) => t.due_at && new Date(t.due_at).toDateString() === d.toDateString());
+            const laidTasks = layoutDayEvents(dayTasks.map((t) => ({ ...t, start: t.due_at, end: new Date(new Date(t.due_at).getTime() + 30 * 60000).toISOString() })));
             const isToday = d.toDateString() === now.toDateString();
+            const eventsLeftPct = dayTasks.length > 0 ? TASK_LANE_PCT : 0;
             return (
               <div key={d.toDateString()} style={{ position: "relative", borderLeft: "0.5px solid var(--hairline)", height: gridHeight }}>
                 {hours.map((h) => (
@@ -288,11 +262,40 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                     <span style={{ position: "absolute", left: -4, top: -4, width: "8px", height: "8px", borderRadius: "50%", background: "var(--red)" }} />
                   </div>
                 )}
+
+                {laidTasks.map(({ event: task, colIndex, colCount }) => {
+                  const prospect = prospectById?.[task.prospect_id];
+                  const meta = TASK_TYPE_META[task.type] || TASK_TYPE_META.appel_telephone;
+                  const top = Math.max(0, topFor(task.due_at));
+                  const height = Math.max(22, heightFor(task.start, task.end));
+                  const widthPct = TASK_LANE_PCT / colCount;
+                  return (
+                    <div
+                      key={task.id}
+                      style={{
+                        position: "absolute", top, height,
+                        left: `calc(${colIndex * widthPct}% + 1px)`, width: `calc(${widthPct}% - 2px)`,
+                        background: meta.dim, border: `0.5px solid ${meta.color}55`, borderRadius: "5px",
+                        padding: "2px 3px", overflow: "hidden", zIndex: 2, display: "flex", alignItems: "flex-start", gap: "2px",
+                      }}
+                    >
+                      <button className="focusable" onClick={() => onToggleTask(task)} style={{ width: "9px", height: "9px", borderRadius: "50%", border: `1.3px solid ${meta.color}`, background: "transparent", flexShrink: 0, padding: 0, marginTop: "1px" }} title="Marquer comme fait" />
+                      <button
+                        className="focusable"
+                        onClick={() => prospect && onOpenProspect?.(prospect.id)}
+                        style={{ background: "none", border: "none", padding: 0, textAlign: "left", fontSize: "9px", lineHeight: 1.2, color: meta.color, overflow: "hidden", cursor: prospect ? "pointer" : "default" }}
+                      >
+                        {task.note}
+                      </button>
+                    </div>
+                  );
+                })}
+
                 {laid.map(({ event, colIndex, colCount }) => {
                   const prospect = matchProspect(event);
                   const top = Math.max(0, topFor(event.start));
                   const height = Math.max(24, heightFor(event.start, event.end));
-                  const widthPct = 100 / colCount;
+                  const widthPct = (100 - eventsLeftPct) / colCount;
                   const active = selectedId === event.id;
                   return (
                     <button
@@ -301,7 +304,7 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                       onClick={() => onSelect(event.id)}
                       style={{
                         position: "absolute", top, height,
-                        left: `calc(${colIndex * widthPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
+                        left: `calc(${eventsLeftPct + colIndex * widthPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
                         background: active ? "var(--blue)" : "var(--blue-dim)",
                         color: active ? "#fff" : "var(--blue)",
                         border: "0.5px solid #2563eb55", borderRadius: "6px", padding: "4px 6px",

@@ -24,13 +24,13 @@ const DATE_FILTERS = [
   { key: "Sans échéance", label: "Sans échéance", color: "var(--text-dim)" },
 ];
 
-export default function Tasks({ prospects, session }) {
+export default function Tasks({ prospects, session, settings }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState("Tous");
   const [dateFilter, setDateFilter] = useState("Toutes");
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ note: "", prospectId: "", type: "appel_telephone", dueAt: "", priority: "50" });
+  const [form, setForm] = useState({ note: "", prospectId: "", type: "appel_telephone", dueDate: "", dueTime: "", priority: "50" });
   const [saving, setSaving] = useState(false);
   const [justDone, setJustDone] = useState(null);
 
@@ -53,15 +53,16 @@ export default function Tasks({ prospects, session }) {
     e.preventDefault();
     if (!form.note.trim() || !form.prospectId) return;
     setSaving(true);
+    const time = form.dueTime || settings?.default_task_time || "17:00";
     await supabase.from("tasks").insert({
       user_id: session.user.id,
       prospect_id: form.prospectId,
       type: form.type,
       note: form.note.trim(),
-      due_at: form.dueAt ? new Date(form.dueAt).toISOString() : null,
+      due_at: form.dueDate ? new Date(`${form.dueDate}T${time}`).toISOString() : null,
       priority: Number(form.priority),
     });
-    setForm({ note: "", prospectId: "", type: "appel_telephone", dueAt: "", priority: "50" });
+    setForm({ note: "", prospectId: "", type: "appel_telephone", dueDate: "", dueTime: "", priority: "50" });
     setSaving(false);
     setShowForm(false);
     load();
@@ -206,7 +207,10 @@ export default function Tasks({ prospects, session }) {
           <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} style={inputStyle}>
             {Object.entries(TYPE_META).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}
           </select>
-          <input type="date" value={form.dueAt} onChange={(e) => setForm({ ...form, dueAt: e.target.value })} style={inputStyle} />
+          <div style={{ display: "flex", gap: "8px" }}>
+            <input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} style={{ ...inputStyle, flex: 1 }} />
+            <input type="time" value={form.dueTime} onChange={(e) => setForm({ ...form, dueTime: e.target.value })} title={`Heure (défaut : ${settings?.default_task_time || "17:00"})`} style={{ ...inputStyle, flex: 1 }} />
+          </div>
           <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} style={inputStyle}>
             {PRIORITY_LEVELS.map((l) => <option key={l.value} value={l.value}>Priorité : {l.label}</option>)}
           </select>
