@@ -311,6 +311,16 @@ function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onL
   const [showEdit, setShowEdit] = useState(false);
   const [tab, setTab] = useState(initialTab || "email");
   const [logged, setLogged] = useState("");
+  const [dealValueInput, setDealValueInput] = useState(prospect.deal_value ?? 0);
+
+  useEffect(() => {
+    setDealValueInput(prospect.deal_value ?? 0);
+  }, [prospect.id, prospect.deal_value]);
+
+  function commitDealValue() {
+    const n = Number(dealValueInput) || 0;
+    if (n !== prospect.deal_value) onUpdate({ deal_value: n });
+  }
   const history = useProspectHistory(prospect.id);
 
   async function handleStageChange(stage) {
@@ -440,6 +450,19 @@ function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onL
             style={{ ...selectStyle, color: isOverdue(prospect.next_contact_at) ? "var(--red)" : "var(--text)" }}
           />
         </div>
+      </div>
+
+      <div style={{ marginBottom: "14px" }}>
+        <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>MONTANT DU DEAL (€)</div>
+        <input
+          type="number"
+          min="0"
+          value={dealValueInput}
+          onChange={(e) => setDealValueInput(e.target.value)}
+          onBlur={commitDealValue}
+          onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
+          style={{ ...selectStyle, width: "160px" }}
+        />
       </div>
 
       <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
