@@ -72,14 +72,6 @@ export function getFirstName(user) {
   return first ? first.charAt(0).toUpperCase() + first.slice(1) : "";
 }
 
-export function getUserDisplayName(user) {
-  const meta = user?.user_metadata || {};
-  const civility = meta.civility && meta.civility !== "-" ? `${meta.civility} ` : "";
-  const firstName = getFirstName(user);
-  const lastName = meta.last_name ? ` ${meta.last_name}` : "";
-  return `${civility}${firstName}${lastName}`.trim();
-}
-
 export async function callAI(prompt, token) {
   const res = await fetch("/api/generate", {
     method: "POST",

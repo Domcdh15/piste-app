@@ -7,7 +7,7 @@ import {
   TargetIcon,
   CheckIcon,
   SparklesIcon,
-  getUserDisplayName,
+  getFirstName,
   callAI,
   STATUS_META,
   CLOSED_STAGES,
@@ -28,7 +28,7 @@ function formatEventTime(iso) {
 
 const FALLBACK_TIP = "Commencez par vos relances en attente, puis enchaînez avec vos appels planifiés pour maximiser vos conversions.";
 
-export default function Today({ prospects, setActiveTab, session }) {
+export default function Today({ prospects, setActiveTab, session, reload }) {
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [tip, setTip] = useState("");
@@ -36,11 +36,19 @@ export default function Today({ prospects, setActiveTab, session }) {
   const [nbTaches, setNbTaches] = useState(0);
   const [tachesLoading, setTachesLoading] = useState(true);
 
-  const nbAppels = prospects.filter((p) => p.status === "appeler").length;
-  const nbRelances = prospects.filter((p) => p.status === "relancer").length;
+  const appelsList = prospects.filter((p) => p.status === "appeler");
+  const relancesList = prospects.filter((p) => p.status === "relancer");
+  const opportunitesList = prospects.filter((p) => p.priority >= 75);
+  const nbAppels = appelsList.length;
+  const nbRelances = relancesList.length;
   const nbRetard = prospects.filter((p) => p.status === "retard").length;
-  const nbOpportunites = prospects.filter((p) => p.priority >= 75).length;
-  const displayName = getUserDisplayName(session.user);
+  const nbOpportunites = opportunitesList.length;
+  const firstName = getFirstName(session.user);
+
+  async function updateStatus(id, status) {
+    await supabase.from("prospects").update({ status }).eq("id", id);
+    reload?.();
+  }
 
   useEffect(() => {
     async function loadEvents() {
@@ -110,7 +118,7 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
         }}
       >
         <div className="display" style={{ fontWeight: 700, fontSize: "32px", display: "flex", alignItems: "center", gap: "10px" }}>
-          Bonjour{displayName ? ` ${displayName}` : ""} <span>👋</span>
+          Bonjour{firstName ? ` ${firstName}` : ""} <span>👋</span>
         </div>
         <div style={{ opacity: 0.85, fontSize: "14px", marginTop: "6px", marginBottom: "18px" }}>{todayLabel()}</div>
 
@@ -130,11 +138,44 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
       </div>
 
       <div style={{ padding: "28px 32px 48px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px", marginBottom: "14px" }}>
-          <StatTile accent="var(--blue)" icon={<CalendarIcon size={15} color="var(--blue)" />} label="RDV Aujourd'hui" value={eventsLoading ? "…" : events.length} onClick={() => setActiveTab("settings")} />
-          <StatTile accent="#7c3aed" icon={<PhoneIcon size={15} color="#7c3aed" />} label="Appels à faire" value={nbAppels} onClick={() => setActiveTab("pipeline")} />
-          <StatTile accent="var(--amber)" icon={<MailIcon size={15} color="var(--amber)" />} label="Emails en attente" value={nbRelances} onClick={() => setActiveTab("pipeline")} />
-          <StatTile accent="#0ea968" icon={<TargetIcon size={15} color="#0ea968" />} label="Opportunités prioritaires" value={nbOpportunites} onClick={() => setActiveTab("pipeline")} />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px", marginBottom: "14px", alignItems: "start" }}>
+          <StatTile
+            accent="var(--blue)"
+            icon={<CalendarIcon size={15} color="var(--blue)" />}
+            label="RDV Aujourd'hui"
+            value={eventsLoading ? "…" : events.length}
+            items={events}
+            renderItem={(e) => (
+              <div key={e.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+                <span style={{ color: "var(--text)" }}>{e.title}</span>
+                <span className="mono" style={{ color: "var(--text-faint)" }}>{formatEventTime(e.start)}</span>
+              </div>
+            )}
+          />
+          <StatTile
+            accent="#7c3aed"
+            icon={<PhoneIcon size={15} color="#7c3aed" />}
+            label="Appels à faire"
+            value={nbAppels}
+            items={appelsList}
+            renderItem={(p) => <MissionRow key={p.id} prospect={p} onUpdateStatus={updateStatus} />}
+          />
+          <StatTile
+            accent="var(--amber)"
+            icon={<MailIcon size={15} color="var(--amber)" />}
+            label="Emails en attente"
+            value={nbRelances}
+            items={relancesList}
+            renderItem={(p) => <MissionRow key={p.id} prospect={p} onUpdateStatus={updateStatus} />}
+          />
+          <StatTile
+            accent="#0ea968"
+            icon={<TargetIcon size={15} color="#0ea968" />}
+            label="Opportunités prioritaires"
+            value={nbOpportunites}
+            items={opportunitesList}
+            renderItem={(p) => <MissionRow key={p.id} prospect={p} onUpdateStatus={updateStatus} />}
+          />
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "14px", marginBottom: "22px" }}>
@@ -162,7 +203,7 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
               </div>
             )}
           </div>
-          <StatTile accent="#7c3aed" icon={<CheckIcon size={15} color="#7c3aed" />} label="Mes tâches" value={tachesLoading ? "…" : nbTaches} onClick={() => setActiveTab("pipeline")} />
+          <StatTile accent="#7c3aed" icon={<CheckIcon size={15} color="#7c3aed" />} label="Mes tâches" value={tachesLoading ? "…" : nbTaches} />
         </div>
 
         <button
@@ -241,43 +282,54 @@ function Pill({ icon, text }) {
   );
 }
 
-function StatTile({ accent, icon, label, value, onClick }) {
+function StatTile({ accent, icon, label, value, items, renderItem }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasItems = items && items.length > 0;
+
   return (
-    <button
-      className="focusable"
-      onClick={onClick}
-      disabled={!onClick}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "10px",
-        background: "var(--panel)",
-        border: "0.5px solid var(--hairline)",
-        borderTop: `2.5px solid ${accent}`,
-        borderRadius: "10px",
-        padding: "16px 18px",
-        textAlign: "left",
-        cursor: onClick ? "pointer" : "default",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        {icon}
-        <span className="display" style={{ fontWeight: 600, fontSize: "14px", color: "var(--text)" }}>{label}</span>
-      </div>
-      <span
-        className="mono"
-        style={{
-          background: "var(--panel2)",
-          color: accent,
-          borderRadius: "999px",
-          fontSize: "12px",
-          fontWeight: 700,
-          padding: "2px 9px",
-        }}
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderTop: `2.5px solid ${accent}`, borderRadius: "10px", padding: "16px 18px" }}>
+      <button
+        className="focusable"
+        onClick={() => hasItems && setExpanded((e) => !e)}
+        disabled={!hasItems}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", width: "100%", background: "none", border: "none", padding: 0, textAlign: "left", cursor: hasItems ? "pointer" : "default" }}
       >
-        {value}
-      </span>
-    </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {icon}
+          <span className="display" style={{ fontWeight: 600, fontSize: "14px", color: "var(--text)" }}>{label}</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <span className="mono" style={{ background: "var(--panel2)", color: accent, borderRadius: "999px", fontSize: "12px", fontWeight: 700, padding: "2px 9px" }}>
+            {value}
+          </span>
+          {hasItems && <span style={{ color: "var(--text-faint)", fontSize: "10px", transform: expanded ? "rotate(180deg)" : "none" }}>▾</span>}
+        </div>
+      </button>
+
+      {expanded && hasItems && (
+        <div style={{ marginTop: "10px", borderTop: "0.5px solid var(--hairline)", paddingTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
+          {items.map(renderItem)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MissionRow({ prospect, onUpdateStatus }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+      <span style={{ fontSize: "12px", color: "var(--text)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{prospect.name}</span>
+      <select
+        value={prospect.status}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => onUpdateStatus(prospect.id, e.target.value)}
+        style={{ fontSize: "11px", padding: "3px 5px", borderRadius: "5px", border: "0.5px solid var(--hairline)", background: "var(--panel2)", color: "var(--text-dim)", flexShrink: 0 }}
+      >
+        <option value="appeler">À appeler</option>
+        <option value="relancer">À relancer</option>
+        <option value="attente">En attente</option>
+        <option value="retard">En retard</option>
+      </select>
+    </div>
   );
 }

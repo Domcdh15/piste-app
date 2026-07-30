@@ -93,7 +93,7 @@ function buildHistoryContext(history) {
 
 export default function Pipeline({ prospects, loading, reload, session }) {
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", company: "", stage: "Découverte", status: "attente", priority: 50, deal_value: "" });
+  const [form, setForm] = useState({ civility: "-", firstName: "", lastName: "", company: "", stage: "Découverte", status: "attente", priority: 50, deal_value: "" });
   const [saving, setSaving] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [search, setSearch] = useState("");
@@ -105,7 +105,8 @@ export default function Pipeline({ prospects, loading, reload, session }) {
     setSaving(true);
     const { error } = await supabase.from("prospects").insert({
       user_id: session.user.id,
-      name: form.name,
+      name: `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
+      civility: form.civility,
       company: form.company,
       stage: form.stage,
       status: form.status,
@@ -114,7 +115,7 @@ export default function Pipeline({ prospects, loading, reload, session }) {
     });
     setSaving(false);
     if (!error) {
-      setForm({ name: "", company: "", stage: "Découverte", status: "attente", priority: 50, deal_value: "" });
+      setForm({ civility: "-", firstName: "", lastName: "", company: "", stage: "Découverte", status: "attente", priority: 50, deal_value: "" });
       setShowForm(false);
       reload();
     }
@@ -192,7 +193,14 @@ export default function Pipeline({ prospects, loading, reload, session }) {
 
       {showForm && (
         <form onSubmit={handleAddProspect} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "16px", marginBottom: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-          <input required placeholder="Nom du contact" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={inputStyle} />
+          <select value={form.civility} onChange={(e) => setForm({ ...form, civility: e.target.value })} style={inputStyle}>
+            <option value="-">Civilité —</option>
+            <option value="Monsieur">Monsieur</option>
+            <option value="Madame">Madame</option>
+          </select>
+          <div />
+          <input required placeholder="Prénom" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} style={inputStyle} />
+          <input required placeholder="Nom" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} style={inputStyle} />
           <input required placeholder="Entreprise" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} style={inputStyle} />
           <select value={form.stage} onChange={(e) => setForm({ ...form, stage: e.target.value })} style={inputStyle}>
             {OPEN_STAGES.map((s) => <option key={s}>{s}</option>)}
@@ -258,6 +266,7 @@ export default function Pipeline({ prospects, loading, reload, session }) {
 
 function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onLogActivity }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
   const [tab, setTab] = useState("email");
   const [logged, setLogged] = useState("");
   const history = useProspectHistory(prospect.id);
@@ -288,19 +297,36 @@ function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onL
         <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
           <Avatar name={prospect.name} stage={prospect.stage} size={52} />
           <div>
-            <div className="display" style={{ fontWeight: 700, fontSize: "20px" }}>{prospect.name}</div>
+            <div className="display" style={{ fontWeight: 700, fontSize: "20px" }}>
+              {prospect.civility && prospect.civility !== "-" ? `${prospect.civility} ` : ""}{prospect.name}
+            </div>
             <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>{prospect.company}</div>
           </div>
         </div>
-        {confirmDelete ? (
-          <div style={{ display: "flex", gap: "6px" }}>
-            <button className="focusable" onClick={onDelete} style={{ fontSize: "11px", padding: "5px 8px", borderRadius: "6px", background: "var(--red-dim)", color: "var(--red)", border: "0.5px solid var(--red)55" }}>Confirmer</button>
-            <button className="focusable" onClick={() => setConfirmDelete(false)} style={{ fontSize: "11px", padding: "5px 8px", borderRadius: "6px", background: "transparent", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>Annuler</button>
-          </div>
-        ) : (
-          <button className="focusable" onClick={() => setConfirmDelete(true)} style={{ fontSize: "11px", padding: "5px 8px", borderRadius: "6px", background: "transparent", color: "var(--text-faint)", border: "0.5px solid var(--hairline)" }}>Supprimer</button>
-        )}
+        <div style={{ display: "flex", gap: "6px" }}>
+          {!confirmDelete && (
+            <button className="focusable" onClick={() => setShowEdit((s) => !s)} style={{ fontSize: "11px", padding: "5px 8px", borderRadius: "6px", background: showEdit ? "var(--blue-dim)" : "transparent", color: showEdit ? "var(--blue)" : "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
+              {showEdit ? "Fermer" : "Modifier"}
+            </button>
+          )}
+          {confirmDelete ? (
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button className="focusable" onClick={onDelete} style={{ fontSize: "11px", padding: "5px 8px", borderRadius: "6px", background: "var(--red-dim)", color: "var(--red)", border: "0.5px solid var(--red)55" }}>Confirmer</button>
+              <button className="focusable" onClick={() => setConfirmDelete(false)} style={{ fontSize: "11px", padding: "5px 8px", borderRadius: "6px", background: "transparent", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>Annuler</button>
+            </div>
+          ) : (
+            <button className="focusable" onClick={() => setConfirmDelete(true)} style={{ fontSize: "11px", padding: "5px 8px", borderRadius: "6px", background: "transparent", color: "var(--text-faint)", border: "0.5px solid var(--hairline)" }}>Supprimer</button>
+          )}
+        </div>
       </div>
+
+      {showEdit && (
+        <EditProspectForm
+          prospect={prospect}
+          onSave={(changes) => { onUpdate(changes); setShowEdit(false); }}
+          onCancel={() => setShowEdit(false)}
+        />
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
         <div>
@@ -548,6 +574,54 @@ function Modal({ children, onClose }) {
         {children}
       </div>
     </div>
+  );
+}
+
+function EditProspectForm({ prospect, onSave, onCancel }) {
+  const nameParts = prospect.name.trim().split(/\s+/);
+  const [civility, setCivility] = useState(prospect.civility || "-");
+  const [firstName, setFirstName] = useState(nameParts[0] || "");
+  const [lastName, setLastName] = useState(nameParts.slice(1).join(" "));
+  const [company, setCompany] = useState(prospect.company);
+  const [priority, setPriority] = useState(prospect.priority);
+  const [dealValue, setDealValue] = useState(prospect.deal_value);
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setSaving(true);
+    await onSave({
+      civility,
+      name: `${firstName.trim()} ${lastName.trim()}`.trim(),
+      company,
+      priority: Number(priority),
+      deal_value: Number(dealValue) || 0,
+    });
+    setSaving(false);
+  }
+
+  return (
+    <form onSubmit={submit} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "16px", marginBottom: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+      <select value={civility} onChange={(e) => setCivility(e.target.value)} style={inputStyle}>
+        <option value="-">Civilité —</option>
+        <option value="Monsieur">Monsieur</option>
+        <option value="Madame">Madame</option>
+      </select>
+      <div />
+      <input required placeholder="Prénom" value={firstName} onChange={(e) => setFirstName(e.target.value)} style={inputStyle} />
+      <input required placeholder="Nom" value={lastName} onChange={(e) => setLastName(e.target.value)} style={inputStyle} />
+      <input required placeholder="Entreprise" value={company} onChange={(e) => setCompany(e.target.value)} style={{ ...inputStyle, gridColumn: "1 / -1" }} />
+      <input type="number" min="0" max="100" placeholder="Priorité (0-100)" value={priority} onChange={(e) => setPriority(e.target.value)} style={inputStyle} />
+      <input type="number" min="0" placeholder="Valeur du deal (€)" value={dealValue} onChange={(e) => setDealValue(e.target.value)} style={inputStyle} />
+      <div style={{ display: "flex", gap: "8px", gridColumn: "1 / -1" }}>
+        <button type="submit" disabled={saving} className="focusable" style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px" }}>
+          {saving ? "Enregistrement..." : "Enregistrer les modifications"}
+        </button>
+        <button type="button" onClick={onCancel} className="focusable" style={{ background: "transparent", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px 14px", fontSize: "13px" }}>
+          Annuler
+        </button>
+      </div>
+    </form>
   );
 }
 
