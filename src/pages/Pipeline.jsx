@@ -102,6 +102,32 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("Toutes");
   const [statusFilter, setStatusFilter] = useState("Tous");
+  const [sortKey, setSortKey] = useState("priority");
+  const [sortDir, setSortDir] = useState("desc");
+
+  function toggleSort(key) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(key === "name" || key === "company" ? "asc" : "desc");
+    }
+  }
+
+  function sortList(list) {
+    return [...list].sort((a, b) => {
+      let av = a[sortKey];
+      let bv = b[sortKey];
+      if (sortKey === "name" || sortKey === "company") {
+        av = (av || "").toLowerCase();
+        bv = (bv || "").toLowerCase();
+        return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+      }
+      av = av || 0;
+      bv = bv || 0;
+      return sortDir === "asc" ? av - bv : bv - av;
+    });
+  }
 
   useEffect(() => {
     if (initialSelectedId) onConsumeInitialSelection?.();
@@ -156,8 +182,8 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
     .filter((p) => stageFilter === "Toutes" || p.stage === stageFilter)
     .filter((p) => statusFilter === "Tous" || p.status === statusFilter)
     .filter((p) => !q || p.name.toLowerCase().includes(q) || p.company.toLowerCase().includes(q));
-  const activeList = visibleProspects.filter((p) => p.stage !== "Gagné");
-  const clientList = visibleProspects.filter((p) => p.stage === "Gagné");
+  const activeList = sortList(visibleProspects.filter((p) => p.stage !== "Gagné"));
+  const clientList = sortList(visibleProspects.filter((p) => p.stage === "Gagné"));
 
   if (selected) {
     return (
@@ -240,69 +266,100 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
         </form>
       )}
 
-      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "10px" }}>
-        {loading ? (
-          <div style={{ color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Chargement...</div>
-        ) : prospects.length === 0 ? (
-          <div style={{ color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun prospect pour l'instant. Ajoute ton premier prospect ci-dessus.</div>
-        ) : visibleProspects.length === 0 ? (
-          <div style={{ color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun résultat pour cette recherche ou ces filtres.</div>
-        ) : activeList.length === 0 ? (
-          <div style={{ color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun prospect actif — regarde du côté de tes clients ci-dessous.</div>
-        ) : (
-          activeList.map((p) => <ProspectRow key={p.id} p={p} onClick={() => setSelectedId(p.id)} />)
-        )}
-      </div>
+      {loading ? (
+        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Chargement...</div>
+      ) : prospects.length === 0 ? (
+        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun prospect pour l'instant. Ajoute ton premier prospect ci-dessus.</div>
+      ) : visibleProspects.length === 0 ? (
+        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun résultat pour cette recherche ou ces filtres.</div>
+      ) : activeList.length === 0 ? (
+        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun prospect actif — regarde du côté de tes clients ci-dessous.</div>
+      ) : (
+        <ProspectTable list={activeList} onSelect={setSelectedId} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+      )}
 
       {clientList.length > 0 && (
         <>
           <div className="display" style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.06em", color: "var(--text-dim)", margin: "22px 0 12px" }}>
             CLIENTS <span style={{ color: "#0ea968" }}>({clientList.length})</span>
           </div>
-          <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "10px" }}>
-            {clientList.map((p) => <ProspectRow key={p.id} p={p} onClick={() => setSelectedId(p.id)} asClient />)}
-          </div>
+          <ProspectTable list={clientList} onSelect={setSelectedId} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} asClient />
         </>
       )}
     </div>
   );
 }
 
-function ProspectRow({ p, onClick, asClient }) {
+const th = { textAlign: "left", padding: "10px 12px", fontSize: "10px", letterSpacing: "0.04em", color: "var(--text-faint)", whiteSpace: "nowrap", fontWeight: 700 };
+
+function SortHeader({ label, sortKeyName, sortKey, sortDir, onSort }) {
+  const active = sortKey === sortKeyName;
+  return (
+    <th onClick={() => onSort(sortKeyName)} style={{ ...th, color: active ? "var(--blue)" : "var(--text-faint)", cursor: "pointer", userSelect: "none" }}>
+      {label} {active ? (sortDir === "asc" ? "▲" : "▼") : ""}
+    </th>
+  );
+}
+
+function ProspectTable({ list, onSelect, onSort, sortKey, sortDir, asClient }) {
+  return (
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", overflow: "hidden", overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr style={{ borderBottom: "0.5px solid var(--hairline)" }}>
+            <SortHeader label="NOM" sortKeyName="name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <SortHeader label="ENTREPRISE" sortKeyName="company" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+            <th style={th}>{asClient ? "" : "STATUT"}</th>
+            <th style={th}>ÉTAPE</th>
+            <th style={th}>PROCHAIN CONTACT</th>
+            <SortHeader label="MONTANT" sortKeyName="deal_value" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+          </tr>
+        </thead>
+        <tbody>
+          {list.map((p) => <ProspectTableRow key={p.id} p={p} onClick={() => onSelect(p.id)} asClient={asClient} />)}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ProspectTableRow({ p, onClick, asClient }) {
   const meta = STATUS_META[p.status] || STATUS_META.attente;
   const closed = !asClient && CLOSED_STAGES.includes(p.stage);
+  const td = { padding: "10px 12px", fontSize: "13px", verticalAlign: "middle" };
   return (
-    <button
-      onClick={onClick}
-      className="focusable"
-      style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px", width: "100%", textAlign: "left", background: "transparent", border: "0.5px solid transparent", borderRadius: "8px", opacity: closed ? 0.6 : 1 }}
-    >
-      <Avatar name={p.name} stage={p.stage} size={32} />
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div className="display" style={{ fontWeight: 500, fontSize: "14px" }}>{p.name}</div>
-        <div style={{ color: "var(--text-dim)", fontSize: "12px" }}>{p.company}{!asClient ? ` · ${p.stage}` : ""}</div>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "3px", minWidth: "110px" }}>
+    <tr onClick={onClick} style={{ cursor: "pointer", borderBottom: "0.5px solid var(--hairline)", opacity: closed ? 0.6 : 1 }}>
+      <td style={td}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <Avatar name={p.name} stage={p.stage} size={26} />
+          <span className="display" style={{ fontWeight: 500, whiteSpace: "nowrap" }}>{p.name}</span>
+        </div>
+      </td>
+      <td style={{ ...td, color: "var(--text-dim)", whiteSpace: "nowrap" }}>{p.company}</td>
+      <td style={td}>
         {asClient ? (
-          <div className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, color: "#0ea968", background: "#e2f7ec", border: "0.5px solid #0ea96855", borderRadius: "6px", padding: "4px 8px" }}>
-            <TrophyIcon size={11} color="#0ea968" />
-            CLIENT
-          </div>
+          <span className="mono" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, color: "#0ea968", background: "#e2f7ec", border: "0.5px solid #0ea96855", borderRadius: "6px", padding: "4px 8px", whiteSpace: "nowrap" }}>
+            <TrophyIcon size={11} color="#0ea968" /> CLIENT
+          </span>
         ) : (
-          <div className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, color: meta.color, background: meta.dim, border: `0.5px solid ${meta.color}55`, borderRadius: "6px", padding: "4px 8px" }}>
-            <meta.Icon size={11} color={meta.color} />
-            {meta.label}
-          </div>
+          <span className="mono" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, color: meta.color, background: meta.dim, border: `0.5px solid ${meta.color}55`, borderRadius: "6px", padding: "4px 8px", whiteSpace: "nowrap" }}>
+            <meta.Icon size={11} color={meta.color} /> {meta.label}
+          </span>
         )}
-        {p.next_contact_at && (
-          <div className="mono" style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "10px", color: isOverdue(p.next_contact_at) ? "var(--red)" : "var(--text-faint)" }}>
+      </td>
+      <td style={{ ...td, color: "var(--text-dim)", fontSize: "12px", whiteSpace: "nowrap" }}>{p.stage}</td>
+      <td style={td}>
+        {p.next_contact_at ? (
+          <span className="mono" style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "11px", color: isOverdue(p.next_contact_at) ? "var(--red)" : "var(--text-faint)", whiteSpace: "nowrap" }}>
             <CalendarIcon size={10} color={isOverdue(p.next_contact_at) ? "var(--red)" : "var(--text-faint)"} />
             {formatShortDate(p.next_contact_at)}
-          </div>
+          </span>
+        ) : (
+          <span style={{ color: "var(--text-faint)", fontSize: "12px" }}>—</span>
         )}
-      </div>
-      <div className="mono" style={{ fontSize: "13px", color: "var(--blue)", width: "90px", textAlign: "right" }}>{formatEuros(p.deal_value)}</div>
-    </button>
+      </td>
+      <td className="mono" style={{ ...td, color: "var(--blue)", textAlign: "right", whiteSpace: "nowrap" }}>{formatEuros(p.deal_value)}</td>
+    </tr>
   );
 }
 
