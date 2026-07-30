@@ -373,6 +373,22 @@ export function ArrowLeftIcon(props) {
   );
 }
 
+export function Logo({ size = 32, gradientId = "closia-logo-g" }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" style={{ flexShrink: 0 }}>
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="40" y2="40">
+          <stop offset="0" stopColor="#3b6cff" />
+          <stop offset="1" stopColor="#1d3fc4" />
+        </linearGradient>
+      </defs>
+      <rect width="40" height="40" rx="11" fill={`url(#${gradientId})`} />
+      <path d="M11.5 21l5 5 12-14" stroke="#fff" strokeWidth="3.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M29.5 7.5l1 2.8 2.8 1-2.8 1-1 2.8-1-2.8-2.8-1 2.8-1z" fill="#fff" opacity="0.9" />
+    </svg>
+  );
+}
+
 export const inputStyle = {
   background: "var(--panel2)",
   border: "0.5px solid var(--hairline)",

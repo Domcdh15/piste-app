@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { Logo } from "../lib/ui.jsx";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -39,11 +40,12 @@ export default function Login() {
           maxWidth: "360px",
         }}
       >
-        <div className="display" style={{ fontWeight: 700, fontSize: "22px", letterSpacing: "0.04em", marginBottom: "2px" }}>
-          Clos'IA
-        </div>
-        <div style={{ color: "var(--blue)", fontSize: "12px", fontWeight: 500, marginBottom: "16px" }}>
-          Mon assistant commercial
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+          <Logo size={44} />
+          <div>
+            <div className="display" style={{ fontWeight: 700, fontSize: "22px", letterSpacing: "0.04em" }}>Clos'IA</div>
+            <div style={{ color: "var(--blue)", fontSize: "12px", fontWeight: 500 }}>Mon assistant commercial</div>
+          </div>
         </div>
         <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "24px" }}>
           Connecte-toi pour accéder à ton pipeline.
