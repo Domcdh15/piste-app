@@ -96,7 +96,7 @@ function buildHistoryContext(history) {
 
 export default function Pipeline({ prospects, loading, reload, session }) {
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ civility: "-", firstName: "", lastName: "", company: "", stage: "Découverte", status: "attente", priority: 50, deal_value: "" });
+  const [form, setForm] = useState({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", stage: "Découverte", status: "attente", priority: 50, deal_value: "" });
   const [saving, setSaving] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [search, setSearch] = useState("");
@@ -111,6 +111,7 @@ export default function Pipeline({ prospects, loading, reload, session }) {
       name: `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
       civility: form.civility,
       company: form.company,
+      job_title: form.jobTitle.trim(),
       stage: form.stage,
       status: form.status,
       priority: Number(form.priority),
@@ -118,7 +119,7 @@ export default function Pipeline({ prospects, loading, reload, session }) {
     });
     setSaving(false);
     if (!error) {
-      setForm({ civility: "-", firstName: "", lastName: "", company: "", stage: "Découverte", status: "attente", priority: 50, deal_value: "" });
+      setForm({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", stage: "Découverte", status: "attente", priority: 50, deal_value: "" });
       setShowForm(false);
       reload();
     }
@@ -190,8 +191,9 @@ export default function Pipeline({ prospects, loading, reload, session }) {
           <optgroup label="En cours">
             {OPEN_STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
           </optgroup>
+          <option value="Gagné">Client</option>
           <optgroup label="Clôturé">
-            {CLOSED_STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
+            <option value="Perdu">Perdu</option>
           </optgroup>
         </select>
       </div>
@@ -207,6 +209,7 @@ export default function Pipeline({ prospects, loading, reload, session }) {
           <input required placeholder="Prénom" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} style={inputStyle} />
           <input required placeholder="Nom" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} style={inputStyle} />
           <input required placeholder="Entreprise" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} style={inputStyle} />
+          <input placeholder="Poste (ex : Directeur commercial)" value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })} style={inputStyle} />
           <select value={form.stage} onChange={(e) => setForm({ ...form, stage: e.target.value })} style={inputStyle}>
             {OPEN_STAGES.map((s) => <option key={s}>{s}</option>)}
           </select>
@@ -333,7 +336,9 @@ function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onL
                 </span>
               )}
             </div>
-            <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>{prospect.company}</div>
+            <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>
+              {prospect.job_title ? `${prospect.job_title} · ` : ""}{prospect.company}
+            </div>
           </div>
         </div>
         <div style={{ display: "flex", gap: "6px" }}>
@@ -616,6 +621,7 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
   const [firstName, setFirstName] = useState(nameParts[0] || "");
   const [lastName, setLastName] = useState(nameParts.slice(1).join(" "));
   const [company, setCompany] = useState(prospect.company);
+  const [jobTitle, setJobTitle] = useState(prospect.job_title || "");
   const [priority, setPriority] = useState(nearestPriorityLevel(prospect.priority));
   const [dealValue, setDealValue] = useState(prospect.deal_value);
   const [saving, setSaving] = useState(false);
@@ -627,6 +633,7 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
       civility,
       name: `${firstName.trim()} ${lastName.trim()}`.trim(),
       company,
+      job_title: jobTitle.trim(),
       priority: Number(priority),
       deal_value: Number(dealValue) || 0,
     });
@@ -643,7 +650,8 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
       <div />
       <input required placeholder="Prénom" value={firstName} onChange={(e) => setFirstName(e.target.value)} style={inputStyle} />
       <input required placeholder="Nom" value={lastName} onChange={(e) => setLastName(e.target.value)} style={inputStyle} />
-      <input required placeholder="Entreprise" value={company} onChange={(e) => setCompany(e.target.value)} style={{ ...inputStyle, gridColumn: "1 / -1" }} />
+      <input required placeholder="Entreprise" value={company} onChange={(e) => setCompany(e.target.value)} style={inputStyle} />
+      <input placeholder="Poste (ex : Directeur commercial)" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} style={inputStyle} />
       <select value={priority} onChange={(e) => setPriority(e.target.value)} style={inputStyle}>
         {PRIORITY_LEVELS.map((l) => <option key={l.value} value={l.value}>Priorité : {l.label}</option>)}
       </select>
