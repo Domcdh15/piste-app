@@ -86,6 +86,16 @@ export async function callAI(prompt, token) {
   return data.text;
 }
 
+export function parseJsonLoose(text) {
+  if (!text) return null;
+  const cleaned = text.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch (e) {
+    return null;
+  }
+}
+
 export function Avatar({ name, stage, size = 34 }) {
   const meta = STAGE_META[stage] || { color: "var(--text-faint)", dim: "var(--panel2)" };
   return (

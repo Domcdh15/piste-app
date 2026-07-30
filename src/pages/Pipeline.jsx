@@ -10,6 +10,7 @@ import {
   formatShortDate,
   isOverdue,
   callAI,
+  parseJsonLoose,
   Avatar,
   SparklesIcon,
   CalendarIcon,
@@ -27,6 +28,7 @@ const ACTIVITY_LABEL = {
   appel_manque: "Appel manqué",
   deal_gagne: "Deal gagné",
   deal_perdu: "Deal perdu",
+  note: "Note",
 };
 
 function truncate(text, max) {
@@ -342,7 +344,7 @@ function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onL
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: "8px", marginBottom: "18px" }}>
+      <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
         <button
           className="focusable"
           onClick={() => handleCallLog("appel_abouti")}
@@ -358,6 +360,8 @@ function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onL
           <XIcon size={13} /> {logged === "appel_manque" ? "Enregistré" : "Appel manqué"}
         </button>
       </div>
+
+      <NoteAnalyzer prospect={prospect} history={history} session={session} onLogActivity={onLogActivity} />
 
       <CoachingCard prospect={prospect} history={history} session={session} />
 
@@ -375,6 +379,164 @@ function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onL
         {tab === "analyse" && <AnalyseGenerator prospect={prospect} history={history} session={session} />}
         {tab === "taches" && <TasksTab prospect={prospect} session={session} />}
         {tab === "historique" && <Historique history={history} />}
+      </div>
+    </div>
+  );
+}
+
+function NoteAnalyzer({ prospect, history, session, onLogActivity }) {
+  const [note, setNote] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null);
+  const [selected, setSelected] = useState([]);
+  const [creating, setCreating] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+
+  async function analyze() {
+    const text = note.trim();
+    if (!text || analyzing) return;
+    setAnalyzing(true);
+    setError("");
+    try {
+      await onLogActivity("note", text);
+      const prompt = `Tu es un assistant commercial. Un commercial vient de noter comment s'est passé un échange (appel, RDV ou autre) avec ce prospect. Analyse cette note et réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après, sans balises markdown, exactement dans ce format :
+{"summary": "résumé en 1-2 phrases de ce qu'il faut faire ensuite", "pain_points": ["...", "..."], "opportunities": ["...", "..."], "suggested_tasks": [{"type": "appeler", "note": "description courte", "due_in_days": 3}]}
+
+Limite chaque tableau à 3 éléments maximum, en français. "type" doit être "appeler" ou "email".
+
+Nom du contact : ${prospect.name}
+Entreprise : ${prospect.company}
+Étape du pipeline : ${prospect.stage}
+
+Note de l'échange : "${text}"
+
+Contexte des échanges précédents :
+${buildHistoryContext(history)}`;
+      const raw = await callAI(prompt, session.access_token);
+      const parsed = parseJsonLoose(raw);
+      if (!parsed) throw new Error("parse_failed");
+      setResult(parsed);
+      setSelected((parsed.suggested_tasks || []).map((_, i) => i));
+      setShowModal(true);
+      setNote("");
+      history.reload();
+    } catch (e) {
+      setError("L'analyse a échoué. Réessaie.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  async function createTasks() {
+    setCreating(true);
+    const tasks = (result.suggested_tasks || []).filter((_, i) => selected.includes(i));
+    for (const t of tasks) {
+      const due = new Date();
+      due.setDate(due.getDate() + (Number(t.due_in_days) || 3));
+      await supabase.from("tasks").insert({
+        user_id: session.user.id,
+        prospect_id: prospect.id,
+        type: t.type === "email" ? "email" : "appeler",
+        note: t.note,
+        due_at: due.toISOString(),
+      });
+    }
+    setCreating(false);
+    setShowModal(false);
+    setResult(null);
+  }
+
+  function toggle(i) {
+    setSelected((s) => (s.includes(i) ? s.filter((x) => x !== i) : [...s, i]));
+  }
+
+  return (
+    <div style={{ marginBottom: "16px" }}>
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Comment s'est passé l'appel, le RDV... ? Note ce qui compte, l'IA en tire les prochaines étapes."
+        style={{ width: "100%", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", lineHeight: 1.5, padding: "10px 12px", minHeight: "70px", resize: "vertical", fontFamily: "Inter, sans-serif", marginBottom: "8px", boxSizing: "border-box" }}
+      />
+      <button
+        className="focusable"
+        onClick={analyze}
+        disabled={!note.trim() || analyzing}
+        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: !note.trim() || analyzing ? 0.6 : 1 }}
+      >
+        <SparklesIcon size={14} color="var(--blue)" />
+        {analyzing ? "Analyse en cours..." : "Analyser la note"}
+      </button>
+      {error && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "6px" }}>{error}</div>}
+
+      {showModal && result && (
+        <Modal onClose={() => setShowModal(false)}>
+          <div className="display" style={{ fontWeight: 700, fontSize: "16px", marginBottom: "12px" }}>Analyse de l'échange</div>
+
+          <div style={{ fontSize: "13px", color: "var(--text)", marginBottom: "16px", lineHeight: 1.5 }}>{result.summary}</div>
+
+          {result.pain_points?.length > 0 && (
+            <div style={{ marginBottom: "14px" }}>
+              <div style={{ fontSize: "11px", color: "var(--red)", fontWeight: 700, marginBottom: "6px" }}>DOULEURS</div>
+              <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "var(--text-dim)", lineHeight: 1.6 }}>
+                {result.pain_points.map((p, i) => <li key={i}>{p}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {result.opportunities?.length > 0 && (
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ fontSize: "11px", color: "#0ea968", fontWeight: 700, marginBottom: "6px" }}>OPPORTUNITÉS</div>
+              <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "var(--text-dim)", lineHeight: 1.6 }}>
+                {result.opportunities.map((p, i) => <li key={i}>{p}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {result.suggested_tasks?.length > 0 && (
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ fontSize: "11px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "8px" }}>TÂCHES SUGGÉRÉES — pour ne rien oublier</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {result.suggested_tasks.map((t, i) => (
+                  <label key={i} style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px 10px", fontSize: "12px", cursor: "pointer" }}>
+                    <input type="checkbox" checked={selected.includes(i)} onChange={() => toggle(i)} />
+                    {t.type === "email" ? <MailIcon size={13} color="var(--text-dim)" /> : <PhoneIcon size={13} color="var(--text-dim)" />}
+                    <span style={{ flex: 1 }}>{t.note}</span>
+                    <span className="mono" style={{ color: "var(--text-faint)", fontSize: "11px" }}>dans {t.due_in_days || 3}j</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+            <button className="focusable" onClick={() => setShowModal(false)} style={{ background: "transparent", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 14px", fontSize: "13px" }}>
+              Ignorer
+            </button>
+            <button
+              className="focusable"
+              onClick={createTasks}
+              disabled={creating || selected.length === 0}
+              style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", opacity: creating || selected.length === 0 ? 0.6 : 1 }}
+            >
+              {creating ? "Création..." : `Créer ${selected.length} tâche${selected.length > 1 ? "s" : ""}`}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function Modal({ children, onClose }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: "20px" }}
+    >
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "14px", padding: "22px", maxWidth: "480px", width: "100%", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 50px rgba(15,23,42,0.25)" }}>
+        {children}
       </div>
     </div>
   );

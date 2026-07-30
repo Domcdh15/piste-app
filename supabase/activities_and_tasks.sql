@@ -8,11 +8,17 @@ create table if not exists activities (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users(id) on delete cascade not null,
   prospect_id uuid references prospects(id) on delete cascade not null,
-  type text not null check (type in ('appel_abouti', 'appel_manque', 'deal_gagne', 'deal_perdu')),
+  type text not null check (type in ('appel_abouti', 'appel_manque', 'deal_gagne', 'deal_perdu', 'note')),
   note text,
   source text not null default 'manual',
   created_at timestamptz default now()
 );
+
+-- Idempotent : élargit la contrainte même si la table existait déjà
+-- (au cas où ce script serait exécuté une deuxième fois après une mise à jour).
+alter table activities drop constraint if exists activities_type_check;
+alter table activities add constraint activities_type_check
+  check (type in ('appel_abouti', 'appel_manque', 'deal_gagne', 'deal_perdu', 'note'));
 
 alter table activities enable row level security;
 
