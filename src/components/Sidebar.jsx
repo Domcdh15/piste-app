@@ -1,5 +1,3 @@
-import { getInitials } from "../lib/ui.jsx";
-
 const NAV_GROUPS = [
   {
     section: null,
@@ -43,30 +41,9 @@ export default function Sidebar({ activeTab, setActiveTab, userEmail }) {
         padding: "20px 14px",
       }}
     >
-      <div style={{ marginBottom: "20px", paddingLeft: "2px" }}>
+      <div style={{ marginBottom: "26px", paddingLeft: "2px" }}>
         <div className="display" style={{ fontWeight: 700, fontSize: "17px", letterSpacing: "0.02em" }}>Clos'IA</div>
         <div style={{ color: "var(--blue)", fontSize: "10px", fontWeight: 500 }}>Mon assistant commercial</div>
-      </div>
-
-      <div
-        className="mono"
-        style={{
-          width: "36px",
-          height: "36px",
-          borderRadius: "50%",
-          background: "var(--blue-dim)",
-          color: "var(--blue)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "12px",
-          fontWeight: 700,
-          marginBottom: "18px",
-          border: "0.5px solid #2563eb40",
-        }}
-        title={userEmail}
-      >
-        {getInitials(userEmail?.split("@")[0]?.replace(/[._]/g, " "))}
       </div>
 
       <nav style={{ display: "flex", flexDirection: "column", gap: "18px", flex: 1 }}>
