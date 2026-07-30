@@ -18,6 +18,7 @@ import {
   CalendarIcon,
   CheckIcon,
   XIcon,
+  TrophyIcon,
   PhoneIcon,
   MailIcon,
   ArrowLeftIcon,
@@ -146,6 +147,8 @@ export default function Pipeline({ prospects, loading, reload, session }) {
     .filter((p) => stageFilter === "Toutes" || p.stage === stageFilter)
     .filter((p) => statusFilter === "Tous" || p.status === statusFilter)
     .filter((p) => !q || p.name.toLowerCase().includes(q) || p.company.toLowerCase().includes(q));
+  const activeList = visibleProspects.filter((p) => p.stage !== "Gagné");
+  const clientList = visibleProspects.filter((p) => p.stage === "Gagné");
 
   if (selected) {
     return (
@@ -230,41 +233,62 @@ export default function Pipeline({ prospects, loading, reload, session }) {
           <div style={{ color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun prospect pour l'instant. Ajoute ton premier prospect ci-dessus.</div>
         ) : visibleProspects.length === 0 ? (
           <div style={{ color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun résultat pour cette recherche ou ces filtres.</div>
+        ) : activeList.length === 0 ? (
+          <div style={{ color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun prospect actif — regarde du côté de tes clients ci-dessous.</div>
         ) : (
-          visibleProspects.map((p) => {
-            const meta = STATUS_META[p.status] || STATUS_META.attente;
-            const closed = CLOSED_STAGES.includes(p.stage);
-            return (
-              <button
-                key={p.id}
-                onClick={() => setSelectedId(p.id)}
-                className="focusable"
-                style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px", width: "100%", textAlign: "left", background: "transparent", border: "0.5px solid transparent", borderRadius: "8px", opacity: closed ? 0.6 : 1 }}
-              >
-                <Avatar name={p.name} stage={p.stage} size={32} />
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div className="display" style={{ fontWeight: 500, fontSize: "14px" }}>{p.name}</div>
-                  <div style={{ color: "var(--text-dim)", fontSize: "12px" }}>{p.company} · {p.stage}</div>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "3px", minWidth: "110px" }}>
-                  <div className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, color: meta.color, background: meta.dim, border: `0.5px solid ${meta.color}55`, borderRadius: "6px", padding: "4px 8px" }}>
-                    <meta.Icon size={11} color={meta.color} />
-                    {meta.label}
-                  </div>
-                  {p.next_contact_at && (
-                    <div className="mono" style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "10px", color: isOverdue(p.next_contact_at) ? "var(--red)" : "var(--text-faint)" }}>
-                      <CalendarIcon size={10} color={isOverdue(p.next_contact_at) ? "var(--red)" : "var(--text-faint)"} />
-                      {formatShortDate(p.next_contact_at)}
-                    </div>
-                  )}
-                </div>
-                <div className="mono" style={{ fontSize: "13px", color: "var(--blue)", width: "90px", textAlign: "right" }}>{formatEuros(p.deal_value)}</div>
-              </button>
-            );
-          })
+          activeList.map((p) => <ProspectRow key={p.id} p={p} onClick={() => setSelectedId(p.id)} />)
         )}
       </div>
+
+      {clientList.length > 0 && (
+        <>
+          <div className="display" style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.06em", color: "var(--text-dim)", margin: "22px 0 12px" }}>
+            CLIENTS <span style={{ color: "#0ea968" }}>({clientList.length})</span>
+          </div>
+          <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "10px" }}>
+            {clientList.map((p) => <ProspectRow key={p.id} p={p} onClick={() => setSelectedId(p.id)} asClient />)}
+          </div>
+        </>
+      )}
     </div>
+  );
+}
+
+function ProspectRow({ p, onClick, asClient }) {
+  const meta = STATUS_META[p.status] || STATUS_META.attente;
+  const closed = !asClient && CLOSED_STAGES.includes(p.stage);
+  return (
+    <button
+      onClick={onClick}
+      className="focusable"
+      style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px", width: "100%", textAlign: "left", background: "transparent", border: "0.5px solid transparent", borderRadius: "8px", opacity: closed ? 0.6 : 1 }}
+    >
+      <Avatar name={p.name} stage={p.stage} size={32} />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div className="display" style={{ fontWeight: 500, fontSize: "14px" }}>{p.name}</div>
+        <div style={{ color: "var(--text-dim)", fontSize: "12px" }}>{p.company}{!asClient ? ` · ${p.stage}` : ""}</div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "3px", minWidth: "110px" }}>
+        {asClient ? (
+          <div className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, color: "#0ea968", background: "#e2f7ec", border: "0.5px solid #0ea96855", borderRadius: "6px", padding: "4px 8px" }}>
+            <TrophyIcon size={11} color="#0ea968" />
+            CLIENT
+          </div>
+        ) : (
+          <div className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, color: meta.color, background: meta.dim, border: `0.5px solid ${meta.color}55`, borderRadius: "6px", padding: "4px 8px" }}>
+            <meta.Icon size={11} color={meta.color} />
+            {meta.label}
+          </div>
+        )}
+        {p.next_contact_at && (
+          <div className="mono" style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "10px", color: isOverdue(p.next_contact_at) ? "var(--red)" : "var(--text-faint)" }}>
+            <CalendarIcon size={10} color={isOverdue(p.next_contact_at) ? "var(--red)" : "var(--text-faint)"} />
+            {formatShortDate(p.next_contact_at)}
+          </div>
+        )}
+      </div>
+      <div className="mono" style={{ fontSize: "13px", color: "var(--blue)", width: "90px", textAlign: "right" }}>{formatEuros(p.deal_value)}</div>
+    </button>
   );
 }
 
@@ -301,8 +325,13 @@ function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onL
         <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
           <Avatar name={prospect.name} stage={prospect.stage} size={52} />
           <div>
-            <div className="display" style={{ fontWeight: 700, fontSize: "20px" }}>
+            <div className="display" style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 700, fontSize: "20px" }}>
               {prospect.civility && prospect.civility !== "-" ? `${prospect.civility} ` : ""}{prospect.name}
+              {prospect.stage === "Gagné" && (
+                <span className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "10px", fontWeight: 700, color: "#0ea968", background: "#e2f7ec", border: "0.5px solid #0ea96855", borderRadius: "6px", padding: "3px 7px" }}>
+                  <TrophyIcon size={10} color="#0ea968" /> CLIENT
+                </span>
+              )}
             </div>
             <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>{prospect.company}</div>
           </div>
