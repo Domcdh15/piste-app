@@ -1,6 +1,19 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { CalendarIcon, PhoneIcon, MailIcon, TargetIcon, CheckIcon, SparklesIcon, getFirstName, callAI } from "../lib/ui.jsx";
+import {
+  CalendarIcon,
+  PhoneIcon,
+  MailIcon,
+  TargetIcon,
+  CheckIcon,
+  SparklesIcon,
+  getFirstName,
+  callAI,
+  STATUS_META,
+  CLOSED_STAGES,
+  Avatar,
+  formatEuros,
+} from "../lib/ui.jsx";
 
 function todayLabel() {
   const d = new Date();
@@ -161,6 +174,7 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
             background: "transparent",
             border: "none",
             padding: "10px 2px",
+            marginBottom: "8px",
             textAlign: "left",
           }}
         >
@@ -168,6 +182,38 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
           <span className="display" style={{ fontWeight: 700, fontSize: "15px", color: "var(--text)" }}>Sales Pipeline</span>
           <span style={{ color: "var(--text-faint)", fontSize: "13px" }}>Vue d'ensemble de vos prospects</span>
         </button>
+
+        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "8px" }}>
+          {prospects.length === 0 ? (
+            <div style={{ color: "var(--text-dim)", padding: "16px", fontSize: "13px" }}>Aucun prospect pour l'instant.</div>
+          ) : (
+            prospects
+              .filter((p) => !CLOSED_STAGES.includes(p.stage))
+              .slice(0, 5)
+              .map((p) => {
+                const meta = STATUS_META[p.status] || STATUS_META.attente;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => setActiveTab("pipeline")}
+                    className="focusable"
+                    style={{ display: "flex", alignItems: "center", gap: "12px", padding: "9px 10px", width: "100%", textAlign: "left", background: "transparent", border: "0.5px solid transparent", borderRadius: "8px" }}
+                  >
+                    <Avatar name={p.name} stage={p.stage} size={28} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="display" style={{ fontWeight: 500, fontSize: "13px" }}>{p.name}</div>
+                      <div style={{ color: "var(--text-dim)", fontSize: "11px" }}>{p.company} · {p.stage}</div>
+                    </div>
+                    <div className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "10px", fontWeight: 700, color: meta.color, background: meta.dim, border: `0.5px solid ${meta.color}55`, borderRadius: "6px", padding: "3px 7px" }}>
+                      <meta.Icon size={10} color={meta.color} />
+                      {meta.label}
+                    </div>
+                    <div className="mono" style={{ fontSize: "12px", color: "var(--blue)", width: "80px", textAlign: "right" }}>{formatEuros(p.deal_value)}</div>
+                  </button>
+                );
+              })
+          )}
+        </div>
       </div>
     </div>
   );
