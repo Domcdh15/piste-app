@@ -9,6 +9,7 @@ import {
   SparklesIcon,
   getFirstName,
   callAI,
+  parseJsonLoose,
   STATUS_META,
   CLOSED_STAGES,
   Avatar,
@@ -30,13 +31,15 @@ function formatEventTime(iso) {
 
 const FALLBACK_TIP = "Commencez par vos relances en attente, puis enchaînez avec vos appels planifiés pour maximiser vos conversions.";
 
-export default function Today({ prospects, setActiveTab, session, reload }) {
+export default function Today({ prospects, setActiveTab, session, reload, onOpenProspect }) {
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [tip, setTip] = useState("");
   const [tipLoading, setTipLoading] = useState(true);
   const [taches, setTaches] = useState([]);
   const [tachesLoading, setTachesLoading] = useState(true);
+  const [priorities, setPriorities] = useState([]);
+  const [prioritiesLoading, setPrioritiesLoading] = useState(true);
   const nbTaches = taches.length;
   const prospectById = Object.fromEntries(prospects.map((p) => [p.id, p]));
 
@@ -110,6 +113,50 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventsLoading]);
 
+  useEffect(() => {
+    async function loadPriorities() {
+      setPrioritiesLoading(true);
+      const open = prospects.filter((p) => p.stage !== "Gagné" && p.stage !== "Perdu");
+      function rank(p) {
+        let r = (p.priority || 0) / 5;
+        if (p.status === "retard") r += 50;
+        if (p.next_contact_at && isOverdue(p.next_contact_at)) r += 40;
+        if (p.status === "appeler") r += 20;
+        return r;
+      }
+      const ranked = [...open].sort((a, b) => rank(b) - rank(a)).slice(0, 3);
+
+      if (ranked.length === 0) {
+        setPriorities([]);
+        setPrioritiesLoading(false);
+        return;
+      }
+
+      function fallbackReason(p) {
+        if (p.status === "retard") return "Suivi en retard.";
+        if (p.next_contact_at && isOverdue(p.next_contact_at)) return "Relance prévue dépassée.";
+        if (p.status === "appeler") return "Appel à faire.";
+        return "Deal à forte priorité.";
+      }
+
+      try {
+        const prompt = `Pour chacun de ces prospects, donne en français une raison courte (moins de 12 mots) d'en faire une priorité aujourd'hui, et un score d'urgence de 0 à 100. Réponds UNIQUEMENT avec un tableau JSON de ${ranked.length} objets, dans le même ordre que la liste, format : [{"reason": "...", "score": 85}]
+
+${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage}, statut: ${p.status}, dernier contact: ${p.last_contact_at || "jamais"}, prochain contact prévu: ${p.next_contact_at || "aucun"}`).join("\n")}`;
+        const raw = await callAI(prompt, session.access_token);
+        const parsed = parseJsonLoose(raw);
+        if (!Array.isArray(parsed)) throw new Error("parse_failed");
+        setPriorities(ranked.map((p, i) => ({ prospect: p, reason: parsed[i]?.reason || fallbackReason(p), score: parsed[i]?.score ?? 50 })));
+      } catch (e) {
+        setPriorities(ranked.map((p) => ({ prospect: p, reason: fallbackReason(p), score: 50 })));
+      } finally {
+        setPrioritiesLoading(false);
+      }
+    }
+    loadPriorities();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prospects]);
+
   return (
     <div>
       <div
@@ -140,6 +187,8 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
       </div>
 
       <div style={{ padding: "28px 32px 48px" }}>
+        <PriorityCard priorities={priorities} loading={prioritiesLoading} onOpen={onOpenProspect} />
+
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px", marginBottom: "14px", alignItems: "start" }}>
           <StatTile
             accent="var(--blue)"
@@ -266,6 +315,55 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function PriorityCard({ priorities, loading, onOpen }) {
+  return (
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "18px", marginBottom: "22px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
+        <SparklesIcon size={14} color="var(--blue)" />
+        <span className="display" style={{ fontWeight: 700, fontSize: "15px" }}>Assistant IA — priorités du jour</span>
+      </div>
+
+      {loading ? (
+        <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Analyse en cours...</div>
+      ) : priorities.length === 0 ? (
+        <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Rien d'urgent aujourd'hui — bravo.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {priorities.map(({ prospect: p, reason, score }, i) => (
+            <div key={p.id} style={{ display: "flex", flexDirection: "column", gap: "8px", paddingBottom: i < priorities.length - 1 ? "12px" : 0, borderBottom: i < priorities.length - 1 ? "0.5px solid var(--hairline)" : "none" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+                  <Avatar name={p.name} stage={p.stage} size={26} />
+                  <div style={{ minWidth: 0 }}>
+                    <div className="display" style={{ fontWeight: 600, fontSize: "13px" }}>
+                      {p.name} <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>· {p.company}</span>
+                    </div>
+                    <div style={{ color: "var(--text-dim)", fontSize: "12px" }}>{reason}</div>
+                  </div>
+                </div>
+                <span className="mono" style={{ background: "var(--blue-dim)", color: "var(--blue)", borderRadius: "999px", fontSize: "11px", fontWeight: 700, padding: "3px 8px", flexShrink: 0 }}>
+                  {score}
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                <button className="focusable" onClick={() => onOpen?.(p.id, "script")} style={{ fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
+                  Préparer un appel
+                </button>
+                <button className="focusable" onClick={() => onOpen?.(p.id, "email")} style={{ fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
+                  Générer une relance
+                </button>
+                <button className="focusable" onClick={() => onOpen?.(p.id, "email")} style={{ fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55" }}>
+                  Ouvrir le dossier
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

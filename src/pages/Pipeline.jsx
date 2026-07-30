@@ -94,7 +94,7 @@ function buildHistoryContext(history) {
   return parts.length > 0 ? parts.join("\n\n") : "Aucun échange précédent enregistré — premier contact.";
 }
 
-export default function Pipeline({ prospects, loading, reload, session, initialSelectedId, onConsumeInitialSelection, initialShowForm, onConsumeInitialShowForm }) {
+export default function Pipeline({ prospects, loading, reload, session, initialSelectedId, onConsumeInitialSelection, initialShowForm, onConsumeInitialShowForm, initialTab }) {
   const [showForm, setShowForm] = useState(!!initialShowForm);
   const [form, setForm] = useState({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", email: "", phone: "", stage: "À contacter", status: "attente", priority: 50, deal_value: "" });
   const [saving, setSaving] = useState(false);
@@ -168,6 +168,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
         onUpdate={(changes) => handleUpdateProspect(selected.id, changes)}
         onDelete={() => handleDeleteProspect(selected.id)}
         onLogActivity={(type, note) => logActivity(selected.id, type, note)}
+        initialTab={initialTab}
       />
     );
   }
@@ -305,10 +306,10 @@ function ProspectRow({ p, onClick, asClient }) {
   );
 }
 
-function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onLogActivity }) {
+function ProspectDetailPage({ prospect, session, onBack, onUpdate, onDelete, onLogActivity, initialTab }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
-  const [tab, setTab] = useState("email");
+  const [tab, setTab] = useState(initialTab || "email");
   const [logged, setLogged] = useState("");
   const history = useProspectHistory(prospect.id);
 

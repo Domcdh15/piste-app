@@ -15,6 +15,7 @@ export default function Shell({ session }) {
   const [loading, setLoading] = useState(true);
   const [jumpToProspectId, setJumpToProspectId] = useState(null);
   const [jumpToShowForm, setJumpToShowForm] = useState(false);
+  const [jumpToTab, setJumpToTab] = useState("email");
 
   async function loadProspects() {
     setLoading(true);
@@ -27,8 +28,9 @@ export default function Shell({ session }) {
     loadProspects();
   }, []);
 
-  function openProspect(id) {
+  function openProspect(id, tab) {
     setJumpToProspectId(id);
+    setJumpToTab(tab || "email");
     setActiveTab("pipeline");
   }
 
@@ -41,7 +43,7 @@ export default function Shell({ session }) {
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} userEmail={session.user.email} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} />}
+        {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} onOpenProspect={openProspect} />}
         {activeTab === "pipeline" && (
           <Pipeline
             prospects={prospects}
@@ -52,6 +54,7 @@ export default function Shell({ session }) {
             onConsumeInitialSelection={() => setJumpToProspectId(null)}
             initialShowForm={jumpToShowForm}
             onConsumeInitialShowForm={() => setJumpToShowForm(false)}
+            initialTab={jumpToTab}
           />
         )}
         {activeTab === "opportunities" && <Opportunities prospects={prospects} onOpenProspect={openProspect} onNewOpportunity={openNewProspectForm} />}
