@@ -55,8 +55,12 @@ export default function Settings({ session, prospects, settings, reloadSettings 
       <div className="display" style={{ fontWeight: 700, fontSize: "20px", marginBottom: "20px" }}>⚙️ Paramètres</div>
 
       <Section title="Profil">
-        <div style={{ fontSize: "14px", marginBottom: "2px" }}>{session.user.email}</div>
-        <div style={{ color: "var(--text-dim)", fontSize: "12px", marginBottom: "12px" }}>Connecté via Supabase</div>
+        <div style={{ fontSize: "14px", marginBottom: "2px" }}>
+          {local.first_name || local.last_name ? `${local.first_name || ""} ${local.last_name || ""}`.trim() + " · " : ""}{session.user.email}
+        </div>
+        <div style={{ color: "var(--text-dim)", fontSize: "12px", marginBottom: "12px" }}>
+          {local.company_name ? `${local.company_name}${local.industry ? ` · ${local.industry}` : ""}${local.team_size ? ` · ${local.team_size}` : ""}` : "Connecté via Supabase"}
+        </div>
         <button
           className="focusable"
           onClick={async () => {

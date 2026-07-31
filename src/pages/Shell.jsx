@@ -35,6 +35,7 @@ export default function Shell({ session }) {
       return;
     }
     const withinLaunchWindow = Date.now() < LAUNCH_DATE.getTime() + LAUNCH_WINDOW_DAYS * 86400000;
+    const meta = session.user.user_metadata || {};
     const { data: created } = await supabase
       .from("user_settings")
       .insert({
@@ -42,6 +43,14 @@ export default function Shell({ session }) {
         plan_price: withinLaunchWindow ? 39 : 49,
         trial_ends_at: new Date(Date.now() + 14 * 86400000).toISOString(),
         subscription_status: "trialing",
+        first_name: meta.first_name || null,
+        last_name: meta.last_name || null,
+        company_name: meta.company_name || null,
+        industry: meta.industry || null,
+        team_size: meta.team_size || null,
+        existing_crm: meta.existing_crm || null,
+        sig_name: meta.first_name && meta.last_name ? `${meta.first_name} ${meta.last_name}` : null,
+        sig_company: meta.company_name || null,
       })
       .select()
       .single();
