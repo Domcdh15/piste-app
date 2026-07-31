@@ -9,7 +9,7 @@ function badgeColor(label) {
 }
 
 const COMING_SOON = [
-  { key: "gmail", label: "Gmail", desc: "Lire et envoyer des emails depuis Clos'IA.", permissions: "Lecture et envoi d'emails" },
+  { key: "gmail", label: "Gmail", desc: "Lire et envoyer des emails depuis Closia.", permissions: "Lecture et envoi d'emails" },
   { key: "hubspot", label: "HubSpot", desc: "Synchroniser vos contacts et deals HubSpot.", permissions: "Lecture/écriture contacts et deals" },
   { key: "pipedrive", label: "Pipedrive", desc: "Synchroniser votre pipeline Pipedrive.", permissions: "Lecture/écriture pipeline" },
   { key: "salesforce", label: "Salesforce", desc: "Synchroniser comptes, contacts et opportunités.", permissions: "Lecture/écriture CRM" },
@@ -60,7 +60,7 @@ export default function Integrations({ session }) {
 
       <IntegrationRow
         label="Google Calendar"
-        desc="Voir vos rendez-vous du jour directement dans Clos'IA."
+        desc="Voir vos rendez-vous du jour directement dans Closia."
         connected={status.google}
         loading={loading}
         onConnect={() => connect("google")}
@@ -69,7 +69,7 @@ export default function Integrations({ session }) {
       />
       <IntegrationRow
         label="Outlook / Microsoft"
-        desc="Voir vos rendez-vous du jour directement dans Clos'IA."
+        desc="Voir vos rendez-vous du jour directement dans Closia."
         connected={status.microsoft}
         loading={loading}
         onConnect={() => connect("microsoft")}

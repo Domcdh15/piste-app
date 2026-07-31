@@ -73,8 +73,8 @@ export default function Login() {
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
           <Logo size={44} />
           <div>
-            <div className="display" style={{ fontWeight: 700, fontSize: "22px", letterSpacing: "0.04em" }}>Clos'IA</div>
-            <div style={{ color: "var(--blue)", fontSize: "12px", fontWeight: 500 }}>Mon assistant commercial</div>
+            <div className="display" style={{ fontWeight: 700, fontSize: "22px", letterSpacing: "0.04em" }}>Closia</div>
+            <div style={{ color: "var(--blue)", fontSize: "12px", fontWeight: 500 }}>L'assistant du commercial</div>
           </div>
         </div>
 
@@ -94,7 +94,7 @@ export default function Login() {
               </button>
             </form>
             <div style={{ textAlign: "center", marginTop: "18px", fontSize: "12.5px", color: "var(--text-dim)" }}>
-              Pas encore de compte ? <button className="focusable" onClick={() => switchMode("lead")} style={linkStyle}>Découvrir Clos'IA</button>
+              Pas encore de compte ? <button className="focusable" onClick={() => switchMode("lead")} style={linkStyle}>Découvrir Closia</button>
             </div>
           </>
         ) : submitted ? (

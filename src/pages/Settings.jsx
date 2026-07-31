@@ -115,7 +115,7 @@ export default function Settings({ session, prospects, settings, reloadSettings 
           <input value={local.sig_job_title || ""} onChange={(e) => set({ sig_job_title: e.target.value })} style={inputSm} placeholder="ex : Responsable commercial" />
         </Field>
         <Field label="Entreprise">
-          <input value={local.sig_company || ""} onChange={(e) => set({ sig_company: e.target.value })} style={inputSm} placeholder="ex : Clos'IA" />
+          <input value={local.sig_company || ""} onChange={(e) => set({ sig_company: e.target.value })} style={inputSm} placeholder="ex : Closia" />
         </Field>
         <Field label="Téléphone (facultatif)" last>
           <input value={local.sig_phone || ""} onChange={(e) => set({ sig_phone: e.target.value })} style={inputSm} placeholder="ex : 06 12 34 56 78" />
@@ -137,7 +137,7 @@ export default function Settings({ session, prospects, settings, reloadSettings 
       </div>
 
       <Section title="Équipe">
-        <ComingSoon text="Invitez des coéquipiers et partagez votre pipeline. Nécessite un espace multi-utilisateur, pas encore disponible sur Clos'IA." />
+        <ComingSoon text="Invitez des coéquipiers et partagez votre pipeline. Nécessite un espace multi-utilisateur, pas encore disponible sur Closia." />
       </Section>
 
       <Section title="Permissions">

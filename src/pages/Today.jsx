@@ -156,7 +156,7 @@ export default function Today({ prospects, setActiveTab, session, reload, onOpen
       try {
         const urgents = prospects.filter((p) => p.status === "appeler" || p.status === "retard").slice(0, 5);
         const relances = prospects.filter((p) => p.status === "relancer").slice(0, 5);
-        const prompt = `Tu es l'assistant commercial de Clos'IA. En une seule phrase (25 mots maximum), en français, dis au commercial sur quoi se concentrer en priorité aujourd'hui : un appel important, une relance email, ou la préparation d'une visio. Base-toi sur ces données réelles, sois concret et cite un nom si utile.
+        const prompt = `Tu es l'assistant commercial de Closia. En une seule phrase (25 mots maximum), en français, dis au commercial sur quoi se concentrer en priorité aujourd'hui : un appel important, une relance email, ou la préparation d'une visio. Base-toi sur ces données réelles, sois concret et cite un nom si utile.
 
 Prospects à appeler ou en retard : ${urgents.map((p) => `${p.name} (${p.company}, ${p.status})`).join(", ") || "aucun"}
 Prospects à relancer par email : ${relances.map((p) => `${p.name} (${p.company})`).join(", ") || "aucun"}

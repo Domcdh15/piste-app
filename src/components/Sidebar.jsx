@@ -48,8 +48,8 @@ export default function Sidebar({ activeTab, setActiveTab }) {
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "26px", paddingLeft: "2px" }}>
         <Logo size={32} />
         <div>
-          <div className="display" style={{ fontWeight: 700, fontSize: "17px", letterSpacing: "0.02em" }}>Clos'IA</div>
-          <div style={{ color: "var(--blue)", fontSize: "10px", fontWeight: 500 }}>Mon assistant commercial</div>
+          <div className="display" style={{ fontWeight: 700, fontSize: "17px", letterSpacing: "0.02em" }}>Closia</div>
+          <div style={{ color: "var(--blue)", fontSize: "10px", fontWeight: 500 }}>L'assistant du commercial</div>
         </div>
       </div>
 
