@@ -1,4 +1,6 @@
-import { getUserFromToken, bearerToken } from "./_lib/supabase.js";
+import { getUserFromToken, bearerToken, supabaseAdmin } from "./_lib/supabase.js";
+
+const MONTHLY_LIMIT = 500;
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -13,6 +15,25 @@ export default async function handler(req, res) {
   const { prompt } = req.body || {};
   if (!prompt) {
     return res.status(400).json({ error: "Prompt manquant" });
+  }
+
+  const admin = supabaseAdmin();
+  const { data: settings } = await admin
+    .from("user_settings")
+    .select("ai_calls_used, ai_calls_reset_at")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const now = new Date();
+  const resetAt = settings?.ai_calls_reset_at ? new Date(settings.ai_calls_reset_at) : null;
+  const needsReset = !resetAt || resetAt <= now;
+  const currentUsage = needsReset ? 0 : settings?.ai_calls_used || 0;
+  const nextResetAt = needsReset ? new Date(now.getTime() + 30 * 86400000).toISOString() : settings.ai_calls_reset_at;
+
+  if (currentUsage >= MONTHLY_LIMIT) {
+    return res.status(429).json({
+      error: `Limite de ${MONTHLY_LIMIT} générations IA atteinte pour ce mois. Réessaie après le ${new Date(nextResetAt).toLocaleDateString("fr-FR")}.`,
+    });
   }
 
   try {
@@ -41,7 +62,13 @@ export default async function handler(req, res) {
       .join("\n")
       .trim();
 
-    res.status(200).json({ text });
+    await admin.from("user_settings").upsert({
+      user_id: user.id,
+      ai_calls_used: currentUsage + 1,
+      ai_calls_reset_at: nextResetAt,
+    });
+
+    res.status(200).json({ text, aiCallsUsed: currentUsage + 1, aiCallsLimit: MONTHLY_LIMIT });
   } catch (e) {
     res.status(500).json({ error: "Erreur serveur" });
   }

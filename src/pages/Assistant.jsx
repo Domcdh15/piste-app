@@ -212,7 +212,7 @@ ${context}`;
       const text = await callAI(prompt, session.access_token);
       setContent(appendSignature(text, settings));
     } catch (e) {
-      setError("La génération a échoué. Réessaie.");
+      setError(e.message || "La génération a échoué. Réessaie.");
     } finally {
       setLoading(false);
     }
@@ -287,7 +287,7 @@ ${context}`;
       if (!parsed) throw new Error("parse_failed");
       setResult(parsed);
     } catch (e) {
-      setError("La préparation a échoué. Réessaie.");
+      setError(e.message && e.message !== "parse_failed" ? e.message : "La préparation a échoué. Réessaie.");
     } finally {
       setLoading(false);
     }

@@ -737,7 +737,7 @@ ${buildHistoryContext(history)}`;
       setNote("");
       history.reload();
     } catch (e) {
-      setError("L'analyse a échoué. Réessaie.");
+      setError(e.message && e.message !== "parse_failed" ? e.message : "L'analyse a échoué. Réessaie.");
     } finally {
       setAnalyzing(false);
     }
@@ -946,7 +946,7 @@ ${buildHistoryContext(history)}`;
       await supabase.from("analyses_ia").insert({ user_id: session.user.id, prospect_id: prospect.id, type: "points_forts_faibles", content: text });
       await history.reload();
     } catch (e) {
-      setError("La génération a échoué. Réessaie.");
+      setError(e.message || "La génération a échoué. Réessaie.");
     } finally {
       setRegenerating(false);
     }
@@ -1145,7 +1145,7 @@ ${buildHistoryContext(history)}`;
       setShowModal(false);
       setKeywords("");
     } catch (e) {
-      setError("La génération a échoué. Réessaie.");
+      setError(e.message || "La génération a échoué. Réessaie.");
     } finally {
       setLoading(false);
     }
@@ -1224,7 +1224,7 @@ ${buildHistoryContext(history)}`;
       const text = await callAI(prompt, session.access_token);
       setContent(text);
     } catch (e) {
-      setError("La génération a échoué. Réessaie.");
+      setError(e.message || "La génération a échoué. Réessaie.");
     } finally {
       setLoading(false);
     }
@@ -1280,7 +1280,7 @@ ${buildHistoryContext(history)}`;
       const text = await callAI(prompt, session.access_token);
       setContent(text);
     } catch (e) {
-      setError("La génération a échoué. Réessaie.");
+      setError(e.message || "La génération a échoué. Réessaie.");
     } finally {
       setLoading(false);
     }

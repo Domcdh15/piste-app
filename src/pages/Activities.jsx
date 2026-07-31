@@ -248,7 +248,7 @@ ${context || "Aucune donnée sur cette période."}`;
       const text = await callAI(prompt, session.access_token);
       setSummary(text.trim());
     } catch (e) {
-      setError("Le résumé a échoué. Réessaie.");
+      setError(e.message || "Le résumé a échoué. Réessaie.");
     } finally {
       setLoadingSummary(false);
     }

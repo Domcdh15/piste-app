@@ -436,7 +436,7 @@ ${context}`;
       if (!parsed) throw new Error("parse_failed");
       setPrep(parsed);
     } catch (e) {
-      setError("La préparation a échoué. Réessaie.");
+      setError(e.message && e.message !== "parse_failed" ? e.message : "La préparation a échoué. Réessaie.");
     } finally {
       setLoadingPrep(false);
     }
