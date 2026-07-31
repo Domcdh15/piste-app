@@ -141,7 +141,7 @@ export default function Settings({ session, prospects, settings, reloadSettings 
       </Section>
 
       <Section title="Facturation">
-        <ComingSoon text="Gestion de l'abonnement et des moyens de paiement. Voir aussi l'intégration Stripe dans Intégrations." />
+        <BillingPanel local={local} />
       </Section>
 
       <Section title="Données et export" last>
@@ -191,6 +191,47 @@ function Toggle({ label, checked, onChange, last }) {
       >
         <span style={{ position: "absolute", top: "2px", left: checked ? "18px" : "2px", width: "18px", height: "18px", borderRadius: "50%", background: "#fff", transition: "left 0.15s" }} />
       </button>
+    </div>
+  );
+}
+
+function BillingPanel({ local }) {
+  if (!local) return <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Chargement...</div>;
+  const price = local.plan_price ?? 39;
+  const status = local.subscription_status || "trialing";
+  const trialEndsAt = local.trial_ends_at ? new Date(local.trial_ends_at) : null;
+  const daysLeft = trialEndsAt ? Math.max(0, Math.ceil((trialEndsAt - new Date()) / 86400000)) : null;
+  const isLaunchPrice = price < 49;
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
+        <span className="display" style={{ fontSize: "22px", fontWeight: 700 }}>{formatEuros(price)}</span>
+        <span style={{ fontSize: "12px", color: "var(--text-faint)" }}>/ mois</span>
+        {isLaunchPrice && (
+          <span style={{ fontSize: "10px", fontWeight: 700, background: "var(--blue-dim)", color: "var(--blue)", borderRadius: "999px", padding: "3px 9px" }}>
+            PRIX DE LANCEMENT — FIGÉ À VIE
+          </span>
+        )}
+      </div>
+
+      {status === "trialing" && (
+        <div style={{ fontSize: "12px", color: daysLeft > 0 ? "var(--text-dim)" : "var(--red)", marginBottom: "16px" }}>
+          {daysLeft > 0 ? `Essai gratuit — encore ${daysLeft} jour${daysLeft > 1 ? "s" : ""}` : "Essai gratuit terminé"}
+        </div>
+      )}
+      {status === "active" && <div style={{ fontSize: "12px", color: "#0ea968", marginBottom: "16px" }}>Abonnement actif</div>}
+      {status === "canceled" && <div style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "16px" }}>Abonnement résilié</div>}
+
+      <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px", marginBottom: "14px" }}>
+        <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "10px" }}>MOYEN DE PAIEMENT</div>
+        <ComingSoon text="Aucune carte enregistrée. La saisie d'un moyen de paiement sera bientôt disponible." />
+      </div>
+
+      <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px" }}>
+        <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "8px" }}>HISTORIQUE DE FACTURATION</div>
+        <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Aucune facture pour l'instant.</div>
+      </div>
     </div>
   );
 }

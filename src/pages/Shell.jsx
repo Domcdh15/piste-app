@@ -9,6 +9,9 @@ import Activities from "./Activities.jsx";
 import Settings from "./Settings.jsx";
 import Integrations from "./Integrations.jsx";
 
+const LAUNCH_DATE = new Date("2026-07-31T00:00:00Z");
+const LAUNCH_WINDOW_DAYS = 90;
+
 export default function Shell({ session }) {
   const [activeTab, setActiveTab] = useState("today");
   const [prospects, setProspects] = useState([]);
@@ -27,7 +30,22 @@ export default function Shell({ session }) {
 
   async function loadSettings() {
     const { data } = await supabase.from("user_settings").select("*").eq("user_id", session.user.id).maybeSingle();
-    setSettings(data || {});
+    if (data) {
+      setSettings(data);
+      return;
+    }
+    const withinLaunchWindow = Date.now() < LAUNCH_DATE.getTime() + LAUNCH_WINDOW_DAYS * 86400000;
+    const { data: created } = await supabase
+      .from("user_settings")
+      .insert({
+        user_id: session.user.id,
+        plan_price: withinLaunchWindow ? 39 : 49,
+        trial_ends_at: new Date(Date.now() + 14 * 86400000).toISOString(),
+        subscription_status: "trialing",
+      })
+      .select()
+      .single();
+    setSettings(created || {});
   }
 
   async function rolloverOverdueTasks() {
