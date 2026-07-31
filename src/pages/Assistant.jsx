@@ -11,6 +11,7 @@ import {
   MailIcon,
   TargetIcon,
   appendSignature,
+  PageTitle,
 } from "../lib/ui.jsx";
 
 const TONES = ["Professionnel", "Chaleureux", "Direct"];
@@ -38,7 +39,7 @@ export default function Assistant({ session, prospects, onOpenProspect, settings
 
   return (
     <div style={{ padding: "28px 32px 48px", maxWidth: "900px" }}>
-      <div className="display" style={{ fontWeight: 700, fontSize: "20px", marginBottom: "4px" }}>☕ Assistant IA</div>
+      <PageTitle icon={SparklesIcon} color="#3b82f6" style={{ marginBottom: "4px" }}>Assistant IA</PageTitle>
       <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "22px" }}>Pas juste discuter — agir sur ton pipeline.</div>
 
       <QuickCommands prospects={openProspects} onOpenProspect={onOpenProspect} session={session} />

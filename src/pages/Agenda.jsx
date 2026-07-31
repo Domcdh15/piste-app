@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { callAI, parseJsonLoose, formatEuros, formatShortDate, Avatar, SparklesIcon, PhoneIcon, MailIcon, VideoIcon, PinIcon } from "../lib/ui.jsx";
+import { callAI, parseJsonLoose, formatEuros, formatShortDate, Avatar, SparklesIcon, PhoneIcon, MailIcon, VideoIcon, PinIcon, CalendarIcon, PageTitle } from "../lib/ui.jsx";
 
 const VIEWS = ["Jour", "Semaine", "Mois"];
 
@@ -146,7 +146,7 @@ export default function Agenda({ prospects, session, onOpenProspect }) {
   return (
     <div style={{ padding: "28px 32px 48px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px", flexWrap: "wrap", gap: "10px" }}>
-        <div className="display" style={{ fontWeight: 700, fontSize: "20px" }}>🗓️ Agenda</div>
+        <PageTitle icon={CalendarIcon} color="#0ea5e9">Agenda</PageTitle>
         <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
           <button className="focusable" onClick={() => navigate(-1)} style={navBtn}>←</button>
           <button className="focusable" onClick={() => setRefDate(new Date())} style={navBtn}>Aujourd'hui</button>

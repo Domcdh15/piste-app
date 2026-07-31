@@ -30,6 +30,8 @@ import {
   VideoIcon,
   PinIcon,
   ArrowLeftIcon,
+  TableIcon,
+  KanbanIcon,
   inputStyle,
   selectStyle,
 } from "../lib/ui.jsx";
@@ -226,11 +228,11 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div className="display" style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.06em", color: "var(--text-dim)", whiteSpace: "nowrap" }}>FILE DE PRIORITÉ</div>
           <div style={{ display: "flex", gap: "4px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
-            <button className="focusable" onClick={() => setViewMode("table")} style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: viewMode === "table" ? "var(--bg)" : "transparent", color: viewMode === "table" ? "var(--blue)" : "var(--text-dim)", boxShadow: viewMode === "table" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
-              📋 Tableau
+            <button className="focusable" onClick={() => setViewMode("table")} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: viewMode === "table" ? "var(--bg)" : "transparent", color: viewMode === "table" ? "var(--blue)" : "var(--text-dim)", boxShadow: viewMode === "table" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
+              <TableIcon size={13} color={viewMode === "table" ? "var(--blue)" : "var(--text-dim)"} /> Tableau
             </button>
-            <button className="focusable" onClick={() => setViewMode("kanban")} style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: viewMode === "kanban" ? "var(--bg)" : "transparent", color: viewMode === "kanban" ? "var(--blue)" : "var(--text-dim)", boxShadow: viewMode === "kanban" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
-              💼 Kanban
+            <button className="focusable" onClick={() => setViewMode("kanban")} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: viewMode === "kanban" ? "var(--bg)" : "transparent", color: viewMode === "kanban" ? "var(--blue)" : "var(--text-dim)", boxShadow: viewMode === "kanban" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
+              <KanbanIcon size={13} color={viewMode === "kanban" ? "var(--blue)" : "var(--text-dim)"} /> Kanban
             </button>
           </div>
         </div>

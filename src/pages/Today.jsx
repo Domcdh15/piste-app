@@ -9,6 +9,8 @@ import {
   TargetIcon,
   CheckIcon,
   SparklesIcon,
+  AlertIcon,
+  BriefcaseIcon,
   getFirstName,
   callAI,
   parseJsonLoose,
@@ -54,7 +56,7 @@ function computeAlerts(prospects, taches) {
       const message = p.last_contact_at
         ? `Aucune réponse depuis ${Math.floor((now - new Date(p.last_contact_at)) / 86400000)} jours.`
         : "Aucun contact depuis la création de ce prospect.";
-      alerts.push({ level: "urgent", emoji: "🔴", prospect: p, message });
+      alerts.push({ level: "urgent", prospect: p, message });
     });
 
   open
@@ -62,7 +64,7 @@ function computeAlerts(prospects, taches) {
     .sort((a, b) => b.deal_value - a.deal_value)
     .slice(0, 3)
     .forEach((p) => {
-      alerts.push({ level: "risk", emoji: "🟠", prospect: p, message: `Cette opportunité de ${formatEuros(p.deal_value)} n'a aucune prochaine action prévue.` });
+      alerts.push({ level: "risk", prospect: p, message: `Cette opportunité de ${formatEuros(p.deal_value)} n'a aucune prochaine action prévue.` });
     });
 
   open
@@ -72,7 +74,7 @@ function computeAlerts(prospects, taches) {
     })
     .slice(0, 3)
     .forEach((p) => {
-      alerts.push({ level: "hot", emoji: "🟢", prospect: p, message: `Bonne dynamique : contact récent et avancement à ${computeDealScore(p)}%.` });
+      alerts.push({ level: "hot", prospect: p, message: `Bonne dynamique : contact récent et avancement à ${computeDealScore(p)}%.` });
     });
 
   return alerts;
@@ -348,7 +350,7 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
             textAlign: "left",
           }}
         >
-          <span style={{ fontSize: "18px" }}>📁</span>
+          <BriefcaseIcon size={16} color="var(--text-dim)" />
           <span className="display" style={{ fontWeight: 700, fontSize: "15px", color: "var(--text)" }}>Sales Pipeline</span>
           <span style={{ color: "var(--text-faint)", fontSize: "13px" }}>Vue d'ensemble de vos prospects</span>
         </button>
@@ -449,16 +451,19 @@ function BriefStat({ value, label }) {
 }
 
 const ALERT_STYLE = {
-  urgent: { bg: "var(--red-dim)", border: "var(--red)55", label: "URGENT" },
-  risk: { bg: "var(--amber-dim)", border: "var(--amber)55", label: "OPPORTUNITÉ À RISQUE" },
-  hot: { bg: "#e2f7ec", border: "#0ea96855", label: "OPPORTUNITÉ CHAUDE" },
+  urgent: { bg: "var(--red-dim)", border: "var(--red)55", stripe: "var(--red)", label: "URGENT" },
+  risk: { bg: "var(--amber-dim)", border: "var(--amber)55", stripe: "var(--amber)", label: "OPPORTUNITÉ À RISQUE" },
+  hot: { bg: "#e2f7ec", border: "#0ea96855", stripe: "#0ea968", label: "OPPORTUNITÉ CHAUDE" },
 };
 
 function AlertsBox({ alerts, onOpen }) {
   if (alerts.length === 0) return null;
   return (
     <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "18px", marginBottom: "18px" }}>
-      <div className="display" style={{ fontWeight: 700, fontSize: "15px", marginBottom: "12px" }}>🔔 Alertes IA</div>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+        <AlertIcon size={14} color="var(--text)" />
+        <div className="display" style={{ fontWeight: 700, fontSize: "15px" }}>Alertes IA</div>
+      </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         {alerts.map((a, i) => {
           const style = ALERT_STYLE[a.level];
@@ -467,9 +472,9 @@ function AlertsBox({ alerts, onOpen }) {
               key={i}
               className="focusable"
               onClick={() => onOpen?.(a.prospect.id)}
-              style={{ display: "flex", alignItems: "flex-start", gap: "10px", background: style.bg, border: `0.5px solid ${style.border}`, borderRadius: "8px", padding: "10px 12px", textAlign: "left" }}
+              style={{ display: "flex", alignItems: "flex-start", gap: "10px", background: style.bg, border: `0.5px solid ${style.border}`, borderRadius: "8px", padding: "10px 12px 10px 10px", textAlign: "left" }}
             >
-              <span style={{ fontSize: "14px" }}>{a.emoji}</span>
+              <span style={{ width: "3px", alignSelf: "stretch", borderRadius: "2px", background: style.stripe, flexShrink: 0 }} />
               <div style={{ minWidth: 0 }}>
                 <div className="mono" style={{ fontSize: "10px", fontWeight: 700, color: "var(--text-faint)", marginBottom: "2px" }}>{style.label}</div>
                 <div style={{ fontSize: "12px", color: "var(--text)" }}>

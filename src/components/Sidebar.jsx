@@ -1,27 +1,27 @@
-import { Logo } from "../lib/ui.jsx";
+import { Logo, HomeIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIcon, PlugIcon, GearIcon } from "../lib/ui.jsx";
 
 const NAV_GROUPS = [
   {
     section: null,
-    items: [{ key: "today", label: "Aujourd'hui", emoji: "🏠", color: "#2563eb" }],
+    items: [{ key: "today", label: "Aujourd'hui", Icon: HomeIcon, color: "#2563eb" }],
   },
   {
     section: "Pipeline commercial",
     items: [
-      { key: "pipeline", label: "Pipeline", emoji: "🎯", color: "#1d4ed8" },
-      { key: "planning", label: "Tâches & Agenda", emoji: "🗓️", color: "#0ea5e9" },
+      { key: "pipeline", label: "Pipeline", Icon: TargetIcon, color: "#1d4ed8" },
+      { key: "planning", label: "Tâches & Agenda", Icon: CalendarIcon, color: "#0ea5e9" },
     ],
   },
   {
     section: "Suivi & IA",
     items: [
-      { key: "assistant", label: "Assistant IA", emoji: "☕", color: "#3b82f6" },
-      { key: "activities", label: "Activités", emoji: "⚡", color: "#0284c7" },
+      { key: "assistant", label: "Assistant IA", Icon: SparklesIcon, color: "#3b82f6" },
+      { key: "activities", label: "Activités", Icon: ListIcon, color: "#0284c7" },
     ],
   },
   {
     section: "Configuration",
-    items: [{ key: "integrations", label: "Intégrations", emoji: "🔌", color: "#1e40af" }],
+    items: [{ key: "integrations", label: "Intégrations", Icon: PlugIcon, color: "#1e40af" }],
   },
 ];
 
@@ -64,6 +64,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
             <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
               {group.items.map((item) => {
                 const active = activeTab === item.key;
+                const Icon = item.Icon;
                 return (
                   <button
                     key={item.key}
@@ -90,13 +91,12 @@ export default function Sidebar({ activeTab, setActiveTab }) {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: "13px",
                         flexShrink: 0,
                         background: active ? item.color : `${item.color}17`,
                         boxShadow: active ? `0 2px 6px ${item.color}55` : "none",
                       }}
                     >
-                      {item.emoji}
+                      <Icon size={15} color={active ? "#fff" : item.color} />
                     </span>
                     {item.label}
                   </button>
@@ -132,13 +132,12 @@ export default function Sidebar({ activeTab, setActiveTab }) {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: "13px",
             flexShrink: 0,
             background: activeTab === "settings" ? SETTINGS_COLOR : `${SETTINGS_COLOR}17`,
             boxShadow: activeTab === "settings" ? `0 2px 6px ${SETTINGS_COLOR}55` : "none",
           }}
         >
-          ⚙️
+          <GearIcon size={15} color={activeTab === "settings" ? "#fff" : SETTINGS_COLOR} />
         </span>
         Paramètres
       </button>

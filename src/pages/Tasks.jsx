@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { PhoneIcon, MailIcon, VideoIcon, PinIcon, CheckIcon, ClockIcon, AlertIcon, formatShortDate, isOverdue, PRIORITY_LEVELS, inputStyle } from "../lib/ui.jsx";
+import { PhoneIcon, MailIcon, VideoIcon, PinIcon, CheckIcon, ClockIcon, AlertIcon, formatShortDate, isOverdue, PRIORITY_LEVELS, inputStyle, PageTitle } from "../lib/ui.jsx";
 
 const TYPE_META = {
   appel_telephone: { label: "Appel téléphonique", short: "Appel", color: "var(--amber)", dim: "var(--amber-dim)", Icon: PhoneIcon },
@@ -137,7 +137,7 @@ export default function Tasks({ prospects, session, settings }) {
   return (
     <div style={{ padding: "28px 32px 48px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px", flexWrap: "wrap", gap: "12px" }}>
-        <div className="display" style={{ fontWeight: 700, fontSize: "20px" }}>✅ Tâches</div>
+        <PageTitle icon={CheckIcon} color="#0ea5e9">Tâches</PageTitle>
         <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "7px 12px", fontSize: "13px", fontWeight: 600 }}>
           {showForm ? "Annuler" : "+ Nouvelle tâche"}
         </button>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Agenda from "./Agenda.jsx";
 import Tasks from "./Tasks.jsx";
+import { CalendarIcon, CheckIcon } from "../lib/ui.jsx";
 
 export default function Planning({ prospects, session, onOpenProspect, settings }) {
   const [mode, setMode] = useState("agenda");
@@ -14,14 +15,14 @@ export default function Planning({ prospects, session, onOpenProspect, settings 
             onClick={() => setMode("agenda")}
             style={{ display: "flex", alignItems: "center", gap: "6px", padding: "7px 14px", borderRadius: "6px", fontSize: "13px", fontWeight: mode === "agenda" ? 600 : 500, background: mode === "agenda" ? "var(--bg)" : "transparent", color: mode === "agenda" ? "var(--blue)" : "var(--text-dim)", boxShadow: mode === "agenda" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}
           >
-            🗓️ Agenda
+            <CalendarIcon size={13} color={mode === "agenda" ? "var(--blue)" : "var(--text-dim)"} /> Agenda
           </button>
           <button
             className="focusable"
             onClick={() => setMode("tasks")}
             style={{ display: "flex", alignItems: "center", gap: "6px", padding: "7px 14px", borderRadius: "6px", fontSize: "13px", fontWeight: mode === "tasks" ? 600 : 500, background: mode === "tasks" ? "var(--bg)" : "transparent", color: mode === "tasks" ? "var(--blue)" : "var(--text-dim)", boxShadow: mode === "tasks" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}
           >
-            ✅ Tâches
+            <CheckIcon size={13} color={mode === "tasks" ? "var(--blue)" : "var(--text-dim)"} /> Tâches
           </button>
         </div>
       </div>

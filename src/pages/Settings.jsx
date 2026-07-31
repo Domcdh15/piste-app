@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { formatEuros, buildSignatureBlock } from "../lib/ui.jsx";
+import { formatEuros, buildSignatureBlock, GearIcon, PageTitle } from "../lib/ui.jsx";
 
 const TONES = ["Professionnel", "Chaleureux", "Direct"];
 
@@ -52,7 +52,7 @@ export default function Settings({ session, prospects, settings, reloadSettings 
 
   return (
     <div style={{ padding: "28px 32px 60px", maxWidth: "620px" }}>
-      <div className="display" style={{ fontWeight: 700, fontSize: "20px", marginBottom: "20px" }}>⚙️ Paramètres</div>
+      <PageTitle icon={GearIcon} color="#0369a1" style={{ marginBottom: "20px" }}>Paramètres</PageTitle>
 
       <Section title="Profil">
         <div style={{ fontSize: "14px", marginBottom: "2px" }}>

@@ -219,6 +219,19 @@ export function Avatar({ name, stage, size = 34 }) {
   );
 }
 
+export function PageTitle({ icon: IconComp, color = "#2563eb", children, style }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "10px", ...style }}>
+      {IconComp && (
+        <span style={{ width: "28px", height: "28px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", background: `${color}17`, flexShrink: 0 }}>
+          <IconComp size={15} color={color} />
+        </span>
+      )}
+      <div className="display" style={{ fontWeight: 700, fontSize: "20px" }}>{children}</div>
+    </div>
+  );
+}
+
 export function Icon({ children, size = 14, color = "currentColor", style }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, ...style }}>
@@ -364,6 +377,78 @@ export function TrophyIcon(props) {
   );
 }
 
+export function HomeIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M4 11.5L12 4l8 7.5" />
+      <path d="M6 10v9.5a1 1 0 0 0 1 1h3.5v-6h3v6H17a1 1 0 0 0 1-1V10" />
+    </Icon>
+  );
+}
+
+export function BriefcaseIcon(props) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="8" width="18" height="12" rx="2" />
+      <path d="M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <line x1="3" y1="13" x2="21" y2="13" />
+    </Icon>
+  );
+}
+
+export function ListIcon(props) {
+  return (
+    <Icon {...props}>
+      <line x1="9" y1="6" x2="20" y2="6" />
+      <line x1="9" y1="12" x2="20" y2="12" />
+      <line x1="9" y1="18" x2="20" y2="18" />
+      <circle cx="4.5" cy="6" r="1" fill={props.color || "currentColor"} stroke="none" />
+      <circle cx="4.5" cy="12" r="1" fill={props.color || "currentColor"} stroke="none" />
+      <circle cx="4.5" cy="18" r="1" fill={props.color || "currentColor"} stroke="none" />
+    </Icon>
+  );
+}
+
+export function TableIcon(props) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+      <line x1="9" y1="10" x2="9" y2="20" />
+    </Icon>
+  );
+}
+
+export function KanbanIcon(props) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <line x1="9" y1="4" x2="9" y2="20" />
+      <line x1="15" y1="4" x2="15" y2="20" />
+    </Icon>
+  );
+}
+
+export function PlugIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M9 2v5" />
+      <path d="M15 2v5" />
+      <path d="M6 8h12v3a6 6 0 0 1-12 0V8z" />
+      <line x1="12" y1="17" x2="12" y2="22" />
+    </Icon>
+  );
+}
+
+export function GearIcon(props) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 3v2.2M12 18.8V21M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M3 12h2.2M18.8 12H21M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6" />
+    </Icon>
+  );
+}
+
 export function ArrowLeftIcon(props) {
   return (
     <Icon {...props}>
@@ -383,8 +468,10 @@ export function Logo({ size = 32, gradientId = "closia-logo-g" }) {
         </linearGradient>
       </defs>
       <rect width="40" height="40" rx="11" fill={`url(#${gradientId})`} />
-      <path d="M11.5 21l5 5 12-14" stroke="#fff" strokeWidth="3.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M29.5 7.5l1 2.8 2.8 1-2.8 1-1 2.8-1-2.8-2.8-1 2.8-1z" fill="#fff" opacity="0.9" />
+      <path d="M9 6.2l1 2.8 2.8 1-2.8 1-1 2.8-1-2.8-2.8-1 2.8-1z" fill="#fff" opacity="0.9" />
+      <rect x="7" y="21" width="6" height="11" rx="2" fill="#fff" />
+      <rect x="17" y="15" width="6" height="17" rx="2" fill="#fff" />
+      <rect x="27" y="8" width="6" height="24" rx="2" fill="#fff" />
     </svg>
   );
 }

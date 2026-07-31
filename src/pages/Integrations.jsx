@@ -1,4 +1,12 @@
 import { useEffect, useState } from "react";
+import { PlugIcon, PageTitle } from "../lib/ui.jsx";
+
+const BADGE_COLORS = ["#2563eb", "#0ea5e9", "#7c3aed", "#0d9488", "#d97706", "#dc2626", "#4f46e5", "#0284c7", "#059669"];
+function badgeColor(label) {
+  let hash = 0;
+  for (let i = 0; i < label.length; i++) hash = label.charCodeAt(i) + ((hash << 5) - hash);
+  return BADGE_COLORS[Math.abs(hash) % BADGE_COLORS.length];
+}
 
 const COMING_SOON = [
   { key: "gmail", label: "Gmail", desc: "Lire et envoyer des emails depuis Clos'IA.", permissions: "Lecture et envoi d'emails" },
@@ -47,11 +55,10 @@ export default function Integrations({ session }) {
 
   return (
     <div style={{ padding: "28px 32px 48px", maxWidth: "680px" }}>
-      <div className="display" style={{ fontWeight: 700, fontSize: "20px", marginBottom: "4px" }}>🔌 Intégrations</div>
+      <PageTitle icon={PlugIcon} color="#1e40af" style={{ marginBottom: "4px" }}>Intégrations</PageTitle>
       <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "20px" }}>Connecte tes outils en quelques clics.</div>
 
       <IntegrationRow
-        emoji="📅"
         label="Google Calendar"
         desc="Voir vos rendez-vous du jour directement dans Clos'IA."
         connected={status.google}
@@ -61,7 +68,6 @@ export default function Integrations({ session }) {
         permissions="Lecture de l'agenda (calendar.readonly)"
       />
       <IntegrationRow
-        emoji="📆"
         label="Outlook / Microsoft"
         desc="Voir vos rendez-vous du jour directement dans Clos'IA."
         connected={status.microsoft}
@@ -74,7 +80,6 @@ export default function Integrations({ session }) {
       {COMING_SOON.map((tool) => (
         <IntegrationRow
           key={tool.key}
-          emoji="🧩"
           label={tool.label}
           desc={tool.desc}
           comingSoon
@@ -87,11 +92,14 @@ export default function Integrations({ session }) {
   );
 }
 
-function IntegrationRow({ emoji, label, desc, connected, loading, onConnect, onDisconnect, comingSoon, onInfo, showInfo, permissions }) {
+function IntegrationRow({ label, desc, connected, loading, onConnect, onDisconnect, comingSoon, onInfo, showInfo, permissions }) {
+  const color = badgeColor(label);
   return (
     <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "16px", marginBottom: "10px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        <span style={{ fontSize: "20px" }}>{emoji}</span>
+        <span style={{ width: "34px", height: "34px", borderRadius: "9px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: color, color: "#fff", fontWeight: 700, fontSize: "13px" }}>
+          {label.slice(0, 2).toUpperCase()}
+        </span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span className="display" style={{ fontWeight: 600, fontSize: "14px" }}>{label}</span>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { Avatar, formatDate, formatShortDate, formatEuros, periodRange, callAI, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, TargetIcon } from "../lib/ui.jsx";
+import { Avatar, formatDate, formatShortDate, formatEuros, periodRange, callAI, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, TargetIcon, ListIcon, PageTitle } from "../lib/ui.jsx";
 
 const PERIODS = [
   ["day", "Jour"],
@@ -99,7 +99,7 @@ export default function Activities({ prospects, onOpenProspect, session }) {
   return (
     <div style={{ padding: "28px 32px 48px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px", flexWrap: "wrap", gap: "10px" }}>
-        <div className="display" style={{ fontWeight: 700, fontSize: "20px" }}>⚡ Activités</div>
+        <PageTitle icon={ListIcon} color="#0284c7">Activités</PageTitle>
         <div style={{ display: "flex", gap: "4px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
           {PERIODS.map(([key, label]) => (
             <button
