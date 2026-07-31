@@ -1,4 +1,4 @@
--- Table pour les demandes de démo/contact venant du site vitrine.
+-- Table pour les demandes de démo/contact (site vitrine + tunnel de qualification dans l'app).
 -- Insertion publique autorisée (formulaire anonyme), lecture réservée à toi.
 create table if not exists leads (
   id uuid primary key default gen_random_uuid(),
@@ -8,6 +8,11 @@ create table if not exists leads (
   message text,
   created_at timestamptz not null default now()
 );
+
+alter table leads add column if not exists first_name text;
+alter table leads add column if not exists last_name text;
+alter table leads add column if not exists industry text;
+alter table leads add column if not exists contact_preference text;
 
 alter table leads enable row level security;
 
