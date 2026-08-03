@@ -23,12 +23,13 @@ import {
   computeDealScore,
 } from "../lib/ui.jsx";
 
-const TASK_TYPE_ICONS = {
-  appel_telephone: { Icon: PhoneIcon, color: "var(--text-dim)" },
-  appel_visio: { Icon: VideoIcon, color: "#7c3aed" },
-  rdv_physique: { Icon: PinIcon, color: "#0ea968" },
-  relance_email: { Icon: MailIcon, color: "var(--text-dim)" },
+const TASK_TYPE_META = {
+  appel_telephone: { label: "Appel", color: "var(--amber)", dim: "var(--amber-dim)", Icon: PhoneIcon },
+  appel_visio: { label: "Visio", color: "#7c3aed", dim: "#f1e9fe", Icon: VideoIcon },
+  rdv_physique: { label: "RDV physique", color: "#0ea968", dim: "#e2f7ec", Icon: PinIcon },
+  relance_email: { label: "Email", color: "var(--blue)", dim: "var(--blue-dim)", Icon: MailIcon },
 };
+const EVENT_META = { label: "RDV agenda", color: "#0ea5e9", dim: "#e0f2fe", Icon: CalendarIcon };
 
 function todayLabel() {
   const d = new Date();
@@ -107,6 +108,11 @@ export default function Today({ prospects, setActiveTab, session, reload, onOpen
   async function updateStatus(id, status) {
     await supabase.from("prospects").update({ status }).eq("id", id);
     reload?.();
+  }
+
+  async function toggleTaskDone(task) {
+    setTaches((prev) => prev.filter((t) => t.id !== task.id));
+    await supabase.from("tasks").update({ done: true }).eq("id", task.id);
   }
 
   useEffect(() => {
@@ -396,11 +402,12 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
       {showBrief && (
         <DailyBriefModal
           firstName={firstName}
-          nbAppels={nbAppels}
-          nbRelances={nbRelances}
-          nbTaches={nbTaches}
-          nbRdv={eventsLoading ? 0 : events.length}
+          events={events}
+          taches={taches}
+          prospectById={prospectById}
           tip={tipLoading ? FALLBACK_TIP : tip || FALLBACK_TIP}
+          onOpenProspect={(id) => { setShowBrief(false); onOpenProspect?.(id); }}
+          onToggleTaskDone={toggleTaskDone}
           onGoToPlanning={() => { setShowBrief(false); setActiveTab("planning"); }}
           onClose={() => setShowBrief(false)}
         />
@@ -409,28 +416,60 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
   );
 }
 
-function DailyBriefModal({ firstName, nbAppels, nbRelances, nbTaches, nbRdv, tip, onGoToPlanning, onClose }) {
+function buildDayAgenda(events, taches) {
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
+  const todayTasks = taches.filter((t) => !t.due_at || new Date(t.due_at) <= endOfToday);
+  const timed = [];
+  const untimed = [];
+  events.forEach((e) => {
+    const item = { kind: "event", data: e };
+    if (!e.start || e.start.length <= 10) untimed.push(item);
+    else timed.push({ ...item, sortKey: new Date(e.start).getTime() });
+  });
+  todayTasks.forEach((t) => {
+    const item = { kind: "task", data: t };
+    if (!t.due_at) untimed.push(item);
+    else timed.push({ ...item, sortKey: new Date(t.due_at).getTime() });
+  });
+  timed.sort((a, b) => a.sortKey - b.sortKey);
+  return [...timed, ...untimed];
+}
+
+function DailyBriefModal({ firstName, events, taches, prospectById, tip, onOpenProspect, onToggleTaskDone, onGoToPlanning, onClose }) {
+  const agenda = buildDayAgenda(events, taches);
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(16,24,40,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: "20px" }}>
-      <div style={{ background: "var(--bg)", borderRadius: "16px", padding: "28px", width: "100%", maxWidth: "420px", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+      <div style={{ background: "var(--bg)", borderRadius: "16px", padding: "28px", width: "100%", maxWidth: "560px", maxHeight: "86vh", display: "flex", flexDirection: "column", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
         <div className="display" style={{ fontWeight: 700, fontSize: "20px", marginBottom: "4px" }}>Bonjour{firstName ? ` ${firstName}` : ""} 👋</div>
-        <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "18px" }}>Voici ta journée en un coup d'œil.</div>
+        <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "16px" }}>Organisons ta journée — voici tout ce qui t'attend, dans l'ordre.</div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", marginBottom: "18px" }}>
-          <BriefStat value={nbRdv} label="RDV" />
-          <BriefStat value={nbAppels} label="Appels" />
-          <BriefStat value={nbRelances} label="Relances" />
-          <BriefStat value={nbTaches} label="Tâches" />
-        </div>
-
-        <div style={{ background: "var(--blue-dim)", borderRadius: "10px", padding: "12px", fontSize: "12px", color: "var(--blue)", marginBottom: "20px", display: "flex", gap: "8px", alignItems: "flex-start" }}>
+        <div style={{ background: "var(--blue-dim)", borderRadius: "10px", padding: "11px 12px", fontSize: "12px", color: "var(--blue)", marginBottom: "18px", display: "flex", gap: "8px", alignItems: "flex-start", flexShrink: 0 }}>
           <SparklesIcon size={13} color="var(--blue)" style={{ marginTop: "2px", flexShrink: 0 }} />
           <span>{tip}</span>
         </div>
 
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{ overflowY: "auto", marginBottom: "18px", paddingRight: "2px" }}>
+          {agenda.length === 0 ? (
+            <div style={{ color: "var(--text-faint)", fontSize: "12.5px", padding: "12px 0" }}>Rien de planifié pour l'instant — profites-en pour avancer sur tes priorités.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {agenda.map((item, i) => (
+                <BriefAgendaRow
+                  key={`${item.kind}-${item.data.id}-${i}`}
+                  item={item}
+                  prospect={item.kind === "task" ? prospectById[item.data.prospect_id] : null}
+                  onOpen={onOpenProspect}
+                  onToggleDone={onToggleTaskDone}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
           <button className="focusable" onClick={onGoToPlanning} style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
-            Organiser ma journée
+            Voir mon agenda complet
           </button>
           <button className="focusable" onClick={onClose} style={{ flex: 1, background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px", fontSize: "13px" }}>
             C'est parti
@@ -441,11 +480,44 @@ function DailyBriefModal({ firstName, nbAppels, nbRelances, nbTaches, nbRdv, tip
   );
 }
 
-function BriefStat({ value, label }) {
+function BriefAgendaRow({ item, prospect, onOpen, onToggleDone }) {
+  const isTask = item.kind === "task";
+  const meta = isTask ? (TASK_TYPE_META[item.data.type] || TASK_TYPE_META.appel_telephone) : EVENT_META;
+  const time = isTask
+    ? (item.data.due_at ? formatEventTime(item.data.due_at) : "Sans horaire")
+    : formatEventTime(item.data.start);
+  const overdue = isTask && item.data.due_at && isOverdue(item.data.due_at);
+  const label = isTask ? item.data.note : item.data.title;
+
   return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "10px", textAlign: "center" }}>
-      <div className="mono" style={{ fontSize: "18px", fontWeight: 700, color: "var(--text)" }}>{value}</div>
-      <div style={{ fontSize: "10px", color: "var(--text-faint)" }}>{label}</div>
+    <div style={{ display: "flex", alignItems: "center", gap: "10px", background: "var(--panel)", border: `0.5px solid ${overdue ? "var(--red)55" : "var(--hairline)"}`, borderLeft: `3px solid ${meta.color}`, borderRadius: "9px", padding: "9px 11px" }}>
+      <span className="mono" style={{ fontSize: "11px", color: overdue ? "var(--red)" : "var(--text-faint)", fontWeight: overdue ? 700 : 500, width: "44px", flexShrink: 0 }}>
+        {time === "Sans horaire" ? "—" : time}
+      </span>
+
+      {isTask && (
+        <button className="focusable" onClick={() => onToggleDone?.(item.data)} style={{ background: "none", border: "none", padding: 0, display: "flex", cursor: "pointer", flexShrink: 0 }}>
+          <span style={{ width: "18px", height: "18px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--panel2)", border: "1.5px solid var(--hairline-strong)" }} />
+        </button>
+      )}
+
+      <span style={{ width: "24px", height: "24px", borderRadius: "50%", background: meta.dim, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <meta.Icon size={11} color={meta.color} />
+      </span>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {prospect ? (
+          <button className="focusable" onClick={() => onOpen?.(prospect.id)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "block", textAlign: "left", fontSize: "12.5px", color: "var(--blue)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {prospect.name} — <span style={{ color: "var(--text)" }}>{label}</span>
+          </button>
+        ) : (
+          <div style={{ fontSize: "12.5px", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</div>
+        )}
+      </div>
+
+      <span className="mono" style={{ fontSize: "9px", fontWeight: 700, color: meta.color, background: meta.dim, borderRadius: "5px", padding: "3px 6px", whiteSpace: "nowrap", flexShrink: 0 }}>
+        {meta.label}
+      </span>
     </div>
   );
 }
@@ -584,7 +656,7 @@ function TaskRow({ task, prospect, onOpen }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
-        {(() => { const meta = TASK_TYPE_ICONS[task.type] || TASK_TYPE_ICONS.appel_telephone; return <meta.Icon size={12} color={meta.color} />; })()}
+        {(() => { const meta = TASK_TYPE_META[task.type] || TASK_TYPE_META.appel_telephone; return <meta.Icon size={12} color={meta.color} />; })()}
         {prospect ? (
           <button className="focusable" onClick={() => onOpen?.(prospect.id)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", ...nameStyle }}>
             {prospect.name} — <span style={{ color: "var(--text)" }}>{task.note}</span>
