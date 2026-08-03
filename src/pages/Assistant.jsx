@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 import {
   callAI,
@@ -9,10 +9,28 @@ import {
   SparklesIcon,
   PhoneIcon,
   MailIcon,
+  VideoIcon,
+  PinIcon,
   TargetIcon,
   appendSignature,
   PageTitle,
 } from "../lib/ui.jsx";
+
+const TASK_TYPE_META = {
+  appel_telephone: { label: "Appel téléphonique", color: "var(--amber)", dim: "var(--amber-dim)", Icon: PhoneIcon },
+  appel_visio: { label: "Appel visio", color: "#7c3aed", dim: "#f1e9fe", Icon: VideoIcon },
+  rdv_physique: { label: "RDV physique", color: "#0ea968", dim: "#e2f7ec", Icon: PinIcon },
+  relance_email: { label: "Relance mail", color: "var(--blue)", dim: "var(--blue-dim)", Icon: MailIcon },
+};
+
+const ACTIVITY_LABEL = {
+  appel_abouti: "Appel abouti",
+  appel_manque: "Appel manqué",
+  message_linkedin: "Message LinkedIn",
+  deal_gagne: "Deal gagné",
+  deal_perdu: "Deal perdu",
+  note: "Note",
+};
 
 const TONES = ["Professionnel", "Chaleureux", "Direct"];
 const LENGTHS = ["Court", "Moyen", "Détaillé"];
@@ -192,16 +210,63 @@ const STATUS_FILTERS = [
   { value: "retard", label: "En retard" },
 ];
 
+const TASK_FILTERS = [
+  { value: "tous", label: "Toutes les tâches" },
+  { value: "relance", label: "Avec tâche de relance mail" },
+  { value: "retard", label: "Avec tâche en retard" },
+  { value: "sans_tache", label: "Sans tâche en cours" },
+];
+
 function EmailGeneratorPanel({ prospects, session, settings }) {
   const [statusFilter, setStatusFilter] = useState("relancer");
+  const [taskFilter, setTaskFilter] = useState("tous");
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [tone, setTone] = useState(settings?.ai_default_tone || TONES[0]);
   const [length, setLength] = useState(LENGTHS[0]);
   const [objective, setObjective] = useState(OBJECTIVES[0]);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [openTasks, setOpenTasks] = useState([]);
+  const [lastActivities, setLastActivities] = useState({});
 
-  const filtered = statusFilter === "tous" ? prospects : prospects.filter((p) => p.status === statusFilter);
+  useEffect(() => {
+    supabase.from("tasks").select("*").eq("done", false).order("due_at", { ascending: true, nullsFirst: false }).then(({ data }) => setOpenTasks(data || []));
+  }, []);
+
+  const taskByProspect = {};
+  openTasks.forEach((t) => {
+    if (!taskByProspect[t.prospect_id]) taskByProspect[t.prospect_id] = t;
+  });
+
+  const statusFiltered = statusFilter === "tous" ? prospects : prospects.filter((p) => p.status === statusFilter);
+  const filtered = statusFiltered.filter((p) => {
+    const task = taskByProspect[p.id];
+    if (taskFilter === "relance") return task?.type === "relance_email";
+    if (taskFilter === "retard") return task?.due_at && isOverdue(task.due_at);
+    if (taskFilter === "sans_tache") return !task;
+    return true;
+  });
+
+  useEffect(() => {
+    const ids = filtered.map((p) => p.id);
+    if (ids.length === 0) {
+      setLastActivities({});
+      return;
+    }
+    supabase
+      .from("activities")
+      .select("prospect_id, type, created_at")
+      .in("prospect_id", ids)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        const byProspect = {};
+        (data || []).forEach((a) => {
+          if (!byProspect[a.prospect_id]) byProspect[a.prospect_id] = a;
+        });
+        setLastActivities(byProspect);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, taskFilter, openTasks.length, prospects.length]);
 
   function toggle(id) {
     setSelectedIds((prev) => {
@@ -229,12 +294,18 @@ function EmailGeneratorPanel({ prospects, session, settings }) {
     for (const prospect of targets) {
       try {
         const context = await fetchProspectContext(prospect.id);
-        const prompt = `Tu es un assistant commercial. Rédige un email en français, ton ${tone.toLowerCase()}, longueur ${lengthGuide}, avec pour objectif : ${objective.toLowerCase()}. Uniquement le corps de l'email, termine par une formule de politesse simple (ex : "Bonne journée,"), sans nom ni signature — la signature sera ajoutée automatiquement après.
+        const task = taskByProspect[prospect.id];
+        const lastActivity = lastActivities[prospect.id];
+        const actionLines = [
+          lastActivity ? `Dernière action enregistrée : ${ACTIVITY_LABEL[lastActivity.type] || lastActivity.type} le ${formatShortDate(lastActivity.created_at)}.` : null,
+          task ? `Tâche en cours sur ce prospect : ${TASK_TYPE_META[task.type]?.label || task.type} — "${task.note}"${task.due_at ? ` (échéance ${formatShortDate(task.due_at)})` : ""}.` : null,
+        ].filter(Boolean).join("\n");
+        const prompt = `Tu es un assistant commercial. Rédige un email en français, ton ${tone.toLowerCase()}, longueur ${lengthGuide}, avec pour objectif : ${objective.toLowerCase()}. Si une dernière action ou une tâche en cours est indiquée ci-dessous, appuie-toi dessus pour rendre l'email concret et contextualisé (par exemple en faisant référence naturellement à l'appel ou au sujet en cours), sans le mentionner de façon mécanique. Uniquement le corps de l'email, termine par une formule de politesse simple (ex : "Bonne journée,"), sans nom ni signature — la signature sera ajoutée automatiquement après.
 
 Nom du contact : ${prospect.name}
 Entreprise : ${prospect.company}
 Étape du pipeline : ${prospect.stage}
-
+${actionLines ? `\n${actionLines}\n` : ""}
 Contexte des échanges précédents :
 ${context}`;
         const text = await callAI(prompt, session.access_token);
@@ -253,6 +324,9 @@ ${context}`;
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "10px" }}>
           <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setSelectedIds(new Set()); }} style={selectSm}>
             {STATUS_FILTERS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+          <select value={taskFilter} onChange={(e) => { setTaskFilter(e.target.value); setSelectedIds(new Set()); }} style={selectSm}>
+            {TASK_FILTERS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
           <select value={tone} onChange={(e) => setTone(e.target.value)} style={selectSm}>
             {TONES.map((t) => <option key={t}>{t}</option>)}
@@ -274,16 +348,41 @@ ${context}`;
             </div>
           </div>
           {filtered.length === 0 ? (
-            <div style={{ color: "var(--text-faint)", fontSize: "12px", padding: "6px 2px" }}>Aucun prospect avec ce statut.</div>
+            <div style={{ color: "var(--text-faint)", fontSize: "12px", padding: "6px 2px" }}>Aucun prospect ne correspond à ces filtres.</div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "2px", maxHeight: "180px", overflowY: "auto" }}>
-              {filtered.map((p) => (
-                <label key={p.id} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "5px 6px", borderRadius: "6px", cursor: "pointer", fontSize: "12.5px" }}>
-                  <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggle(p.id)} />
-                  <span style={{ color: "var(--text)" }}>{p.name}</span>
-                  <span style={{ color: "var(--text-faint)" }}>· {p.company}</span>
-                </label>
-              ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: "2px", maxHeight: "220px", overflowY: "auto" }}>
+              {filtered.map((p) => {
+                const task = taskByProspect[p.id];
+                const activity = lastActivities[p.id];
+                const taskMeta = task ? TASK_TYPE_META[task.type] : null;
+                const taskOverdue = task?.due_at && isOverdue(task.due_at);
+                return (
+                  <label key={p.id} style={{ display: "flex", alignItems: "flex-start", gap: "8px", padding: "5px 6px", borderRadius: "6px", cursor: "pointer", fontSize: "12.5px" }}>
+                    <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggle(p.id)} style={{ marginTop: "2px" }} />
+                    <div style={{ minWidth: 0 }}>
+                      <div>
+                        <span style={{ color: "var(--text)" }}>{p.name}</span>
+                        <span style={{ color: "var(--text-faint)" }}> · {p.company}</span>
+                      </div>
+                      {(task || activity) && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "2px" }}>
+                          {task && taskMeta && (
+                            <span style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "10px", fontWeight: 600, color: taskOverdue ? "var(--red)" : taskMeta.color, background: taskOverdue ? "var(--red-dim)" : taskMeta.dim, borderRadius: "5px", padding: "1px 6px" }}>
+                              <taskMeta.Icon size={9} color={taskOverdue ? "var(--red)" : taskMeta.color} />
+                              {taskMeta.label}{task.due_at ? ` · ${formatShortDate(task.due_at)}` : ""}
+                            </span>
+                          )}
+                          {activity && (
+                            <span style={{ fontSize: "10px", color: "var(--text-faint)" }}>
+                              Dernière action : {ACTIVITY_LABEL[activity.type] || activity.type} ({formatShortDate(activity.created_at)})
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
             </div>
           )}
         </div>
