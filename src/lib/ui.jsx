@@ -458,24 +458,8 @@ export function ArrowLeftIcon(props) {
   );
 }
 
-export function Logo({ size = 32, gradientId = "closia-logo-g" }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" style={{ flexShrink: 0 }}>
-      <defs>
-        <linearGradient id={gradientId} x1="4" y1="4" x2="34" y2="34" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#3b82f6" />
-          <stop offset="1" stopColor="#1d3fc4" />
-        </linearGradient>
-      </defs>
-      <path d="M30.2 11.2A13 13 0 1 0 30.2 28.8" stroke={`url(#${gradientId})`} strokeWidth="6.2" strokeLinecap="round" fill="none" />
-      <path d="M13 14.5h9.5a3 3 0 0 1 3 3v2.6a3 3 0 0 1-3 3H16l-3.2 3.4v-3.4h-0.3a3 3 0 0 1-3-3v-2.6a3 3 0 0 1 3-3z" fill="#0b1533" />
-      <circle cx="16" cy="20" r="1.05" fill="#fff" />
-      <circle cx="19.25" cy="20" r="1.05" fill="#fff" />
-      <circle cx="22.5" cy="20" r="1.05" fill="#fff" />
-      <path d="M23.5 16.5L32 8.2" stroke={`url(#${gradientId})`} strokeWidth="2.4" strokeLinecap="round" />
-      <path d="M26 7.6l6.2.4-.3 6.2" stroke={`url(#${gradientId})`} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-    </svg>
-  );
+export function Logo({ size = 32 }) {
+  return <img src="/logo-icon.png" width={size} height={size} alt="Closia" style={{ flexShrink: 0, objectFit: "contain" }} />;
 }
 
 export const inputStyle = {
