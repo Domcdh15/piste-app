@@ -8,8 +8,6 @@ import Assistant from "./Assistant.jsx";
 import Activities from "./Activities.jsx";
 import Settings from "./Settings.jsx";
 import Integrations from "./Integrations.jsx";
-import Admin from "./Admin.jsx";
-import { ADMIN_EMAILS } from "../lib/adminEmails.js";
 
 const LAUNCH_DATE = new Date("2026-07-31T00:00:00Z");
 const LAUNCH_WINDOW_DAYS = 90;
@@ -88,7 +86,7 @@ export default function Shell({ session }) {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={ADMIN_EMAILS.includes(session.user.email)} />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       <div style={{ flex: 1, minWidth: 0 }}>
         {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} onOpenProspect={openProspect} />}
         {activeTab === "planning" && <Planning prospects={prospects} session={session} onOpenProspect={openProspect} settings={settings} />}
@@ -112,7 +110,6 @@ export default function Shell({ session }) {
         {activeTab === "activities" && <Activities prospects={prospects} onOpenProspect={openProspect} session={session} />}
         {activeTab === "settings" && <Settings session={session} prospects={prospects} settings={settings} reloadSettings={loadSettings} />}
         {activeTab === "integrations" && <Integrations session={session} />}
-        {activeTab === "admin" && ADMIN_EMAILS.includes(session.user.email) && <Admin session={session} />}
       </div>
     </div>
   );

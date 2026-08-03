@@ -30,3 +30,17 @@ export function getOrigin(req) {
   const proto = req.headers["x-forwarded-proto"] || "https";
   return `${proto}://${req.headers.host}`;
 }
+
+// Ces routes sont appelées depuis le back office, une interface séparée sur un
+// autre domaine — l'accès reste protégé par le token + l'allowlist d'email
+// (isAdminUser), pas par l'origine, donc un CORS ouvert est sans risque ici.
+export function applyAdminCors(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return true;
+  }
+  return false;
+}
