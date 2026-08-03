@@ -5,11 +5,12 @@ import { callAI, parseJsonLoose, formatEuros, formatShortDate, Avatar, SparklesI
 const VIEWS = ["Jour", "Semaine", "Mois"];
 
 const TASK_TYPE_META = {
-  appel_telephone: { color: "var(--amber)", dim: "var(--amber-dim)", Icon: PhoneIcon },
-  appel_visio: { color: "#7c3aed", dim: "#f1e9fe", Icon: VideoIcon },
-  rdv_physique: { color: "#0ea968", dim: "#e2f7ec", Icon: PinIcon },
-  relance_email: { color: "var(--blue)", dim: "var(--blue-dim)", Icon: MailIcon },
+  appel_telephone: { label: "Appels", color: "var(--amber)", dim: "var(--amber-dim)", Icon: PhoneIcon },
+  appel_visio: { label: "Visio", color: "#7c3aed", dim: "#f1e9fe", Icon: VideoIcon },
+  rdv_physique: { label: "RDV physique", color: "#0ea968", dim: "#e2f7ec", Icon: PinIcon },
+  relance_email: { label: "Emails", color: "var(--blue)", dim: "var(--blue-dim)", Icon: MailIcon },
 };
+const TASK_TYPE_KEYS = Object.keys(TASK_TYPE_META);
 const GRID_START_HOUR = 7;
 const GRID_END_HOUR = 20;
 const ROW_HEIGHT = 56;
@@ -83,6 +84,17 @@ export default function Agenda({ prospects, session, onOpenProspect }) {
   const [loading, setLoading] = useState(true);
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [tasks, setTasks] = useState([]);
+  const [visibleTypes, setVisibleTypes] = useState(() => new Set(TASK_TYPE_KEYS));
+
+  function toggleType(key) {
+    setVisibleTypes((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
+
+  const visibleTasks = tasks.filter((t) => visibleTypes.has(t.type));
 
   const range = view === "Jour" ? [startOfDay(refDate), endOfDay(refDate)]
     : view === "Semaine" ? [startOfWeek(refDate), endOfWeek(refDate)]
@@ -161,16 +173,41 @@ export default function Agenda({ prospects, session, onOpenProspect }) {
         </div>
       </div>
 
-      <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "18px" }}>{rangeLabel(view, refDate)}</div>
+      <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "10px" }}>{rangeLabel(view, refDate)}</div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginBottom: "18px" }}>
+        <span style={{ fontSize: "11px", color: "var(--text-faint)", marginRight: "2px" }}>Tâches affichées :</span>
+        {TASK_TYPE_KEYS.map((key) => {
+          const meta = TASK_TYPE_META[key];
+          const on = visibleTypes.has(key);
+          return (
+            <button
+              key={key}
+              className="focusable"
+              onClick={() => toggleType(key)}
+              style={{
+                display: "flex", alignItems: "center", gap: "5px", padding: "4px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 600,
+                background: on ? meta.dim : "var(--panel2)",
+                color: on ? meta.color : "var(--text-faint)",
+                border: `0.5px solid ${on ? meta.color + "55" : "var(--hairline)"}`,
+                opacity: on ? 1 : 0.7,
+              }}
+            >
+              <meta.Icon size={10} color={on ? meta.color : "var(--text-faint)"} />
+              {meta.label}
+            </button>
+          );
+        })}
+      </div>
 
       <div style={{ display: "grid", gridTemplateColumns: selectedEvent ? "minmax(0,1.4fr) minmax(0,1fr)" : "1fr", gap: "20px" }}>
         <div>
           {loading ? (
             <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Chargement...</div>
           ) : view === "Mois" ? (
-            <MonthGrid refDate={refDate} events={events} tasks={tasks} onSelectDay={(d) => { setRefDate(d); setView("Jour"); }} />
+            <MonthGrid refDate={refDate} events={events} tasks={visibleTasks} onSelectDay={(d) => { setRefDate(d); setView("Jour"); }} />
           ) : (
-            <TimeGrid events={events} tasks={tasks} view={view} refDate={refDate} onSelect={setSelectedEventId} selectedId={selectedEventId} matchProspect={matchProspect} prospectById={prospectById} onToggleTask={toggleTaskDone} onOpenProspect={onOpenProspect} />
+            <TimeGrid events={events} tasks={visibleTasks} view={view} refDate={refDate} onSelect={setSelectedEventId} selectedId={selectedEventId} matchProspect={matchProspect} prospectById={prospectById} onToggleTask={toggleTaskDone} onOpenProspect={onOpenProspect} />
           )}
         </div>
 
