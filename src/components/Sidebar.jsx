@@ -1,4 +1,4 @@
-import { Logo, HomeIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIcon, PlugIcon, GearIcon } from "../lib/ui.jsx";
+import { Logo, HomeIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIcon, PlugIcon, GearIcon, BriefcaseIcon } from "../lib/ui.jsx";
 
 const NAV_GROUPS = [
   {
@@ -27,7 +27,11 @@ const NAV_GROUPS = [
 
 const SETTINGS_COLOR = "#0369a1";
 
-export default function Sidebar({ activeTab, setActiveTab }) {
+export default function Sidebar({ activeTab, setActiveTab, isAdmin }) {
+  const groups = isAdmin
+    ? [...NAV_GROUPS, { section: "Administration", items: [{ key: "admin", label: "Back office", Icon: BriefcaseIcon, color: "#7c3aed" }] }]
+    : NAV_GROUPS;
+
   return (
     <div
       style={{
@@ -54,7 +58,7 @@ export default function Sidebar({ activeTab, setActiveTab }) {
       </div>
 
       <nav style={{ display: "flex", flexDirection: "column", gap: "18px", flex: 1 }}>
-        {NAV_GROUPS.map((group, i) => (
+        {groups.map((group, i) => (
           <div key={i}>
             {group.section && (
               <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.04em", textTransform: "uppercase", padding: "0 10px 6px" }}>

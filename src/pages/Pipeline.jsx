@@ -29,6 +29,7 @@ import {
   MailIcon,
   VideoIcon,
   PinIcon,
+  LinkedinIcon,
   ArrowLeftIcon,
   TableIcon,
   KanbanIcon,
@@ -46,6 +47,7 @@ const TASK_TYPE_META = {
 const ACTIVITY_LABEL = {
   appel_abouti: "Appel abouti",
   appel_manque: "Appel manqué",
+  message_linkedin: "Message LinkedIn",
   deal_gagne: "Deal gagné",
   deal_perdu: "Deal perdu",
   note: "Note",
@@ -111,7 +113,9 @@ function buildHistoryContext(history) {
   return parts.length > 0 ? parts.join("\n\n") : "Aucun échange précédent enregistré — premier contact.";
 }
 
-export default function Pipeline({ prospects, loading, reload, session, initialSelectedId, onConsumeInitialSelection, initialShowForm, onConsumeInitialShowForm, initialTab, settings }) {
+const TAB_LABELS = { today: "Aujourd'hui", planning: "Tâches & Agenda", assistant: "Assistant IA", activities: "Activités", integrations: "Intégrations", settings: "Paramètres" };
+
+export default function Pipeline({ prospects, loading, reload, session, initialSelectedId, onConsumeInitialSelection, initialShowForm, onConsumeInitialShowForm, initialTab, settings, returnTab, onBackToPrevious }) {
   const [showForm, setShowForm] = useState(!!initialShowForm);
   const [form, setForm] = useState({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", email: "", phone: "", stage: "À contacter", status: "attente", priority: 50, deal_value: "" });
   const [saving, setSaving] = useState(false);
@@ -213,7 +217,8 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
         prospect={selected}
         session={session}
         settings={settings}
-        onBack={() => setSelectedId(null)}
+        onBack={() => { setSelectedId(null); if (returnTab) onBackToPrevious?.(); }}
+        backLabel={returnTab ? `Retour à ${TAB_LABELS[returnTab] || "la page précédente"}` : "Retour à la file de priorité"}
         onUpdate={(changes) => handleUpdateProspect(selected.id, changes)}
         onDelete={() => handleDeleteProspect(selected.id)}
         onLogActivity={(type, note) => logActivity(selected.id, type, note)}
@@ -485,7 +490,7 @@ function ProspectTableRow({ p, onClick }) {
   );
 }
 
-function ProspectDetailPage({ prospect, session, settings, onBack, onUpdate, onDelete, onLogActivity, initialTab }) {
+function ProspectDetailPage({ prospect, session, settings, onBack, backLabel, onUpdate, onDelete, onLogActivity, initialTab }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [tab, setTab] = useState(initialTab || "email");
@@ -521,7 +526,7 @@ function ProspectDetailPage({ prospect, session, settings, onBack, onUpdate, onD
   return (
     <div style={{ padding: "24px 32px 48px", maxWidth: "820px", margin: "0 auto" }}>
       <button className="focusable" onClick={onBack} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: "4px 0", marginBottom: "16px", color: "var(--text-dim)", fontSize: "13px" }}>
-        <ArrowLeftIcon size={14} color="var(--text-dim)" /> Retour à la file de priorité
+        <ArrowLeftIcon size={14} color="var(--text-dim)" /> {backLabel || "Retour à la file de priorité"}
       </button>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "18px" }}>
@@ -539,7 +544,7 @@ function ProspectDetailPage({ prospect, session, settings, onBack, onUpdate, onD
             <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>
               {prospect.job_title ? `${prospect.job_title} · ` : ""}{prospect.company}
             </div>
-            {(prospect.email || prospect.phone) && (
+            {(prospect.email || prospect.phone || prospect.linkedin_url) && (
               <div style={{ display: "flex", gap: "12px", marginTop: "4px" }}>
                 {prospect.email && (
                   <a href={`mailto:${prospect.email}`} style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--blue)", fontSize: "12px", textDecoration: "none" }}>
@@ -549,6 +554,11 @@ function ProspectDetailPage({ prospect, session, settings, onBack, onUpdate, onD
                 {prospect.phone && (
                   <a href={`tel:${prospect.phone}`} style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--blue)", fontSize: "12px", textDecoration: "none" }}>
                     <PhoneIcon size={11} color="var(--blue)" /> {prospect.phone}
+                  </a>
+                )}
+                {prospect.linkedin_url && (
+                  <a href={prospect.linkedin_url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--blue)", fontSize: "12px", textDecoration: "none" }}>
+                    <LinkedinIcon size={11} color="var(--blue)" /> LinkedIn
                   </a>
                 )}
               </div>
@@ -658,6 +668,13 @@ function ProspectDetailPage({ prospect, session, settings, onBack, onUpdate, onD
           style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, justifyContent: "center", background: logged === "appel_manque" ? "var(--red-dim)" : "var(--panel2)", color: logged === "appel_manque" ? "var(--red)" : "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px", fontSize: "12px" }}
         >
           <XIcon size={13} /> {logged === "appel_manque" ? "Enregistré" : "Appel manqué"}
+        </button>
+        <button
+          className="focusable"
+          onClick={() => handleCallLog("message_linkedin")}
+          style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, justifyContent: "center", background: logged === "message_linkedin" ? "var(--blue-dim)" : "var(--panel2)", color: logged === "message_linkedin" ? "var(--blue)" : "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px", fontSize: "12px" }}
+        >
+          <LinkedinIcon size={13} /> {logged === "message_linkedin" ? "Enregistré" : "Message LinkedIn"}
         </button>
       </div>
 
@@ -878,6 +895,7 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
   const [jobTitle, setJobTitle] = useState(prospect.job_title || "");
   const [email, setEmail] = useState(prospect.email || "");
   const [phone, setPhone] = useState(prospect.phone || "");
+  const [linkedinUrl, setLinkedinUrl] = useState(prospect.linkedin_url || "");
   const [priority, setPriority] = useState(nearestPriorityLevel(prospect.priority));
   const [dealValue, setDealValue] = useState(prospect.deal_value);
   const [saving, setSaving] = useState(false);
@@ -892,6 +910,7 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
       job_title: jobTitle.trim(),
       email: email.trim(),
       phone: phone.trim(),
+      linkedin_url: linkedinUrl.trim(),
       priority: Number(priority),
       deal_value: Number(dealValue) || 0,
     });
@@ -912,6 +931,8 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
       <input placeholder="Poste (ex : Directeur commercial)" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} style={inputStyle} />
       <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
       <input type="tel" placeholder="Téléphone" value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} />
+      <input type="url" placeholder="Profil LinkedIn (URL)" value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)} style={inputStyle} />
+      <div />
       <select value={priority} onChange={(e) => setPriority(e.target.value)} style={inputStyle}>
         {PRIORITY_LEVELS.map((l) => <option key={l.value} value={l.value}>Priorité : {l.label}</option>)}
       </select>

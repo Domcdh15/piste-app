@@ -3,6 +3,12 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = "https://rbzbvbfgselsyrkxvwbj.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_IqBG4JndPA3wgsji3ovftg_5VQ2ULIa";
 
+export const ADMIN_EMAILS = ["domitille.croizier@gmail.com"];
+
+export function isAdminUser(user) {
+  return !!user && ADMIN_EMAILS.includes((user.email || "").toLowerCase());
+}
+
 export function supabaseAdmin() {
   return createClient(SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 }

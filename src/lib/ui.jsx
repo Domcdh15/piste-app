@@ -267,6 +267,18 @@ export function PinIcon(props) {
   );
 }
 
+export function LinkedinIcon(props) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="3" width="18" height="18" rx="2.5" />
+      <line x1="7.5" y1="10" x2="7.5" y2="17" />
+      <circle cx="7.5" cy="6.7" r="0.9" fill={props.color || "currentColor"} stroke="none" />
+      <path d="M11.5 17v-4.2a2.3 2.3 0 0 1 4.6 0V17" />
+      <line x1="11.5" y1="10" x2="11.5" y2="17" />
+    </Icon>
+  );
+}
+
 export function MailIcon(props) {
   return (
     <Icon {...props}>

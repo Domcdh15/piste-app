@@ -8,6 +8,8 @@ import Assistant from "./Assistant.jsx";
 import Activities from "./Activities.jsx";
 import Settings from "./Settings.jsx";
 import Integrations from "./Integrations.jsx";
+import Admin from "./Admin.jsx";
+import { ADMIN_EMAILS } from "../lib/adminEmails.js";
 
 const LAUNCH_DATE = new Date("2026-07-31T00:00:00Z");
 const LAUNCH_WINDOW_DAYS = 90;
@@ -20,6 +22,7 @@ export default function Shell({ session }) {
   const [jumpToShowForm, setJumpToShowForm] = useState(false);
   const [jumpToTab, setJumpToTab] = useState("email");
   const [settings, setSettings] = useState(null);
+  const [returnTab, setReturnTab] = useState(null);
 
   async function loadProspects() {
     setLoading(true);
@@ -70,14 +73,22 @@ export default function Shell({ session }) {
   }, []);
 
   function openProspect(id, tab) {
+    setReturnTab(activeTab !== "pipeline" ? activeTab : null);
     setJumpToProspectId(id);
     setJumpToTab(tab || "email");
     setActiveTab("pipeline");
   }
 
+  function backFromPipeline() {
+    if (returnTab) {
+      setActiveTab(returnTab);
+      setReturnTab(null);
+    }
+  }
+
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} userEmail={session.user.email} />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isAdmin={ADMIN_EMAILS.includes(session.user.email)} />
       <div style={{ flex: 1, minWidth: 0 }}>
         {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} onOpenProspect={openProspect} />}
         {activeTab === "planning" && <Planning prospects={prospects} session={session} onOpenProspect={openProspect} settings={settings} />}
@@ -93,12 +104,15 @@ export default function Shell({ session }) {
             onConsumeInitialShowForm={() => setJumpToShowForm(false)}
             initialTab={jumpToTab}
             settings={settings}
+            returnTab={returnTab}
+            onBackToPrevious={backFromPipeline}
           />
         )}
         {activeTab === "assistant" && <Assistant session={session} prospects={prospects} onOpenProspect={openProspect} settings={settings} />}
         {activeTab === "activities" && <Activities prospects={prospects} onOpenProspect={openProspect} session={session} />}
         {activeTab === "settings" && <Settings session={session} prospects={prospects} settings={settings} reloadSettings={loadSettings} />}
         {activeTab === "integrations" && <Integrations session={session} />}
+        {activeTab === "admin" && ADMIN_EMAILS.includes(session.user.email) && <Admin session={session} />}
       </div>
     </div>
   );
