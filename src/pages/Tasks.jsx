@@ -24,7 +24,7 @@ const DATE_FILTERS = [
   { key: "Sans échéance", label: "Sans échéance", color: "var(--text-dim)" },
 ];
 
-export default function Tasks({ prospects, session, settings }) {
+export default function Tasks({ prospects, session, settings, onOpenProspect }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState("Tous");
@@ -238,7 +238,7 @@ export default function Tasks({ prospects, session, settings }) {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {bucket.tasks.map((t) => (
-                  <TaskRow key={t.id} t={t} prospect={prospectById[t.prospect_id]} onToggle={() => toggleDone(t)} onRemove={() => remove(t.id)} justDone={justDone === t.id} />
+                  <TaskRow key={t.id} t={t} prospect={prospectById[t.prospect_id]} onToggle={() => toggleDone(t)} onRemove={() => remove(t.id)} onOpen={onOpenProspect} justDone={justDone === t.id} />
                 ))}
               </div>
             </div>
@@ -253,7 +253,7 @@ export default function Tasks({ prospects, session, settings }) {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {done.map((t) => (
-                  <TaskRow key={t.id} t={t} prospect={prospectById[t.prospect_id]} onToggle={() => toggleDone(t)} onRemove={() => remove(t.id)} />
+                  <TaskRow key={t.id} t={t} prospect={prospectById[t.prospect_id]} onToggle={() => toggleDone(t)} onRemove={() => remove(t.id)} onOpen={onOpenProspect} />
                 ))}
               </div>
             </div>
@@ -264,7 +264,7 @@ export default function Tasks({ prospects, session, settings }) {
   );
 }
 
-function TaskRow({ t, prospect, onToggle, onRemove, justDone }) {
+function TaskRow({ t, prospect, onToggle, onRemove, onOpen, justDone }) {
   const level = PRIORITY_LEVELS.find((l) => l.value === t.priority) || PRIORITY_LEVELS[1];
   const priorityColor = PRIORITY_COLORS[level.value] || PRIORITY_COLORS[50];
   const type = TYPE_META[t.type] || TYPE_META.appel_telephone;
@@ -290,10 +290,16 @@ function TaskRow({ t, prospect, onToggle, onRemove, justDone }) {
         <type.Icon size={12} color={type.color} />
       </span>
 
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: "13px", fontWeight: 500, textDecoration: t.done ? "line-through" : "none" }}>{t.note}</div>
-        {prospect && <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>{prospect.name} · {prospect.company}</div>}
-      </div>
+      {prospect ? (
+        <button className="focusable" onClick={() => onOpen?.(prospect.id)} style={{ flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}>
+          <div style={{ fontSize: "13px", fontWeight: 500, textDecoration: t.done ? "line-through" : "none", color: "var(--text)" }}>{t.note}</div>
+          <div style={{ fontSize: "11px", color: "var(--blue)" }}>{prospect.name} · {prospect.company}</div>
+        </button>
+      ) : (
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: "13px", fontWeight: 500, textDecoration: t.done ? "line-through" : "none" }}>{t.note}</div>
+        </div>
+      )}
 
       <span className="mono" style={{ fontSize: "10px", fontWeight: 700, color: priorityColor.color, background: priorityColor.dim, borderRadius: "5px", padding: "3px 7px", whiteSpace: "nowrap" }}>
         {level.label}

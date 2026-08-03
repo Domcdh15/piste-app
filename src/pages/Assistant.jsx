@@ -184,25 +184,52 @@ function InsightCards({ prospects, onOpenProspect }) {
   );
 }
 
+const STATUS_FILTERS = [
+  { value: "tous", label: "Tous les statuts" },
+  { value: "appeler", label: "À appeler" },
+  { value: "relancer", label: "À relancer" },
+  { value: "attente", label: "En attente" },
+  { value: "retard", label: "En retard" },
+];
+
 function EmailGeneratorPanel({ prospects, session, settings }) {
-  const [prospectId, setProspectId] = useState("");
+  const [statusFilter, setStatusFilter] = useState("relancer");
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [tone, setTone] = useState(settings?.ai_default_tone || TONES[0]);
   const [length, setLength] = useState(LENGTHS[0]);
   const [objective, setObjective] = useState(OBJECTIVES[0]);
-  const [content, setContent] = useState("");
+  const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
+
+  const filtered = statusFilter === "tous" ? prospects : prospects.filter((p) => p.status === statusFilter);
+
+  function toggle(id) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function selectAll() {
+    setSelectedIds(new Set(filtered.map((p) => p.id)));
+  }
+
+  function selectNone() {
+    setSelectedIds(new Set());
+  }
 
   async function generate() {
-    const prospect = prospects.find((p) => p.id === prospectId);
-    if (!prospect) return;
+    const targets = prospects.filter((p) => selectedIds.has(p.id));
+    if (targets.length === 0) return;
     setLoading(true);
-    setError("");
-    try {
-      const context = await fetchProspectContext(prospect.id);
-      const lengthGuide = { Court: "3-4 phrases", Moyen: "5-7 phrases", Détaillé: "8-10 phrases" }[length];
-      const prompt = `Tu es un assistant commercial. Rédige un email en français, ton ${tone.toLowerCase()}, longueur ${lengthGuide}, avec pour objectif : ${objective.toLowerCase()}. Uniquement le corps de l'email, termine par une formule de politesse simple (ex : "Bonne journée,"), sans nom ni signature — la signature sera ajoutée automatiquement après.
+    setResults(targets.map((p) => ({ prospect: p, content: "", error: "", loading: true })));
+    const lengthGuide = { Court: "3-4 phrases", Moyen: "5-7 phrases", Détaillé: "8-10 phrases" }[length];
+
+    for (const prospect of targets) {
+      try {
+        const context = await fetchProspectContext(prospect.id);
+        const prompt = `Tu es un assistant commercial. Rédige un email en français, ton ${tone.toLowerCase()}, longueur ${lengthGuide}, avec pour objectif : ${objective.toLowerCase()}. Uniquement le corps de l'email, termine par une formule de politesse simple (ex : "Bonne journée,"), sans nom ni signature — la signature sera ajoutée automatiquement après.
 
 Nom du contact : ${prospect.name}
 Entreprise : ${prospect.company}
@@ -210,26 +237,23 @@ Entreprise : ${prospect.company}
 
 Contexte des échanges précédents :
 ${context}`;
-      const text = await callAI(prompt, session.access_token);
-      setContent(appendSignature(text, settings));
-    } catch (e) {
-      setError(e.message || "La génération a échoué. Réessaie.");
-    } finally {
-      setLoading(false);
+        const text = await callAI(prompt, session.access_token);
+        const content = appendSignature(text, settings);
+        setResults((prev) => prev.map((r) => (r.prospect.id === prospect.id ? { ...r, content, loading: false } : r)));
+      } catch (e) {
+        setResults((prev) => prev.map((r) => (r.prospect.id === prospect.id ? { ...r, error: e.message || "La génération a échoué.", loading: false } : r)));
+      }
     }
-  }
-
-  async function copy() {
-    await navigator.clipboard.writeText(content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    setLoading(false);
   }
 
   return (
     <Section title="Générateur d'email">
       <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px" }}>
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "10px" }}>
-          <ProspectPicker prospects={prospects} value={prospectId} onChange={setProspectId} />
+          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setSelectedIds(new Set()); }} style={selectSm}>
+            {STATUS_FILTERS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
           <select value={tone} onChange={(e) => setTone(e.target.value)} style={selectSm}>
             {TONES.map((t) => <option key={t}>{t}</option>)}
           </select>
@@ -240,23 +264,76 @@ ${context}`;
             {OBJECTIVES.map((o) => <option key={o}>{o}</option>)}
           </select>
         </div>
-        <button className="focusable" onClick={generate} disabled={!prospectId || loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: !prospectId || loading ? 0.6 : 1, marginBottom: "10px" }}>
-          <SparklesIcon size={13} color="var(--blue)" /> {loading ? "Génération..." : "Générer l'email"}
+
+        <div style={{ background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px", marginBottom: "10px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+            <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>{selectedIds.size} sélectionné{selectedIds.size !== 1 ? "s" : ""} sur {filtered.length}</span>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button className="focusable" onClick={selectAll} style={{ background: "none", border: "none", color: "var(--blue)", fontSize: "11px", padding: 0, cursor: "pointer" }}>Tout sélectionner</button>
+              <button className="focusable" onClick={selectNone} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: "11px", padding: 0, cursor: "pointer" }}>Aucun</button>
+            </div>
+          </div>
+          {filtered.length === 0 ? (
+            <div style={{ color: "var(--text-faint)", fontSize: "12px", padding: "6px 2px" }}>Aucun prospect avec ce statut.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "2px", maxHeight: "180px", overflowY: "auto" }}>
+              {filtered.map((p) => (
+                <label key={p.id} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "5px 6px", borderRadius: "6px", cursor: "pointer", fontSize: "12.5px" }}>
+                  <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggle(p.id)} />
+                  <span style={{ color: "var(--text)" }}>{p.name}</span>
+                  <span style={{ color: "var(--text-faint)" }}>· {p.company}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <button className="focusable" onClick={generate} disabled={selectedIds.size === 0 || loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: selectedIds.size === 0 || loading ? 0.6 : 1, marginBottom: results.length ? "14px" : 0 }}>
+          <SparklesIcon size={13} color="var(--blue)" /> {loading ? "Génération..." : `Générer ${selectedIds.size > 1 ? `${selectedIds.size} emails` : "l'email"}`}
         </button>
-        {error && <div style={{ color: "var(--red)", fontSize: "12px", marginBottom: "8px" }}>{error}</div>}
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="Le contenu généré apparaîtra ici, modifiable..."
-          style={{ width: "100%", boxSizing: "border-box", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", lineHeight: 1.6, padding: "12px", minHeight: "140px", resize: "vertical", fontFamily: "Inter, sans-serif" }}
-        />
-        {content && (
-          <button className="focusable" onClick={copy} style={{ marginTop: "8px", background: "transparent", color: "var(--text)", border: "0.5px solid var(--hairline)", borderRadius: "6px", padding: "6px 12px", fontSize: "12px" }}>
-            {copied ? "Copié" : "Copier"}
-          </button>
+
+        {results.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {results.map((r) => (
+              <EmailResultCard key={r.prospect.id} result={r} onChange={(content) => setResults((prev) => prev.map((x) => (x.prospect.id === r.prospect.id ? { ...x, content } : x)))} />
+            ))}
+          </div>
         )}
       </div>
     </Section>
+  );
+}
+
+function EmailResultCard({ result, onChange }) {
+  const [copied, setCopied] = useState(false);
+  const { prospect, content, error, loading } = result;
+
+  async function copy() {
+    await navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <div style={{ background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px" }}>
+      <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "6px" }}>{prospect.name} <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>· {prospect.company}</span></div>
+      {loading ? (
+        <div style={{ color: "var(--text-faint)", fontSize: "12px" }}>Génération...</div>
+      ) : error ? (
+        <div style={{ color: "var(--red)", fontSize: "12px" }}>{error}</div>
+      ) : (
+        <>
+          <textarea
+            value={content}
+            onChange={(e) => onChange(e.target.value)}
+            style={{ width: "100%", boxSizing: "border-box", background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", lineHeight: 1.6, padding: "10px", minHeight: "110px", resize: "vertical", fontFamily: "Inter, sans-serif" }}
+          />
+          <button className="focusable" onClick={copy} style={{ marginTop: "8px", background: "transparent", color: "var(--text)", border: "0.5px solid var(--hairline)", borderRadius: "6px", padding: "6px 12px", fontSize: "12px" }}>
+            {copied ? "Copié" : "Copier"}
+          </button>
+        </>
+      )}
+    </div>
   );
 }
 

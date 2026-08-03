@@ -30,7 +30,7 @@ export default function Planning({ prospects, session, onOpenProspect, settings 
       {mode === "agenda" ? (
         <Agenda prospects={prospects} session={session} onOpenProspect={onOpenProspect} />
       ) : (
-        <Tasks prospects={prospects} session={session} settings={settings} />
+        <Tasks prospects={prospects} session={session} settings={settings} onOpenProspect={onOpenProspect} />
       )}
     </div>
   );
