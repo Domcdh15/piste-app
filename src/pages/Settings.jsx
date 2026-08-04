@@ -145,7 +145,7 @@ export default function Settings({ session, prospects, settings, reloadSettings 
       </Section>
 
       <Section title="Facturation">
-        <BillingPanel local={local} />
+        <BillingPanel local={local} session={session} />
       </Section>
 
       <Section title="Données et export" last>
@@ -199,25 +199,39 @@ function Toggle({ label, checked, onChange, last }) {
   );
 }
 
-function BillingPanel({ local }) {
+const WELCOME_PRICE_DAYS = 90;
+const WELCOME_PRICE = 39;
+const STANDARD_PRICE = 49;
+
+function BillingPanel({ local, session }) {
   if (!local) return <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Chargement...</div>;
-  const price = local.plan_price ?? 39;
   const status = local.subscription_status || "trialing";
   const trialEndsAt = local.trial_ends_at ? new Date(local.trial_ends_at) : null;
   const daysLeft = trialEndsAt ? Math.max(0, Math.ceil((trialEndsAt - new Date()) / 86400000)) : null;
-  const isLaunchPrice = price < 49;
+
+  const accountCreatedAt = new Date(session.user.created_at);
+  const welcomeEndsAt = new Date(accountCreatedAt.getTime() + WELCOME_PRICE_DAYS * 86400000);
+  const inWelcomePeriod = new Date() < welcomeEndsAt;
+  const price = inWelcomePeriod ? WELCOME_PRICE : STANDARD_PRICE;
+  const welcomeDaysLeft = Math.max(0, Math.ceil((welcomeEndsAt - new Date()) / 86400000));
 
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
         <span className="display" style={{ fontSize: "22px", fontWeight: 700 }}>{formatEuros(price)}</span>
         <span style={{ fontSize: "12px", color: "var(--text-faint)" }}>/ mois</span>
-        {isLaunchPrice && (
+        {inWelcomePeriod && (
           <span style={{ fontSize: "10px", fontWeight: 700, background: "var(--blue-dim)", color: "var(--blue)", borderRadius: "999px", padding: "3px 9px" }}>
-            PRIX DE LANCEMENT — FIGÉ À VIE
+            OFFRE DE BIENVENUE — 3 PREMIERS MOIS
           </span>
         )}
       </div>
+
+      {inWelcomePeriod && (
+        <div style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "8px" }}>
+          Passe à {formatEuros(STANDARD_PRICE)}/mois dans {welcomeDaysLeft} jour{welcomeDaysLeft > 1 ? "s" : ""}
+        </div>
+      )}
 
       {status === "trialing" && (
         <div style={{ fontSize: "12px", color: daysLeft > 0 ? "var(--text-dim)" : "var(--red)", marginBottom: "16px" }}>
@@ -225,7 +239,7 @@ function BillingPanel({ local }) {
         </div>
       )}
       {status === "active" && <div style={{ fontSize: "12px", color: "#0ea968", marginBottom: "16px" }}>Abonnement actif</div>}
-      {status === "canceled" && <div style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "16px" }}>Abonnement résilié</div>}
+      {status === "cancelled" && <div style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "16px" }}>Abonnement résilié</div>}
 
       <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px", marginBottom: "14px" }}>
         <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "10px" }}>MOYEN DE PAIEMENT</div>

@@ -9,9 +9,6 @@ import Activities from "./Activities.jsx";
 import Settings from "./Settings.jsx";
 import Integrations from "./Integrations.jsx";
 
-const LAUNCH_DATE = new Date("2026-07-31T00:00:00Z");
-const LAUNCH_WINDOW_DAYS = 90;
-
 export default function Shell({ session }) {
   const [activeTab, setActiveTab] = useState("today");
   const [prospects, setProspects] = useState([]);
@@ -35,13 +32,12 @@ export default function Shell({ session }) {
       setSettings(data);
       return;
     }
-    const withinLaunchWindow = Date.now() < LAUNCH_DATE.getTime() + LAUNCH_WINDOW_DAYS * 86400000;
     const meta = session.user.user_metadata || {};
     const { data: created } = await supabase
       .from("user_settings")
       .insert({
         user_id: session.user.id,
-        plan_price: withinLaunchWindow ? 39 : 49,
+        plan_price: 39,
         trial_ends_at: new Date(Date.now() + 14 * 86400000).toISOString(),
         subscription_status: "trialing",
         first_name: meta.first_name || null,
