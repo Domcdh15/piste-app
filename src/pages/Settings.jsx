@@ -247,8 +247,21 @@ function BillingPanel({ local, session }) {
       </div>
 
       <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px" }}>
-        <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "8px" }}>HISTORIQUE DE FACTURATION</div>
-        <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Aucune facture pour l'instant.</div>
+        <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "10px" }}>HISTORIQUE DE FACTURATION</div>
+        {status === "active" ? (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", padding: "10px 12px", background: "var(--panel2)", borderRadius: "8px" }}>
+            <div>
+              <div style={{ fontSize: "12.5px", fontWeight: 600 }}>Facture #INV-{accountCreatedAt.getFullYear()}-001</div>
+              <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>{accountCreatedAt.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })} · {formatEuros(price)}</div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span className="mono" style={{ fontSize: "10px", fontWeight: 700, color: "#0ea968", background: "#e2f7ec", borderRadius: "999px", padding: "3px 9px" }}>PAYÉE</span>
+              <span style={{ fontSize: "11px", color: "var(--text-faint)", whiteSpace: "nowrap" }}>PDF bientôt disponible</span>
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Aucune facture pour l'instant.</div>
+        )}
       </div>
     </div>
   );
