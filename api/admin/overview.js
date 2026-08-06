@@ -1,13 +1,6 @@
 import { getUserFromToken, bearerToken, supabaseAdmin, isAdminUser, applyAdminCors } from "../_lib/supabase.js";
 
-const WELCOME_PRICE_DAYS = 90;
-const WELCOME_PRICE = 39;
-const STANDARD_PRICE = 49;
-
-function currentPrice(createdAt) {
-  const welcomeEndsAt = new Date(createdAt).getTime() + WELCOME_PRICE_DAYS * 86400000;
-  return Date.now() < welcomeEndsAt ? WELCOME_PRICE : STANDARD_PRICE;
-}
+const DEFAULT_PRICE = 39;
 
 export default async function handler(req, res) {
   if (applyAdminCors(req, res)) return;
@@ -63,7 +56,7 @@ export default async function handler(req, res) {
       first_name: s.first_name || null,
       last_name: s.last_name || null,
       company_name: s.company_name || null,
-      plan_price: currentPrice(u.created_at),
+      plan_price: s.plan_price ?? DEFAULT_PRICE,
       trial_ends_at: s.trial_ends_at || null,
       subscription_status: s.subscription_status || null,
     };

@@ -13,6 +13,8 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(null);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
 
   function setLoginField(patch) {
     setLoginForm((f) => ({ ...f, ...patch }));
@@ -65,6 +67,20 @@ export default function Login() {
     setStep(1);
     setError("");
     setSubmitted(null);
+    setForgotSent(false);
+  }
+
+  async function handleForgotPassword(e) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, { redirectTo: window.location.origin });
+    setLoading(false);
+    if (error) {
+      setError("L'envoi a échoué. Vérifie ton adresse email.");
+      return;
+    }
+    setForgotSent(true);
   }
 
   return (
@@ -93,10 +109,40 @@ export default function Login() {
                 {loading ? "..." : "Se connecter"}
               </button>
             </form>
-            <div style={{ textAlign: "center", marginTop: "18px", fontSize: "12.5px", color: "var(--text-dim)" }}>
+            <div style={{ textAlign: "center", marginTop: "14px" }}>
+              <button className="focusable" onClick={() => switchMode("forgot")} style={linkStyle}>Mot de passe oublié ?</button>
+            </div>
+            <div style={{ textAlign: "center", marginTop: "10px", fontSize: "12.5px", color: "var(--text-dim)" }}>
               Pas encore de compte ? <button className="focusable" onClick={() => switchMode("lead")} style={linkStyle}>Découvrir Closia</button>
             </div>
           </>
+        ) : mode === "forgot" ? (
+          forgotSent ? (
+            <div>
+              <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "20px", lineHeight: 1.6 }}>
+                Email envoyé à <b style={{ color: "var(--text)" }}>{forgotEmail}</b>. Vérifie ta boîte de réception pour réinitialiser ton mot de passe.
+              </div>
+              <button className="focusable" onClick={() => switchMode("login")} style={primaryBtnStyle}>
+                Retour à la connexion
+              </button>
+            </div>
+          ) : (
+            <>
+              <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "24px" }}>Indique ton email, on t'envoie un lien pour le réinitialiser.</div>
+              <form onSubmit={handleForgotPassword}>
+                <Field label="Email">
+                  <input className="focusable" type="email" required autoFocus value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} placeholder="toi@entreprise.com" style={inputStyle} />
+                </Field>
+                {error && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "12px" }}>{error}</div>}
+                <button className="focusable" type="submit" disabled={loading} style={{ ...primaryBtnStyle, marginTop: "20px", opacity: loading ? 0.7 : 1 }}>
+                  {loading ? "..." : "Envoyer le lien"}
+                </button>
+              </form>
+              <div style={{ textAlign: "center", marginTop: "18px", fontSize: "12.5px", color: "var(--text-dim)" }}>
+                <button className="focusable" onClick={() => switchMode("login")} style={linkStyle}>Retour à la connexion</button>
+              </div>
+            </>
+          )
         ) : submitted ? (
           <div>
             <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "20px", lineHeight: 1.6 }}>

@@ -199,8 +199,6 @@ function Toggle({ label, checked, onChange, last }) {
   );
 }
 
-const WELCOME_PRICE_DAYS = 90;
-const WELCOME_PRICE = 39;
 const STANDARD_PRICE = 49;
 
 function BillingPanel({ local, session }) {
@@ -210,28 +208,24 @@ function BillingPanel({ local, session }) {
   const daysLeft = trialEndsAt ? Math.max(0, Math.ceil((trialEndsAt - new Date()) / 86400000)) : null;
 
   const accountCreatedAt = new Date(session.user.created_at);
-  const welcomeEndsAt = new Date(accountCreatedAt.getTime() + WELCOME_PRICE_DAYS * 86400000);
-  const inWelcomePeriod = new Date() < welcomeEndsAt;
-  const price = inWelcomePeriod ? WELCOME_PRICE : STANDARD_PRICE;
-  const welcomeDaysLeft = Math.max(0, Math.ceil((welcomeEndsAt - new Date()) / 86400000));
+  const price = local.plan_price ?? STANDARD_PRICE;
 
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
-        <span className="display" style={{ fontSize: "22px", fontWeight: 700 }}>{formatEuros(price)}</span>
-        <span style={{ fontSize: "12px", color: "var(--text-faint)" }}>/ mois</span>
-        {inWelcomePeriod && (
+        <span className="display" style={{ fontSize: "22px", fontWeight: 700 }}>{price === 0 ? "Gratuit" : formatEuros(price)}</span>
+        {price > 0 && <span style={{ fontSize: "12px", color: "var(--text-faint)" }}>/ mois</span>}
+        {price === 0 && (
+          <span style={{ fontSize: "10px", fontWeight: 700, background: "#e2f7ec", color: "#0ea968", borderRadius: "999px", padding: "3px 9px" }}>
+            ABONNEMENT OFFERT
+          </span>
+        )}
+        {price > 0 && price < STANDARD_PRICE && (
           <span style={{ fontSize: "10px", fontWeight: 700, background: "var(--blue-dim)", color: "var(--blue)", borderRadius: "999px", padding: "3px 9px" }}>
-            OFFRE DE BIENVENUE — 3 PREMIERS MOIS
+            TARIF PRÉFÉRENTIEL
           </span>
         )}
       </div>
-
-      {inWelcomePeriod && (
-        <div style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "8px" }}>
-          Passe à {formatEuros(STANDARD_PRICE)}/mois dans {welcomeDaysLeft} jour{welcomeDaysLeft > 1 ? "s" : ""}
-        </div>
-      )}
 
       {status === "trialing" && (
         <div style={{ fontSize: "12px", color: daysLeft > 0 ? "var(--text-dim)" : "var(--red)", marginBottom: "16px" }}>
