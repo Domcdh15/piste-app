@@ -7,9 +7,18 @@ export default function App() {
   const [session, setSession] = useState(undefined);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-    });
+    const params = new URLSearchParams(window.location.search);
+    const tokenHash = params.get("impersonate_token");
+    if (tokenHash) {
+      window.history.replaceState({}, "", window.location.pathname);
+      supabase.auth.verifyOtp({ token_hash: tokenHash, type: "magiclink" }).then(({ data, error }) => {
+        setSession(error ? null : data.session);
+      });
+    } else {
+      supabase.auth.getSession().then(({ data }) => {
+        setSession(data.session);
+      });
+    }
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);

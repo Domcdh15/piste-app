@@ -58,10 +58,10 @@ export default async function handler(req, res) {
     const { data, error } = await admin.auth.admin.generateLink({
       type: "magiclink",
       email: userData.user.email,
-      options: { redirectTo: APP_URL },
     });
     if (error) return res.status(500).json({ error: "La génération du lien a échoué" });
-    return res.status(200).json({ link: data.properties.action_link });
+    const link = `${APP_URL}/?impersonate_token=${data.properties.hashed_token}`;
+    return res.status(200).json({ link });
   }
 
   if (subscription_status !== undefined) {
