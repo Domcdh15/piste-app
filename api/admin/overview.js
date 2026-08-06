@@ -22,6 +22,22 @@ export default async function handler(req, res) {
 
   const admin = supabaseAdmin();
 
+  if (req.query.clientId) {
+    const clientId = req.query.clientId;
+    const [prospects, tasks, activities, settings] = await Promise.all([
+      admin.from("prospects").select("*").eq("user_id", clientId).order("created_at", { ascending: false }),
+      admin.from("tasks").select("*").eq("user_id", clientId).order("due_at", { ascending: true, nullsFirst: false }),
+      admin.from("activities").select("*").eq("user_id", clientId).order("created_at", { ascending: false }).limit(100),
+      admin.from("user_settings").select("*").eq("user_id", clientId).maybeSingle(),
+    ]);
+    return res.status(200).json({
+      prospects: prospects.data || [],
+      tasks: tasks.data || [],
+      activities: activities.data || [],
+      settings: settings.data || null,
+    });
+  }
+
   const { data: leads } = await admin.from("leads").select("*").order("created_at", { ascending: false });
 
   const { data: settingsRows } = await admin.from("user_settings").select("*");
