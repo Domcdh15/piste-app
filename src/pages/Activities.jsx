@@ -28,13 +28,22 @@ const ICONS = {
   "Deal perdu": <XIcon size={13} color="var(--text-dim)" />,
 };
 
-export default function Activities({ prospects, onOpenProspect, session }) {
+export default function Activities({ prospects, onOpenProspect, session, team }) {
   const [period, setPeriod] = useState("week");
   const [filter, setFilter] = useState("Tous");
   const [activities, setActivities] = useState([]);
   const [feedItems, setFeedItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedTile, setExpandedTile] = useState(null);
+  const [teamStats, setTeamStats] = useState(null);
+
+  useEffect(() => {
+    if (!team || (team.members || []).length <= 1) {
+      setTeamStats(null);
+      return;
+    }
+    supabase.rpc("team_stats_for_me").then(({ data }) => setTeamStats(data?.[0] || null));
+  }, [team]);
 
   useEffect(() => {
     async function load() {
@@ -115,6 +124,16 @@ export default function Activities({ prospects, onOpenProspect, session }) {
       </div>
       <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "20px" }}>Mémoire commerciale chronologique, tous prospects confondus.</div>
 
+      {teamStats && (
+        <div style={{ display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px 16px", marginBottom: "20px", maxWidth: "820px" }}>
+          <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, letterSpacing: "0.03em" }}>ÉQUIPE</div>
+          <StatChip label="Prospects" value={teamStats.prospect_count ?? 0} />
+          <StatChip label="Deals gagnés" value={teamStats.deals_won ?? 0} />
+          <StatChip label="Deals perdus" value={teamStats.deals_lost ?? 0} />
+          <StatChip label="CA généré" value={formatEuros(teamStats.revenue_won || 0)} />
+        </div>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: expandedTile ? "0" : "24px", maxWidth: "820px" }}>
         <ReportTile tileKey="appels" expanded={expandedTile === "appels"} onClick={setExpandedTile} icon={<PhoneIcon size={14} color="#0ea968" />} accent="#0ea968" label="Nombre d'appels" value={totalAppels} />
         <ReportTile tileKey="rdv" expanded={expandedTile === "rdv"} onClick={setExpandedTile} icon={<CalendarIcon size={14} color="var(--blue)" />} accent="var(--blue)" label="Nombre de rendez-vous" value={rdvList.length} />
@@ -192,6 +211,15 @@ export default function Activities({ prospects, onOpenProspect, session }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function StatChip({ label, value }) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+      <span className="mono" style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>{value}</span>
+      <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>{label}</span>
     </div>
   );
 }

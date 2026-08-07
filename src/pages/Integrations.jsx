@@ -41,7 +41,7 @@ export default function Integrations({ session }) {
   }, []);
 
   async function disconnect(provider) {
-    await fetch("/api/calendar/disconnect", {
+    await fetch("/api/calendar/status", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
       body: JSON.stringify({ provider }),

@@ -9,7 +9,7 @@ import Activities from "./Activities.jsx";
 import Settings from "./Settings.jsx";
 import Integrations from "./Integrations.jsx";
 
-export default function Shell({ session }) {
+export default function Shell({ session, team, reloadTeam }) {
   const [activeTab, setActiveTab] = useState("today");
   const [prospects, setProspects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -100,11 +100,12 @@ export default function Shell({ session }) {
             settings={settings}
             returnTab={returnTab}
             onBackToPrevious={backFromPipeline}
+            team={team}
           />
         )}
         {activeTab === "assistant" && <Assistant session={session} prospects={prospects} onOpenProspect={openProspect} settings={settings} />}
-        {activeTab === "activities" && <Activities prospects={prospects} onOpenProspect={openProspect} session={session} />}
-        {activeTab === "settings" && <Settings session={session} prospects={prospects} settings={settings} reloadSettings={loadSettings} />}
+        {activeTab === "activities" && <Activities prospects={prospects} onOpenProspect={openProspect} session={session} team={team} />}
+        {activeTab === "settings" && <Settings session={session} prospects={prospects} settings={settings} reloadSettings={loadSettings} team={team} reloadTeam={reloadTeam} />}
         {activeTab === "integrations" && <Integrations session={session} />}
       </div>
     </div>

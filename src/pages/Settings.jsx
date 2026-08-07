@@ -14,7 +14,7 @@ function toCSV(prospects) {
   return [headers, ...rows].map((r) => r.map(esc).join(",")).join("\n");
 }
 
-export default function Settings({ session, prospects, settings, reloadSettings }) {
+export default function Settings({ session, prospects, settings, reloadSettings, team, reloadTeam }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [local, setLocal] = useState(null);
@@ -137,11 +137,7 @@ export default function Settings({ session, prospects, settings, reloadSettings 
       </div>
 
       <Section title="Équipe">
-        <ComingSoon text="Invitez des coéquipiers et partagez votre pipeline. Nécessite un espace multi-utilisateur, pas encore disponible sur Closia." />
-      </Section>
-
-      <Section title="Permissions">
-        <ComingSoon text="Gestion fine des rôles (admin, commercial, lecture seule) — arrivera avec l'espace multi-utilisateur." />
+        <TeamPanel session={session} team={team} reloadTeam={reloadTeam} />
       </Section>
 
       <Section title="Facturation">
@@ -195,6 +191,105 @@ function Toggle({ label, checked, onChange, last }) {
       >
         <span style={{ position: "absolute", top: "2px", left: checked ? "18px" : "2px", width: "18px", height: "18px", borderRadius: "50%", background: "#fff", transition: "left 0.15s" }} />
       </button>
+    </div>
+  );
+}
+
+const ROLE_LABELS = { admin: "Admin", sales: "Commercial", customer_success: "Customer Success" };
+
+function TeamPanel({ session, team, reloadTeam }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  if (!team) return <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Chargement...</div>;
+
+  const isAdmin = team.role === "admin";
+
+  async function call(body) {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/team", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Une erreur est survenue");
+      await reloadTeam?.();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      {(team.members || []).map((m) => (
+        <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", padding: "8px 0", borderBottom: "0.5px solid var(--hairline)" }}>
+          <div>
+            <div style={{ fontSize: "13px", fontWeight: 600 }}>
+              {m.first_name || m.last_name ? `${m.first_name || ""} ${m.last_name || ""}`.trim() : m.email}
+              {m.user_id === session.user.id && <span style={{ color: "var(--text-faint)", fontWeight: 400 }}> (vous)</span>}
+            </div>
+            <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>{m.email}</div>
+          </div>
+          {isAdmin ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <select
+                value={m.role}
+                disabled={busy}
+                onChange={(e) => call({ action: "change_role", userId: m.user_id, role: e.target.value })}
+                style={inputSm}
+              >
+                <option value="admin">Admin</option>
+                <option value="sales">Commercial</option>
+                <option value="customer_success">Customer Success</option>
+              </select>
+              <button
+                className="focusable"
+                disabled={busy}
+                onClick={() => {
+                  if (confirm("Retirer ce membre de l'équipe ?")) call({ action: "remove", userId: m.user_id });
+                }}
+                style={{ ...btnGhost, padding: "6px 10px" }}
+              >
+                Retirer
+              </button>
+            </div>
+          ) : (
+            <span style={{ fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)" }}>
+              {ROLE_LABELS[m.role] || m.role}
+            </span>
+          )}
+        </div>
+      ))}
+
+      {error && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "10px" }}>{error}</div>}
+
+      {isAdmin && (
+        <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "0.5px solid var(--hairline)" }}>
+          <Toggle
+            label="Plusieurs commerciaux dans l'équipe"
+            checked={!!team.team?.has_multiple_sales}
+            onChange={(v) => call({ action: "set_team_flags", has_multiple_sales: v })}
+          />
+          <Toggle
+            label="Plusieurs Customer Success dans l'équipe"
+            checked={!!team.team?.has_multiple_csm}
+            onChange={(v) => call({ action: "set_team_flags", has_multiple_csm: v })}
+            last
+          />
+          <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>
+            Active les sélecteurs "Commercial responsable" / "CSM responsable" sur les fiches prospects.
+          </div>
+        </div>
+      )}
+
+      <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "14px" }}>
+        Pour ajouter un nouveau coéquipier, contacte le support Closia.
+      </div>
     </div>
   );
 }

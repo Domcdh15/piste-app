@@ -115,7 +115,7 @@ function buildHistoryContext(history) {
 
 const TAB_LABELS = { today: "Aujourd'hui", planning: "Tâches & Agenda", assistant: "Assistant IA", activities: "Activités", integrations: "Intégrations", settings: "Paramètres" };
 
-export default function Pipeline({ prospects, loading, reload, session, initialSelectedId, onConsumeInitialSelection, initialShowForm, onConsumeInitialShowForm, initialTab, settings, returnTab, onBackToPrevious }) {
+export default function Pipeline({ prospects, loading, reload, session, initialSelectedId, onConsumeInitialSelection, initialShowForm, onConsumeInitialShowForm, initialTab, settings, returnTab, onBackToPrevious, team }) {
   const [showForm, setShowForm] = useState(!!initialShowForm);
   const [form, setForm] = useState({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", email: "", phone: "", stage: "À contacter", status: "attente", priority: 50, deal_value: "" });
   const [saving, setSaving] = useState(false);
@@ -217,6 +217,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
         prospect={selected}
         session={session}
         settings={settings}
+        team={team}
         onBack={() => { setSelectedId(null); if (returnTab) onBackToPrevious?.(); }}
         backLabel={returnTab ? `Retour à ${TAB_LABELS[returnTab] || "la page précédente"}` : "Retour à la file de priorité"}
         onUpdate={(changes) => handleUpdateProspect(selected.id, changes)}
@@ -490,7 +491,7 @@ function ProspectTableRow({ p, onClick }) {
   );
 }
 
-function ProspectDetailPage({ prospect, session, settings, onBack, backLabel, onUpdate, onDelete, onLogActivity, initialTab }) {
+function ProspectDetailPage({ prospect, session, settings, team, onBack, backLabel, onUpdate, onDelete, onLogActivity, initialTab }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [tab, setTab] = useState(initialTab || "email");
@@ -588,6 +589,10 @@ function ProspectDetailPage({ prospect, session, settings, onBack, backLabel, on
           onSave={(changes) => { onUpdate(changes); setShowEdit(false); }}
           onCancel={() => setShowEdit(false)}
         />
+      )}
+
+      {team && (team.team?.has_multiple_sales || team.team?.has_multiple_csm) && (
+        <ProspectOwnersPanel prospect={prospect} session={session} team={team} />
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
@@ -882,6 +887,73 @@ function Modal({ children, onClose }) {
       <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "14px", padding: "22px", maxWidth: "480px", width: "100%", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 50px rgba(15,23,42,0.25)" }}>
         {children}
       </div>
+    </div>
+  );
+}
+
+function ProspectOwnersPanel({ prospect, session, team }) {
+  const [busy, setBusy] = useState(false);
+  const isAdmin = team.role === "admin";
+  const members = team.members || [];
+  const salesMembers = members.filter((m) => m.role === "sales" || m.role === "admin");
+  const csmMembers = members.filter((m) => m.role === "customer_success" || m.role === "admin");
+
+  function memberLabel(m) {
+    if (!m) return "";
+    return m.first_name || m.last_name ? `${m.first_name || ""} ${m.last_name || ""}`.trim() : m.email;
+  }
+
+  async function assign(patch) {
+    setBusy(true);
+    try {
+      await fetch("/api/team", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "assign_prospect", prospectId: prospect.id, ...patch }),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
+      {team.team?.has_multiple_sales && (
+        <div>
+          <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>COMMERCIAL RESPONSABLE</div>
+          {isAdmin ? (
+            <select
+              value={prospect.sales_owner_id || ""}
+              disabled={busy}
+              onChange={(e) => assign({ salesOwnerId: e.target.value || null })}
+              style={selectStyle}
+            >
+              <option value="">— Non attribué —</option>
+              {salesMembers.map((m) => <option key={m.user_id} value={m.user_id}>{memberLabel(m)}</option>)}
+            </select>
+          ) : (
+            <div style={{ fontSize: "13px" }}>{memberLabel(members.find((m) => m.user_id === prospect.sales_owner_id)) || "Non attribué"}</div>
+          )}
+        </div>
+      )}
+      {team.team?.has_multiple_csm && (
+        <div>
+          <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>CSM RESPONSABLE</div>
+          {isAdmin ? (
+            <select
+              value={prospect.csm_owner_id || ""}
+              disabled={busy}
+              onChange={(e) => assign({ csmOwnerId: e.target.value || null })}
+              style={selectStyle}
+            >
+              <option value="">— Non attribué —</option>
+              {csmMembers.map((m) => <option key={m.user_id} value={m.user_id}>{memberLabel(m)}</option>)}
+            </select>
+          ) : (
+            <div style={{ fontSize: "13px" }}>{memberLabel(members.find((m) => m.user_id === prospect.csm_owner_id)) || "Non attribué"}</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

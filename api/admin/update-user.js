@@ -64,6 +64,24 @@ export default async function handler(req, res) {
     return res.status(200).json({ link });
   }
 
+  if (action === "set_team") {
+    const { role, teamId } = req.body;
+    if (!["admin", "sales", "customer_success"].includes(role)) {
+      return res.status(400).json({ error: "Rôle invalide" });
+    }
+    let targetTeamId = teamId;
+    if (!targetTeamId) {
+      const { data: team, error: teamError } = await admin.from("teams").insert({}).select().single();
+      if (teamError) return res.status(500).json({ error: "La création de l'équipe a échoué" });
+      targetTeamId = team.id;
+    }
+    const { error } = await admin
+      .from("team_members")
+      .upsert({ team_id: targetTeamId, user_id: userId, role }, { onConflict: "team_id,user_id" });
+    if (error) return res.status(500).json({ error: "L'attribution de l'équipe a échoué" });
+    return res.status(200).json({ ok: true, teamId: targetTeamId });
+  }
+
   if (subscription_status !== undefined) {
     if (!VALID_STATUSES.includes(subscription_status)) {
       return res.status(400).json({ error: "Statut invalide" });
