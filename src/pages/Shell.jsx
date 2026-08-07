@@ -37,7 +37,7 @@ export default function Shell({ session, team, reloadTeam }) {
       .from("user_settings")
       .insert({
         user_id: session.user.id,
-        plan_price: 39,
+        plan_price: 9,
         trial_ends_at: new Date(Date.now() + 14 * 86400000).toISOString(),
         subscription_status: "trialing",
         first_name: meta.first_name || null,

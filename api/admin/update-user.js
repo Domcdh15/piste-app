@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     if (createError) return res.status(500).json({ error: createError.message });
     const { error: settingsError } = await admin.from("user_settings").upsert({
       user_id: created.user.id,
-      plan_price: 39,
+      plan_price: 19,
       trial_ends_at: new Date(Date.now() + 14 * 86400000).toISOString(),
       subscription_status: "active",
       first_name: firstName,

@@ -141,7 +141,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
       </Section>
 
       <Section title="Facturation">
-        <BillingPanel local={local} session={session} />
+        <BillingPanel local={local} session={session} team={team} />
       </Section>
 
       <Section title="Données et export" last>
@@ -294,28 +294,46 @@ function TeamPanel({ session, team, reloadTeam }) {
   );
 }
 
-const STANDARD_PRICE = 49;
+const STANDARD_PRICE = 19;
 
-function BillingPanel({ local, session }) {
+function BillingPanel({ local, session, team }) {
   if (!local) return <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Chargement...</div>;
-  const status = local.subscription_status || "trialing";
-  const trialEndsAt = local.trial_ends_at ? new Date(local.trial_ends_at) : null;
+
+  const memberCount = team?.members?.length || 1;
+  const isTeamBilling = memberCount > 1 && team?.team;
+  const billingSource = isTeamBilling ? team.team : local;
+
+  const status = billingSource.subscription_status || "trialing";
+  const trialEndsAt = billingSource.trial_ends_at ? new Date(billingSource.trial_ends_at) : null;
   const daysLeft = trialEndsAt ? Math.max(0, Math.ceil((trialEndsAt - new Date()) / 86400000)) : null;
 
   const accountCreatedAt = new Date(session.user.created_at);
-  const price = local.plan_price ?? STANDARD_PRICE;
+  const price = isTeamBilling ? (billingSource.plan_price ?? null) : (billingSource.plan_price ?? STANDARD_PRICE);
+
+  if (isTeamBilling && price === null) {
+    return (
+      <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>
+        Tarif d'équipe ({memberCount} membres) en cours de configuration — contacte le support Closia.
+      </div>
+    );
+  }
 
   return (
     <div>
+      {isTeamBilling && (
+        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "6px" }}>
+          Tarif global pour l'équipe ({memberCount} membres)
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
         <span className="display" style={{ fontSize: "22px", fontWeight: 700 }}>{price === 0 ? "Gratuit" : formatEuros(price)}</span>
         {price > 0 && <span style={{ fontSize: "12px", color: "var(--text-faint)" }}>/ mois</span>}
-        {price === 0 && (
+        {!isTeamBilling && price === 0 && (
           <span style={{ fontSize: "10px", fontWeight: 700, background: "#e2f7ec", color: "#0ea968", borderRadius: "999px", padding: "3px 9px" }}>
             ABONNEMENT OFFERT
           </span>
         )}
-        {price > 0 && price < STANDARD_PRICE && (
+        {!isTeamBilling && price > 0 && price < STANDARD_PRICE && (
           <span style={{ fontSize: "10px", fontWeight: 700, background: "var(--blue-dim)", color: "var(--blue)", borderRadius: "999px", padding: "3px 9px" }}>
             TARIF PRÉFÉRENTIEL
           </span>
