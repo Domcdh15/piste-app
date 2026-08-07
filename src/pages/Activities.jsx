@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { Avatar, formatDate, formatShortDate, formatEuros, periodRange, callAI, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, TargetIcon, ListIcon, PageTitle } from "../lib/ui.jsx";
+import { Avatar, formatDate, formatShortDate, formatEuros, periodRange, callAI, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, TargetIcon, ListIcon, UsersIcon, PageTitle } from "../lib/ui.jsx";
 
 const PERIODS = [
   ["day", "Jour"],
@@ -26,6 +26,7 @@ const ICONS = {
   "Analyse IA": <SparklesIcon size={13} color="var(--blue)" />,
   "Deal gagné": <TrophyIcon size={13} color="#0ea968" />,
   "Deal perdu": <XIcon size={13} color="var(--text-dim)" />,
+  "Réattribution": <UsersIcon size={13} color="var(--gold-deep)" />,
 };
 
 export default function Activities({ prospects, onOpenProspect, session, team }) {
@@ -56,8 +57,8 @@ export default function Activities({ prospects, onOpenProspect, session, team })
       ]);
       const byId = Object.fromEntries(prospects.map((p) => [p.id, p]));
 
-      const ACTIVITY_LABEL = { appel_abouti: "Appel abouti", appel_manque: "Appel manqué", deal_gagne: "Deal gagné", deal_perdu: "Deal perdu", note: "Note" };
-      const ACTIVITY_FILTER = { appel_abouti: "Appels", appel_manque: "Appels", note: "Notes", deal_gagne: "Tous", deal_perdu: "Tous" };
+      const ACTIVITY_LABEL = { appel_abouti: "Appel abouti", appel_manque: "Appel manqué", deal_gagne: "Deal gagné", deal_perdu: "Deal perdu", note: "Note", reassignation: "Réattribution" };
+      const ACTIVITY_FILTER = { appel_abouti: "Appels", appel_manque: "Appels", note: "Notes", deal_gagne: "Tous", deal_perdu: "Tous", reassignation: "Tous" };
 
       const feed = [
         ...(emails.data || []).map((x) => ({ ...x, kind: "Email de relance", filterKey: "Emails" })),

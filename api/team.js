@@ -2,6 +2,16 @@ import { getUserFromToken, bearerToken, supabaseAdmin } from "./_lib/supabase.js
 
 const ROLES = ["admin", "sales", "customer_success"];
 
+async function memberLabel(admin, userId) {
+  if (!userId) return "Non attribué";
+  const [{ data: u }, { data: settings }] = await Promise.all([
+    admin.auth.admin.getUserById(userId),
+    admin.from("user_settings").select("first_name, last_name").eq("user_id", userId).maybeSingle(),
+  ]);
+  const name = settings && (settings.first_name || settings.last_name) ? `${settings.first_name || ""} ${settings.last_name || ""}`.trim() : null;
+  return name || u?.user?.email || "Utilisateur";
+}
+
 async function countAdmins(admin, teamId) {
   const { count } = await admin
     .from("team_members")
@@ -54,11 +64,38 @@ export default async function handler(req, res) {
   if (action === "assign_prospect") {
     const { prospectId, salesOwnerId, csmOwnerId } = req.body;
     if (!prospectId) return res.status(400).json({ error: "prospectId manquant" });
+
+    const { data: before } = await admin
+      .from("prospects")
+      .select("sales_owner_id, csm_owner_id, team_id")
+      .eq("id", prospectId)
+      .eq("team_id", membership.team_id)
+      .maybeSingle();
+    if (!before) return res.status(404).json({ error: "Prospect introuvable" });
+
     const patch = {};
     if (salesOwnerId !== undefined) patch.sales_owner_id = salesOwnerId;
     if (csmOwnerId !== undefined) patch.csm_owner_id = csmOwnerId;
     const { error } = await admin.from("prospects").update(patch).eq("id", prospectId).eq("team_id", membership.team_id);
     if (error) return res.status(500).json({ error: "L'attribution a échoué" });
+
+    const notes = [];
+    if (salesOwnerId !== undefined && salesOwnerId !== before.sales_owner_id) {
+      notes.push(`Commercial responsable : ${await memberLabel(admin, before.sales_owner_id)} → ${await memberLabel(admin, salesOwnerId)}`);
+    }
+    if (csmOwnerId !== undefined && csmOwnerId !== before.csm_owner_id) {
+      notes.push(`CSM responsable : ${await memberLabel(admin, before.csm_owner_id)} → ${await memberLabel(admin, csmOwnerId)}`);
+    }
+    if (notes.length > 0) {
+      await admin.from("activities").insert({
+        prospect_id: prospectId,
+        user_id: user.id,
+        team_id: membership.team_id,
+        type: "reassignation",
+        note: notes.join(" · "),
+      });
+    }
+
     return res.status(200).json({ ok: true });
   }
 

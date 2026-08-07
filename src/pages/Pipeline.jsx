@@ -51,6 +51,7 @@ const ACTIVITY_LABEL = {
   deal_gagne: "Deal gagné",
   deal_perdu: "Deal perdu",
   note: "Note",
+  reassignation: "Réattribution",
 };
 
 function truncate(text, max) {
@@ -224,6 +225,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
         onDelete={() => handleDeleteProspect(selected.id)}
         onLogActivity={(type, note) => logActivity(selected.id, type, note)}
         initialTab={initialTab}
+        reload={reload}
       />
     );
   }
@@ -312,9 +314,9 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
       ) : visibleProspects.length === 0 ? (
         <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun résultat pour cette recherche ou ces filtres.</div>
       ) : viewMode === "kanban" ? (
-        <KanbanBoard list={combinedList} tasks={openTasks} onOpenProspect={setSelectedId} />
+        <KanbanBoard list={combinedList} tasks={openTasks} onOpenProspect={setSelectedId} team={team} />
       ) : (
-        <ProspectTable list={combinedList} onSelect={setSelectedId} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+        <ProspectTable list={combinedList} onSelect={setSelectedId} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} team={team} />
       )}
     </div>
   );
@@ -329,7 +331,38 @@ const KANBAN_COLUMNS = [
   { key: "closed", label: "Gagné / Perdu" },
 ];
 
-function KanbanBoard({ list, tasks, onOpenProspect }) {
+function ownerInitials(team, userId) {
+  if (!userId || !team) return null;
+  const m = (team.members || []).find((x) => x.user_id === userId);
+  if (!m) return "?";
+  if (m.first_name || m.last_name) return `${(m.first_name || "")[0] || ""}${(m.last_name || "")[0] || ""}`.toUpperCase() || "?";
+  return (m.email || "?")[0].toUpperCase();
+}
+
+function OwnerBadges({ team, prospect, size = "sm" }) {
+  if (!team) return null;
+  const showSales = team.team?.has_multiple_sales;
+  const showCsm = team.team?.has_multiple_csm;
+  if (!showSales && !showCsm) return null;
+  const dim = size === "sm" ? 18 : 22;
+  const font = size === "sm" ? 9 : 10;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+      {showSales && (
+        <span title={`Commercial : ${ownerInitials(team, prospect.sales_owner_id) ? "" : "non attribué"}`} style={{ width: dim, height: dim, borderRadius: "50%", background: "var(--blue-dim)", color: "var(--blue)", fontSize: font, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          {ownerInitials(team, prospect.sales_owner_id) || "—"}
+        </span>
+      )}
+      {showCsm && (
+        <span title="CSM" style={{ width: dim, height: dim, borderRadius: "50%", background: "var(--gold-dim)", color: "var(--gold-deep)", fontSize: font, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          {ownerInitials(team, prospect.csm_owner_id) || "—"}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function KanbanBoard({ list, tasks, onOpenProspect, team }) {
   const nextTaskByProspect = {};
   for (const t of tasks) {
     if (!nextTaskByProspect[t.prospect_id]) nextTaskByProspect[t.prospect_id] = t;
@@ -357,7 +390,7 @@ function KanbanBoard({ list, tasks, onOpenProspect }) {
                 <div style={{ color: "var(--text-faint)", fontSize: "11px", padding: "8px" }}>Vide</div>
               ) : (
                 items.map((p) => (
-                  <OpportunityCard key={p.id} prospect={p} nextTask={nextTaskByProspect[p.id]} onClick={() => onOpenProspect(p.id)} />
+                  <OpportunityCard key={p.id} prospect={p} nextTask={nextTaskByProspect[p.id]} onClick={() => onOpenProspect(p.id)} team={team} />
                 ))
               )}
             </div>
@@ -368,7 +401,7 @@ function KanbanBoard({ list, tasks, onOpenProspect }) {
   );
 }
 
-function OpportunityCard({ prospect: p, nextTask, onClick }) {
+function OpportunityCard({ prospect: p, nextTask, onClick, team }) {
   const score = computeDealScore(p);
   const scoreColor = score >= 70 ? "#0ea968" : score >= 40 ? "var(--amber)" : "var(--red)";
 
@@ -385,9 +418,12 @@ function OpportunityCard({ prospect: p, nextTask, onClick }) {
         </span>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--text-dim)", fontSize: "11px" }}>
-        <Avatar name={p.name} stage={p.stage} size={18} />
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px", color: "var(--text-dim)", fontSize: "11px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
+          <Avatar name={p.name} stage={p.stage} size={18} />
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+        </div>
+        <OwnerBadges team={team} prospect={p} />
       </div>
 
       <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "8px", display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -428,7 +464,8 @@ function SortHeader({ label, sortKeyName, sortKey, sortDir, onSort }) {
   );
 }
 
-function ProspectTable({ list, onSelect, onSort, sortKey, sortDir }) {
+function ProspectTable({ list, onSelect, onSort, sortKey, sortDir, team }) {
+  const showOwners = team && (team.team?.has_multiple_sales || team.team?.has_multiple_csm);
   return (
     <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", overflow: "hidden", overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -439,18 +476,19 @@ function ProspectTable({ list, onSelect, onSort, sortKey, sortDir }) {
             <th style={th}>STATUT</th>
             <th style={th}>ÉTAPE</th>
             <th style={th}>PROCHAIN CONTACT</th>
+            {showOwners && <th style={th}>RESPONSABLE</th>}
             <SortHeader label="MONTANT" sortKeyName="deal_value" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
           </tr>
         </thead>
         <tbody>
-          {list.map((p) => <ProspectTableRow key={p.id} p={p} onClick={() => onSelect(p.id)} />)}
+          {list.map((p) => <ProspectTableRow key={p.id} p={p} onClick={() => onSelect(p.id)} team={team} showOwners={showOwners} />)}
         </tbody>
       </table>
     </div>
   );
 }
 
-function ProspectTableRow({ p, onClick }) {
+function ProspectTableRow({ p, onClick, team, showOwners }) {
   const meta = STATUS_META[p.status] || STATUS_META.attente;
   const isClient = p.stage === "Gagné";
   const closed = p.stage === "Perdu";
@@ -486,12 +524,17 @@ function ProspectTableRow({ p, onClick }) {
           <span style={{ color: "var(--text-faint)", fontSize: "12px" }}>—</span>
         )}
       </td>
+      {showOwners && (
+        <td style={td}>
+          <OwnerBadges team={team} prospect={p} />
+        </td>
+      )}
       <td className="mono" style={{ ...td, color: "var(--blue)", textAlign: "right", whiteSpace: "nowrap" }}>{formatEuros(p.deal_value)}</td>
     </tr>
   );
 }
 
-function ProspectDetailPage({ prospect, session, settings, team, onBack, backLabel, onUpdate, onDelete, onLogActivity, initialTab }) {
+function ProspectDetailPage({ prospect, session, settings, team, onBack, backLabel, onUpdate, onDelete, onLogActivity, initialTab, reload }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [tab, setTab] = useState(initialTab || "email");
@@ -592,7 +635,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
       )}
 
       {team && (team.team?.has_multiple_sales || team.team?.has_multiple_csm) && (
-        <ProspectOwnersPanel prospect={prospect} session={session} team={team} />
+        <ProspectOwnersPanel prospect={prospect} session={session} team={team} onAssigned={reload} />
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
@@ -891,7 +934,7 @@ function Modal({ children, onClose }) {
   );
 }
 
-function ProspectOwnersPanel({ prospect, session, team }) {
+function ProspectOwnersPanel({ prospect, session, team, onAssigned }) {
   const [busy, setBusy] = useState(false);
   const isAdmin = team.role === "admin";
   const members = team.members || [];
@@ -911,6 +954,7 @@ function ProspectOwnersPanel({ prospect, session, team }) {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ action: "assign_prospect", prospectId: prospect.id, ...patch }),
       });
+      onAssigned?.();
     } finally {
       setBusy(false);
     }
