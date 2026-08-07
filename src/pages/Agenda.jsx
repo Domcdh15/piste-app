@@ -344,7 +344,7 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                         left: `calc(${eventsLeftPct + colIndex * widthPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
                         background: active ? "var(--blue)" : "var(--blue-dim)",
                         color: active ? "#fff" : "var(--blue)",
-                        border: "0.5px solid #2563eb55", borderRadius: "6px", padding: "4px 6px",
+                        border: "0.5px solid #2a3ed655", borderRadius: "6px", padding: "4px 6px",
                         textAlign: "left", overflow: "hidden", zIndex: 2, fontSize: "11px", cursor: "pointer",
                       }}
                     >
@@ -505,7 +505,7 @@ ${context}`;
               <div className="display" style={{ fontWeight: 700, fontSize: "14px" }}>{prospect.name}</div>
               <div style={{ color: "var(--text-dim)", fontSize: "12px" }}>{prospect.company}</div>
             </div>
-            <button className="focusable" onClick={() => onOpenProspect?.(prospect.id)} style={{ marginLeft: "auto", fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55" }}>
+            <button className="focusable" onClick={() => onOpenProspect?.(prospect.id)} style={{ marginLeft: "auto", fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655" }}>
               Ouvrir le dossier
             </button>
           </div>
@@ -528,7 +528,7 @@ ${context}`;
             </div>
           )}
 
-          <button className="focusable" onClick={generatePrep} disabled={loadingPrep} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px", marginBottom: "12px", opacity: loadingPrep ? 0.6 : 1 }}>
+          <button className="focusable" onClick={generatePrep} disabled={loadingPrep} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "9px", fontSize: "13px", marginBottom: "12px", opacity: loadingPrep ? 0.6 : 1 }}>
             <SparklesIcon size={13} color="var(--blue)" /> {loadingPrep ? "Préparation..." : "Préparer avec l'IA"}
           </button>
           {error && <div style={{ color: "var(--red)", fontSize: "12px", marginBottom: "10px" }}>{error}</div>}

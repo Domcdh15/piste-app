@@ -130,7 +130,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
       </Section>
 
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-        <button className="focusable" onClick={save} disabled={saving} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", opacity: saving ? 0.6 : 1 }}>
+        <button className="focusable" onClick={save} disabled={saving} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", opacity: saving ? 0.6 : 1 }}>
           {saving ? "Enregistrement..." : "Enregistrer les préférences"}
         </button>
         {saved && <span style={{ color: "var(--green, #16a34a)", fontSize: "12px" }}>Enregistré ✓</span>}
@@ -334,7 +334,7 @@ function BillingPanel({ local, session, team }) {
           </span>
         )}
         {!isTeamBilling && price > 0 && price < STANDARD_PRICE && (
-          <span style={{ fontSize: "10px", fontWeight: 700, background: "var(--blue-dim)", color: "var(--blue)", borderRadius: "999px", padding: "3px 9px" }}>
+          <span style={{ fontSize: "10px", fontWeight: 700, background: "var(--gold-dim)", color: "var(--gold-deep)", borderRadius: "999px", padding: "3px 9px" }}>
             TARIF PRÉFÉRENTIEL
           </span>
         )}

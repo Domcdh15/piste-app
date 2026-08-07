@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { PlugIcon, PageTitle } from "../lib/ui.jsx";
 
-const BADGE_COLORS = ["#2563eb", "#0ea5e9", "#7c3aed", "#0d9488", "#d97706", "#dc2626", "#4f46e5", "#0284c7", "#059669"];
+const BADGE_COLORS = ["#2a3ed6", "#0ea5e9", "#7c3aed", "#0d9488", "#d97706", "#dc2626", "#4f46e5", "#0284c7", "#059669"];
 function badgeColor(label) {
   let hash = 0;
   for (let i = 0; i < label.length; i++) hash = label.charCodeAt(i) + ((hash << 5) - hash);
@@ -123,7 +123,7 @@ function IntegrationRow({ label, desc, connected, loading, onConnect, onDisconne
             Déconnecter
           </button>
         ) : (
-          <button className="focusable" onClick={onConnect} style={{ fontSize: "12px", padding: "6px 12px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", whiteSpace: "nowrap" }}>
+          <button className="focusable" onClick={onConnect} style={{ fontSize: "12px", padding: "6px 12px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", whiteSpace: "nowrap" }}>
             Connecter
           </button>
         )}

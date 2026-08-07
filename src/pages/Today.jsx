@@ -468,7 +468,7 @@ function DailyBriefModal({ firstName, events, taches, prospectById, tip, onOpenP
         </div>
 
         <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
-          <button className="focusable" onClick={onGoToPlanning} style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
+          <button className="focusable" onClick={onGoToPlanning} style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
             Voir mon agenda complet
           </button>
           <button className="focusable" onClick={onClose} style={{ flex: 1, background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px", fontSize: "13px" }}>
@@ -598,7 +598,7 @@ function PriorityCard({ priorities, loading, onOpen }) {
                 <button className="focusable" onClick={() => onOpen?.(p.id, "email")} style={{ fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
                   Générer une relance
                 </button>
-                <button className="focusable" onClick={() => onOpen?.(p.id, "email")} style={{ fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55" }}>
+                <button className="focusable" onClick={() => onOpen?.(p.id, "email")} style={{ fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655" }}>
                   Ouvrir le dossier
                 </button>
               </div>

@@ -9,8 +9,12 @@
   --text-faint: #94a3b8;
   --amber: #b45309;
   --amber-dim: #fdf0dc;
-  --blue: #2563eb;
-  --blue-dim: #e8f0fe;
+  --blue: #2a3ed6;
+  --blue-deep: #16209e;
+  --blue-dim: #e7e9fb;
+  --gold: #b8862e;
+  --gold-deep: #8a661f;
+  --gold-dim: #fbf1dd;
   --red: #dc2626;
   --red-dim: #fbe7e7;
 }

@@ -136,7 +136,7 @@ function QuickCommands({ prospects, onOpenProspect }) {
       {pending && (
         <div style={{ display: "flex", gap: "8px", marginTop: "10px", alignItems: "center" }}>
           <ProspectPicker prospects={prospects} value={selected} onChange={setSelected} />
-          <button className="focusable" onClick={confirm} disabled={!selected} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", opacity: selected ? 1 : 0.5 }}>
+          <button className="focusable" onClick={confirm} disabled={!selected} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", opacity: selected ? 1 : 0.5 }}>
             Ouvrir
           </button>
         </div>
@@ -387,7 +387,7 @@ ${context}`;
           )}
         </div>
 
-        <button className="focusable" onClick={generate} disabled={selectedIds.size === 0 || loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: selectedIds.size === 0 || loading ? 0.6 : 1, marginBottom: results.length ? "14px" : 0 }}>
+        <button className="focusable" onClick={generate} disabled={selectedIds.size === 0 || loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: selectedIds.size === 0 || loading ? 0.6 : 1, marginBottom: results.length ? "14px" : 0 }}>
           <SparklesIcon size={13} color="var(--blue)" /> {loading ? "Génération..." : `Générer ${selectedIds.size > 1 ? `${selectedIds.size} emails` : "l'email"}`}
         </button>
 
@@ -475,7 +475,7 @@ ${context}`;
       <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px" }}>
         <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
           <ProspectPicker prospects={prospects} value={prospectId} onChange={setProspectId} />
-          <button className="focusable" onClick={generate} disabled={!prospectId || loading} style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", opacity: !prospectId || loading ? 0.6 : 1 }}>
+          <button className="focusable" onClick={generate} disabled={!prospectId || loading} style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", opacity: !prospectId || loading ? 0.6 : 1 }}>
             <SparklesIcon size={13} color="var(--blue)" /> {loading ? "Préparation..." : "Préparer"}
           </button>
         </div>

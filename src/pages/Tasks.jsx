@@ -138,7 +138,7 @@ export default function Tasks({ prospects, session, settings, onOpenProspect }) 
     <div style={{ padding: "28px 32px 48px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px", flexWrap: "wrap", gap: "12px" }}>
         <PageTitle icon={CheckIcon} color="#0ea5e9">Tâches</PageTitle>
-        <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "7px 12px", fontSize: "13px", fontWeight: 600 }}>
+        <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "7px 12px", fontSize: "13px", fontWeight: 600 }}>
           {showForm ? "Annuler" : "+ Nouvelle tâche"}
         </button>
       </div>
@@ -214,7 +214,7 @@ export default function Tasks({ prospects, session, settings, onOpenProspect }) 
           <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} style={inputStyle}>
             {PRIORITY_LEVELS.map((l) => <option key={l.value} value={l.value}>Priorité : {l.label}</option>)}
           </select>
-          <button type="submit" disabled={saving} className="focusable" style={{ gridColumn: "1 / -1", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px", fontWeight: 600 }}>
+          <button type="submit" disabled={saving} className="focusable" style={{ gridColumn: "1 / -1", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "9px", fontSize: "13px", fontWeight: 600 }}>
             {saving ? "Enregistrement..." : "Créer la tâche"}
           </button>
         </form>

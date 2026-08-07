@@ -242,7 +242,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
             </button>
           </div>
         </div>
-        <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "7px 12px", fontSize: "13px", whiteSpace: "nowrap" }}>
+        <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "7px 12px", fontSize: "13px", whiteSpace: "nowrap" }}>
           {showForm ? "Annuler" : "+ Ajouter un prospect"}
         </button>
       </div>
@@ -299,7 +299,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
             {PRIORITY_LEVELS.map((l) => <option key={l.value} value={l.value}>Priorité : {l.label}</option>)}
           </select>
           <input type="number" min="0" placeholder="Valeur du deal (€)" value={form.deal_value} onChange={(e) => setForm({ ...form, deal_value: e.target.value })} style={inputStyle} />
-          <button type="submit" disabled={saving} className="focusable" style={{ gridColumn: "1 / -1", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px" }}>
+          <button type="submit" disabled={saving} className="focusable" style={{ gridColumn: "1 / -1", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "9px", fontSize: "13px" }}>
             {saving ? "Enregistrement..." : "Enregistrer le prospect"}
           </button>
         </form>
@@ -811,7 +811,7 @@ ${buildHistoryContext(history)}`;
           className="focusable"
           onClick={analyze}
           disabled={!note.trim() || analyzing || saving}
-          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: !note.trim() || analyzing || saving ? 0.6 : 1 }}
+          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: !note.trim() || analyzing || saving ? 0.6 : 1 }}
         >
           <SparklesIcon size={14} color="var(--blue)" />
           {analyzing ? "Analyse en cours..." : "Analyser la note"}
@@ -867,7 +867,7 @@ ${buildHistoryContext(history)}`;
               className="focusable"
               onClick={createTasks}
               disabled={creating || selected.length === 0}
-              style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", opacity: creating || selected.length === 0 ? 0.6 : 1 }}
+              style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", opacity: creating || selected.length === 0 ? 0.6 : 1 }}
             >
               {creating ? "Création..." : `Créer ${selected.length} tâche${selected.length > 1 ? "s" : ""}`}
             </button>
@@ -1010,7 +1010,7 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
       </select>
       <input type="number" min="0" placeholder="Valeur du deal (€)" value={dealValue} onChange={(e) => setDealValue(e.target.value)} style={inputStyle} />
       <div style={{ display: "flex", gap: "8px", gridColumn: "1 / -1" }}>
-        <button type="submit" disabled={saving} className="focusable" style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px" }}>
+        <button type="submit" disabled={saving} className="focusable" style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "9px", fontSize: "13px" }}>
           {saving ? "Enregistrement..." : "Enregistrer les modifications"}
         </button>
         <button type="button" onClick={onCancel} className="focusable" style={{ background: "transparent", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px 14px", fontSize: "13px" }}>
@@ -1048,13 +1048,13 @@ ${buildHistoryContext(history)}`;
   }
 
   return (
-    <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2563eb40", borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
+    <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2a3ed640", borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <SparklesIcon size={13} color="var(--blue)" />
           <span className="display" style={{ fontWeight: 700, fontSize: "13px", color: "var(--blue)" }}>Points forts / points faibles</span>
         </div>
-        <button className="focusable" onClick={regenerate} disabled={regenerating} style={{ fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--panel)", color: "var(--blue)", border: "0.5px solid #2563eb40" }}>
+        <button className="focusable" onClick={regenerate} disabled={regenerating} style={{ fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--panel)", color: "var(--blue)", border: "0.5px solid #2a3ed640" }}>
           {regenerating ? "Analyse..." : latest ? "Régénérer" : "Générer"}
         </button>
       </div>
@@ -1174,7 +1174,7 @@ function TasksTab({ prospect, session, settings }) {
         <select value={priority} onChange={(e) => setPriority(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
           {PRIORITY_LEVELS.map((l) => <option key={l.value} value={l.value}>Priorité : {l.label}</option>)}
         </select>
-        <button type="submit" disabled={saving || !note.trim()} className="focusable" style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "8px 14px", fontSize: "13px" }}>
+        <button type="submit" disabled={saving || !note.trim()} className="focusable" style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "8px 14px", fontSize: "13px" }}>
           Ajouter
         </button>
       </form>
@@ -1285,7 +1285,7 @@ ${buildHistoryContext(history)}`;
             className="focusable"
             onClick={generateWithAI}
             disabled={loading}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: loading ? 0.6 : 1 }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: loading ? 0.6 : 1 }}
           >
             <SparklesIcon size={13} color="var(--blue)" />
             {loading ? "Génération..." : "Générer avec l'IA"}
@@ -1409,7 +1409,7 @@ function GeneratorBlock({ label, loading, error, content, setContent, onGenerate
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-      <button className="focusable" onClick={onGenerate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "10px", fontSize: "13px", opacity: loading ? 0.7 : 1 }}>
+      <button className="focusable" onClick={onGenerate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "10px", fontSize: "13px", opacity: loading ? 0.7 : 1 }}>
         <SparklesIcon size={14} color="var(--blue)" />
         {loading ? "Génération en cours..." : label}
       </button>

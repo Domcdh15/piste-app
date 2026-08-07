@@ -3,7 +3,7 @@ import { Logo, HomeIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIcon, PlugI
 const NAV_GROUPS = [
   {
     section: null,
-    items: [{ key: "today", label: "Aujourd'hui", Icon: HomeIcon, color: "#2563eb" }],
+    items: [{ key: "today", label: "Aujourd'hui", Icon: HomeIcon, color: "#2a3ed6" }],
   },
   {
     section: "Pipeline commercial",

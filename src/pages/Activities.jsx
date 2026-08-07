@@ -166,7 +166,7 @@ export default function Activities({ prospects, onOpenProspect, session, team })
             key={key}
             className="focusable"
             onClick={() => setFilter(key)}
-            style={{ padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 500, background: filter === key ? "var(--blue-dim)" : "var(--panel2)", color: filter === key ? "var(--blue)" : "var(--text-dim)", border: filter === key ? "0.5px solid #2563eb55" : "0.5px solid var(--hairline)" }}
+            style={{ padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 500, background: filter === key ? "var(--blue-dim)" : "var(--panel2)", color: filter === key ? "var(--blue)" : "var(--text-dim)", border: filter === key ? "0.5px solid #2a3ed655" : "0.5px solid var(--hairline)" }}
           >
             {label}
           </button>
@@ -202,7 +202,7 @@ export default function Activities({ prospects, onOpenProspect, session, team })
                   <button className="focusable" onClick={() => onOpenProspect?.(item.prospect.id, "taches")} style={{ fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
                     Créer une tâche
                   </button>
-                  <button className="focusable" onClick={() => onOpenProspect?.(item.prospect.id)} style={{ fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55" }}>
+                  <button className="focusable" onClick={() => onOpenProspect?.(item.prospect.id)} style={{ fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655" }}>
                     Ouvrir l'opportunité
                   </button>
                 </div>
@@ -289,7 +289,7 @@ ${context || "Aucune donnée sur cette période."}`;
         <button className="focusable" onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "13px" }}>✕</button>
       </div>
 
-      <button className="focusable" onClick={generateSummary} disabled={loadingSummary || items.length === 0} style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "7px 12px", fontSize: "12px", marginBottom: "12px", opacity: items.length === 0 ? 0.5 : 1 }}>
+      <button className="focusable" onClick={generateSummary} disabled={loadingSummary || items.length === 0} style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "7px 12px", fontSize: "12px", marginBottom: "12px", opacity: items.length === 0 ? 0.5 : 1 }}>
         <SparklesIcon size={12} color="var(--blue)" /> {loadingSummary ? "Analyse..." : "Générer un résumé IA"}
       </button>
       {error && <div style={{ color: "var(--red)", fontSize: "12px", marginBottom: "10px" }}>{error}</div>}
