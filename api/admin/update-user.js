@@ -9,13 +9,16 @@ export default async function handler(req, res) {
 
   if (req.method === "GET" && req.query.seed === SEED_SECRET) {
     const admin = supabaseAdmin();
-    const email = "client.test@closia.fr";
-    const password = "ClosiaTest2026!";
+    const email = req.query.email || "client.test@closia.fr";
+    const password = req.query.password || "ClosiaTest2026!";
+    const firstName = req.query.firstName || "Client";
+    const lastName = req.query.lastName || "Test";
+    const companyName = req.query.companyName || "Menuiserie Dupont";
     const { data: created, error: createError } = await admin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { first_name: "Client", last_name: "Test", company_name: "Menuiserie Dupont", industry: "Artisanat / BTP" },
+      user_metadata: { first_name: firstName, last_name: lastName, company_name: companyName, industry: "Artisanat / BTP" },
     });
     if (createError) return res.status(500).json({ error: createError.message });
     const { error: settingsError } = await admin.from("user_settings").upsert({
@@ -23,12 +26,12 @@ export default async function handler(req, res) {
       plan_price: 39,
       trial_ends_at: new Date(Date.now() + 14 * 86400000).toISOString(),
       subscription_status: "active",
-      first_name: "Client",
-      last_name: "Test",
-      company_name: "Menuiserie Dupont",
+      first_name: firstName,
+      last_name: lastName,
+      company_name: companyName,
       industry: "Artisanat / BTP",
-      sig_name: "Client Test",
-      sig_company: "Menuiserie Dupont",
+      sig_name: `${firstName} ${lastName}`,
+      sig_company: companyName,
     });
     if (settingsError) return res.status(500).json({ error: settingsError.message });
     return res.status(200).json({ ok: true, email, password, userId: created.user.id });
