@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { Avatar, formatDate, formatShortDate, formatEuros, periodRange, callAI, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, TargetIcon, ListIcon, UsersIcon, PageTitle } from "../lib/ui.jsx";
+import { Avatar, formatDate, formatShortDate, formatEuros, periodRange, callAI, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, TargetIcon, ListIcon, UsersIcon, LinkedinIcon, TableIcon, PageTitle } from "../lib/ui.jsx";
 
 const PERIODS = [
   ["day", "Jour"],
@@ -11,8 +11,9 @@ const PERIODS = [
 const FILTERS = [
   ["Tous", "Tous"],
   ["Appels", "Appels"],
-  ["Emails", "Emails"],
   ["Rendez-vous", "Rendez-vous"],
+  ["Emails", "Emails"],
+  ["LinkedIn", "LinkedIn"],
   ["Notes", "Notes"],
   ["IA", "IA"],
 ];
@@ -20,7 +21,11 @@ const FILTERS = [
 const ICONS = {
   "Appel abouti": <PhoneIcon size={13} color="#0ea968" />,
   "Appel manqué": <XIcon size={13} color="var(--red)" />,
+  "RDV physique": <CalendarIcon size={13} color="var(--blue)" />,
+  "Visio": <CalendarIcon size={13} color="var(--violet)" />,
+  "Message LinkedIn": <LinkedinIcon size={13} color="var(--blue)" />,
   "Email de relance": <MailIcon size={13} color="var(--blue)" />,
+  "Devis": <MailIcon size={13} color="var(--gold-deep)" />,
   "Rendez-vous": <CalendarIcon size={13} color="var(--blue)" />,
   "Note": <ClockIcon size={13} color="var(--text-dim)" />,
   "Analyse IA": <SparklesIcon size={13} color="var(--blue)" />,
@@ -28,6 +33,15 @@ const ICONS = {
   "Deal perdu": <XIcon size={13} color="var(--text-dim)" />,
   "Réattribution": <UsersIcon size={13} color="var(--gold-deep)" />,
 };
+
+const MIX_CATEGORIES = [
+  { key: "appels", label: "Appels", color: "#2a3ed6" },
+  { key: "rdv", label: "RDV & Visio", color: "#eb6834" },
+  { key: "emails", label: "Emails", color: "#1baf7a" },
+  { key: "notes", label: "Notes", color: "#eda100" },
+  { key: "deals", label: "Deals conclus", color: "#e87ba4" },
+  { key: "autres", label: "Autres", color: "#94a3b8" },
+];
 
 export default function Activities({ prospects, onOpenProspect, session, team }) {
   const [period, setPeriod] = useState("week");
@@ -57,11 +71,19 @@ export default function Activities({ prospects, onOpenProspect, session, team })
       ]);
       const byId = Object.fromEntries(prospects.map((p) => [p.id, p]));
 
-      const ACTIVITY_LABEL = { appel_abouti: "Appel abouti", appel_manque: "Appel manqué", deal_gagne: "Deal gagné", deal_perdu: "Deal perdu", note: "Note", reassignation: "Réattribution" };
-      const ACTIVITY_FILTER = { appel_abouti: "Appels", appel_manque: "Appels", note: "Notes", deal_gagne: "Tous", deal_perdu: "Tous", reassignation: "Tous" };
+      const ACTIVITY_LABEL = {
+        appel_abouti: "Appel abouti", appel_manque: "Appel manqué",
+        rdv_physique: "RDV physique", appel_visio: "Visio", message_linkedin: "Message LinkedIn",
+        deal_gagne: "Deal gagné", deal_perdu: "Deal perdu", note: "Note", reassignation: "Réattribution",
+      };
+      const ACTIVITY_FILTER = {
+        appel_abouti: "Appels", appel_manque: "Appels",
+        rdv_physique: "Rendez-vous", appel_visio: "Rendez-vous", message_linkedin: "LinkedIn",
+        note: "Notes", deal_gagne: "Tous", deal_perdu: "Tous", reassignation: "Tous",
+      };
 
       const feed = [
-        ...(emails.data || []).map((x) => ({ ...x, kind: "Email de relance", filterKey: "Emails" })),
+        ...(emails.data || []).map((x) => ({ ...x, kind: x.type === "devis" ? "Devis" : "Email de relance", filterKey: "Emails" })),
         ...(scripts.data || []).map((x) => ({ ...x, kind: "Rendez-vous", filterKey: "Rendez-vous" })),
         ...(analyses.data || []).map((x) => ({ ...x, kind: "Analyse IA", filterKey: "IA" })),
         ...(acts.data || []).map((x) => ({ ...x, kind: ACTIVITY_LABEL[x.type] || x.type, content: x.note || "", filterKey: ACTIVITY_FILTER[x.type] || "Tous" })),
@@ -93,6 +115,19 @@ export default function Activities({ prospects, onOpenProspect, session, team })
   const nbDealPerdu = perdusList.length;
   const tauxConversion = nbDealGagne + nbDealPerdu > 0 ? Math.round((nbDealGagne / (nbDealGagne + nbDealPerdu)) * 100) : null;
   const caGenere = gagnesList.reduce((sum, p) => sum + (p.deal_value || 0), 0);
+
+  const emailsInRange = feedItems.filter((i) => i.filterKey === "Emails" && new Date(i.created_at) >= start).length;
+  const nbNotes = inRange.filter((a) => a.type === "note").length;
+  const nbDealsClos = inRange.filter((a) => a.type === "deal_gagne" || a.type === "deal_perdu").length;
+  const nbAutres = inRange.filter((a) => a.type === "message_linkedin" || a.type === "reassignation").length;
+  const mixData = [
+    { ...MIX_CATEGORIES[0], value: totalAppels },
+    { ...MIX_CATEGORIES[1], value: rdvList.length },
+    { ...MIX_CATEGORIES[2], value: emailsInRange },
+    { ...MIX_CATEGORIES[3], value: nbNotes },
+    { ...MIX_CATEGORIES[4], value: nbDealsClos },
+    { ...MIX_CATEGORIES[5], value: nbAutres },
+  ].filter((c) => c.value > 0);
 
   const TILES = {
     appels: { label: "Nombre d'appels", items: appelsList, kind: "activities" },
@@ -160,6 +195,8 @@ export default function Activities({ prospects, onOpenProspect, session, team })
           Taux de décroché : <span className="mono" style={{ color: "var(--text)", fontWeight: 700 }}>{tauxReussite}%</span> ({totalAppels} appel{totalAppels > 1 ? "s" : ""} sur la période)
         </div>
       )}
+
+      <ActivityMixChart data={mixData} />
 
       <div style={{ display: "flex", gap: "6px", marginBottom: "16px", flexWrap: "wrap" }}>
         {FILTERS.map(([key, label]) => (
@@ -327,5 +364,170 @@ ${context || "Aucune donnée sur cette période."}`;
         </div>
       )}
     </div>
+  );
+}
+
+const CHART_TYPES = [
+  ["bar", "Barres"],
+  ["pie", "Camembert"],
+  ["table", "Tableau"],
+];
+
+function ActivityMixChart({ data }) {
+  const [chartType, setChartType] = useState("bar");
+  const [hovered, setHovered] = useState(null);
+  const total = data.reduce((sum, d) => sum + d.value, 0);
+
+  return (
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "18px", marginBottom: "20px", maxWidth: "820px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
+        <span className="display" style={{ fontWeight: 700, fontSize: "13px" }}>Répartition de l'activité</span>
+        <div style={{ display: "flex", gap: "4px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
+          {CHART_TYPES.map(([key, label]) => (
+            <button
+              key={key}
+              className="focusable"
+              onClick={() => setChartType(key)}
+              style={{ padding: "5px 10px", borderRadius: "6px", fontSize: "11.5px", fontWeight: 500, background: chartType === key ? "var(--bg)" : "transparent", color: chartType === key ? "var(--text)" : "var(--text-dim)", boxShadow: chartType === key ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {total === 0 ? (
+        <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Aucune activité sur cette période.</div>
+      ) : chartType === "bar" ? (
+        <MixBarChart data={data} total={total} hovered={hovered} setHovered={setHovered} />
+      ) : chartType === "pie" ? (
+        <MixPieChart data={data} total={total} hovered={hovered} setHovered={setHovered} />
+      ) : (
+        <MixTable data={data} total={total} />
+      )}
+    </div>
+  );
+}
+
+function MixBarChart({ data, total, hovered, setHovered }) {
+  const max = Math.max(...data.map((d) => d.value));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      {data.map((d) => {
+        const pct = Math.round((d.value / total) * 100);
+        const widthPct = (d.value / max) * 100;
+        const isHovered = hovered === d.key;
+        return (
+          <div
+            key={d.key}
+            onMouseEnter={() => setHovered(d.key)}
+            onMouseLeave={() => setHovered(null)}
+            style={{ display: "flex", alignItems: "center", gap: "10px" }}
+          >
+            <div style={{ width: "108px", flexShrink: 0, fontSize: "12px", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.label}</div>
+            <div style={{ flex: 1, background: "var(--panel2)", borderRadius: "4px", height: "22px", position: "relative" }} title={`${d.label} : ${d.value} (${pct}%)`}>
+              <div
+                style={{
+                  width: `${Math.max(widthPct, 3)}%`, height: "100%", background: d.color, borderRadius: "4px",
+                  opacity: isHovered ? 1 : 0.9, transition: "opacity 0.15s",
+                  display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: "8px", boxSizing: "border-box",
+                }}
+              >
+                {widthPct > 22 && <span className="mono" style={{ fontSize: "11px", fontWeight: 700, color: "#fff" }}>{d.value}</span>}
+              </div>
+              {widthPct <= 22 && (
+                <span className="mono" style={{ position: "absolute", left: `calc(${Math.max(widthPct, 3)}% + 6px)`, top: "50%", transform: "translateY(-50%)", fontSize: "11px", fontWeight: 700, color: "var(--text)" }}>
+                  {d.value}
+                </span>
+              )}
+            </div>
+            <div className="mono" style={{ width: "36px", flexShrink: 0, fontSize: "11px", color: "var(--text-faint)", textAlign: "right" }}>{pct}%</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MixPieChart({ data, total, hovered, setHovered }) {
+  const radius = 58;
+  const strokeWidth = 26;
+  const circumference = 2 * Math.PI * radius;
+  let cumulative = 0;
+  const segments = data.map((d) => {
+    const frac = d.value / total;
+    const dash = frac * circumference;
+    const seg = { ...d, dash, offset: cumulative, pct: Math.round(frac * 100) };
+    cumulative += dash;
+    return seg;
+  });
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "28px", flexWrap: "wrap" }}>
+      <svg width="150" height="150" viewBox="0 0 150 150" style={{ flexShrink: 0 }}>
+        <g transform="rotate(-90 75 75)">
+          <circle cx="75" cy="75" r={radius} fill="none" stroke="var(--panel2)" strokeWidth={strokeWidth} />
+          {segments.map((seg) => (
+            <circle
+              key={seg.key}
+              cx="75" cy="75" r={radius} fill="none"
+              stroke={seg.color}
+              strokeWidth={hovered === seg.key ? strokeWidth + 4 : strokeWidth}
+              strokeDasharray={`${seg.dash} ${circumference - seg.dash}`}
+              strokeDashoffset={-seg.offset}
+              strokeLinecap="butt"
+              onMouseEnter={() => setHovered(seg.key)}
+              onMouseLeave={() => setHovered(null)}
+              style={{ cursor: "pointer", transition: "stroke-width 0.12s" }}
+            >
+              <title>{`${seg.label} : ${seg.value} (${seg.pct}%)`}</title>
+            </circle>
+          ))}
+        </g>
+        <text x="75" y="71" textAnchor="middle" className="display" style={{ fontSize: "22px", fontWeight: 700, fill: "var(--text)" }}>{total}</text>
+        <text x="75" y="88" textAnchor="middle" style={{ fontSize: "10px", fill: "var(--text-faint)" }}>activités</text>
+      </svg>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, minWidth: "160px" }}>
+        {segments.map((seg) => (
+          <div
+            key={seg.key}
+            onMouseEnter={() => setHovered(seg.key)}
+            onMouseLeave={() => setHovered(null)}
+            style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", opacity: hovered && hovered !== seg.key ? 0.5 : 1, transition: "opacity 0.12s" }}
+          >
+            <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: seg.color, flexShrink: 0 }} />
+            <span style={{ color: "var(--text)", flex: 1 }}>{seg.label}</span>
+            <span className="mono" style={{ color: "var(--text-faint)" }}>{seg.value} · {seg.pct}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MixTable({ data, total }) {
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
+      <thead>
+        <tr style={{ borderBottom: "0.5px solid var(--hairline)" }}>
+          <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--text-faint)", fontWeight: 600, fontSize: "11px" }}>Type</th>
+          <th style={{ textAlign: "right", padding: "6px 8px", color: "var(--text-faint)", fontWeight: 600, fontSize: "11px" }}>Nombre</th>
+          <th style={{ textAlign: "right", padding: "6px 8px", color: "var(--text-faint)", fontWeight: 600, fontSize: "11px" }}>Part</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.map((d) => (
+          <tr key={d.key} style={{ borderBottom: "0.5px solid var(--hairline)" }}>
+            <td style={{ padding: "7px 8px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: d.color, flexShrink: 0 }} />
+              {d.label}
+            </td>
+            <td className="mono" style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700 }}>{d.value}</td>
+            <td className="mono" style={{ padding: "7px 8px", textAlign: "right", color: "var(--text-faint)" }}>{Math.round((d.value / total) * 100)}%</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
