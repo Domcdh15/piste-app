@@ -1113,9 +1113,62 @@ const ACTION_TYPES = [
 ];
 
 const RDV_KEYWORDS = /\brdv\b|rendez-vous|rendez vous/i;
+const EMAIL_KEYWORDS = /\bmails?\b|\be-?mails?\b|\bcourriels?\b/i;
+const WEEKDAY_NAMES = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
 function mentionsRdv(actionType, text) {
   return actionType === "rdv_physique" || actionType === "appel_visio" || RDV_KEYWORDS.test(text);
+}
+
+function mentionsEmail(text) {
+  return EMAIL_KEYWORDS.test(text);
+}
+
+function extractDateFromText(text) {
+  const t = text.toLowerCase();
+  const now = new Date();
+  if (/\bapr[eè]s[\s-]?demain\b/.test(t)) {
+    const d = new Date(now); d.setDate(d.getDate() + 2); return d;
+  }
+  if (/\bdemain\b/.test(t)) {
+    const d = new Date(now); d.setDate(d.getDate() + 1); return d;
+  }
+  if (/\baujourd\W?hui\b/.test(t)) {
+    return new Date(now);
+  }
+  for (let i = 0; i < WEEKDAY_NAMES.length; i++) {
+    if (new RegExp(`\\b${WEEKDAY_NAMES[i]}\\b`).test(t)) {
+      const d = new Date(now);
+      let diff = (i - d.getDay() + 7) % 7;
+      if (diff === 0) diff = 7;
+      d.setDate(d.getDate() + diff);
+      return d;
+    }
+  }
+  const slash = t.match(/\b(\d{1,2})[\/\-](\d{1,2})\b/);
+  if (slash) {
+    const d = new Date(now.getFullYear(), parseInt(slash[2], 10) - 1, parseInt(slash[1], 10));
+    if (d < now) d.setFullYear(d.getFullYear() + 1);
+    return d;
+  }
+  const dayOfMonth = t.match(/\ble\s+(\d{1,2})\b/);
+  if (dayOfMonth) {
+    const day = parseInt(dayOfMonth[1], 10);
+    if (day >= 1 && day <= 31) {
+      const d = new Date(now.getFullYear(), now.getMonth(), day);
+      if (d < now) d.setMonth(d.getMonth() + 1);
+      return d;
+    }
+  }
+  return null;
+}
+
+function extractTimeFromText(text) {
+  const m = text.match(/\b(\d{1,2})h(\d{2})?\b/) || text.match(/\b(\d{1,2}):(\d{2})\b/);
+  if (!m) return null;
+  const h = String(Math.min(23, parseInt(m[1], 10))).padStart(2, "0");
+  const min = m[2] ? m[2].padStart(2, "0") : "00";
+  return `${h}:${min}`;
 }
 
 function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate, settings, onTaskCreated, onOpenTab }) {
@@ -1130,9 +1183,8 @@ function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate, set
   const [selected, setSelected] = useState([]);
   const [creating, setCreating] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [rdvPrompt, setRdvPrompt] = useState(null);
+  const [suggestion, setSuggestion] = useState(null);
   const [rdvSaving, setRdvSaving] = useState(false);
-  const [followUpPrompt, setFollowUpPrompt] = useState(false);
   const [followUpSaving, setFollowUpSaving] = useState(false);
 
   async function saveNote() {
@@ -1143,14 +1195,21 @@ function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate, set
     try {
       await onLogActivity(actionType, text || undefined);
       onUpdate?.({ last_contact_at: new Date().toISOString() });
+      const extractedDate = extractDateFromText(text);
+      const extractedTime = extractTimeFromText(text);
+      const dateStr = extractedDate ? extractedDate.toISOString().slice(0, 10) : "";
+      const timeStr = extractedTime || settings?.default_task_time || "17:00";
       if (mentionsRdv(actionType, text)) {
-        setRdvPrompt({
+        setSuggestion({
+          kind: "rdv",
           type: actionType === "appel_visio" ? "appel_visio" : "rdv_physique",
-          date: "",
-          time: settings?.default_task_time || "17:00",
+          date: dateStr,
+          time: timeStr,
         });
+      } else if (mentionsEmail(text)) {
+        setSuggestion({ kind: "email", date: dateStr, time: timeStr });
       } else if ((settings?.ai_initiative || "Équilibré") !== "Discret") {
-        setFollowUpPrompt(true);
+        setSuggestion({ kind: "generic", date: dateStr, time: timeStr });
       }
       setNote("");
       setSaved(true);
@@ -1164,41 +1223,45 @@ function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate, set
   }
 
   async function createRdvTask() {
-    if (!rdvPrompt?.date || rdvSaving) return;
+    if (!suggestion?.date || rdvSaving) return;
     setRdvSaving(true);
-    const time = rdvPrompt.time || settings?.default_task_time || "17:00";
+    const time = suggestion.time || settings?.default_task_time || "17:00";
     await supabase.from("tasks").insert({
       user_id: session.user.id,
       prospect_id: prospect.id,
-      type: rdvPrompt.type,
-      note: `${TASK_TYPE_META[rdvPrompt.type]?.label || "RDV"} avec ${prospect.name}`,
-      due_at: new Date(`${rdvPrompt.date}T${time}`).toISOString(),
+      type: suggestion.type,
+      note: `${TASK_TYPE_META[suggestion.type]?.label || "RDV"} avec ${prospect.name}`,
+      due_at: new Date(`${suggestion.date}T${time}`).toISOString(),
     });
     setRdvSaving(false);
-    setRdvPrompt(null);
+    setSuggestion(null);
     onTaskCreated?.();
   }
 
   async function createFollowUpTask() {
     if (followUpSaving) return;
     setFollowUpSaving(true);
-    const time = settings?.default_task_time || "17:00";
-    const due = new Date();
-    due.setDate(due.getDate() + 1);
+    const time = suggestion?.time || settings?.default_task_time || "17:00";
+    let dateStr = suggestion?.date;
+    if (!dateStr) {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      dateStr = d.toISOString().slice(0, 10);
+    }
     await supabase.from("tasks").insert({
       user_id: session.user.id,
       prospect_id: prospect.id,
       type: "appel_telephone",
       note: `Relancer ${prospect.name} suite à la note du ${new Date().toLocaleDateString("fr-FR")}`,
-      due_at: new Date(`${due.toISOString().slice(0, 10)}T${time}`).toISOString(),
+      due_at: new Date(`${dateStr}T${time}`).toISOString(),
     });
     setFollowUpSaving(false);
-    setFollowUpPrompt(false);
+    setSuggestion(null);
     onTaskCreated?.();
   }
 
   function openEmailTool() {
-    setFollowUpPrompt(false);
+    setSuggestion(null);
     onOpenTab?.("email");
   }
 
@@ -1334,44 +1397,69 @@ ${buildHistoryContext(history)}`;
       </div>
       {error && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "6px" }}>{error}</div>}
 
-      {rdvPrompt && (
-        <div style={{ marginTop: "10px", background: "var(--gold-dim)", border: "0.5px solid var(--gold)55", borderRadius: "8px", padding: "12px" }}>
-          <div style={{ fontSize: "12.5px", color: "var(--gold-deep)", fontWeight: 600, marginBottom: "8px" }}>
-            Un rendez-vous a été mentionné — créer une tâche de suivi ?
-          </div>
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
-            <select value={rdvPrompt.type} onChange={(e) => setRdvPrompt((p) => ({ ...p, type: e.target.value }))} style={{ ...inputStyle, width: "auto" }}>
-              {Object.entries(TASK_TYPE_META).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}
-            </select>
-            <input type="date" value={rdvPrompt.date} onChange={(e) => setRdvPrompt((p) => ({ ...p, date: e.target.value }))} style={inputStyle} />
-            <input type="time" value={rdvPrompt.time} onChange={(e) => setRdvPrompt((p) => ({ ...p, time: e.target.value }))} style={inputStyle} />
-            <button className="focusable" onClick={createRdvTask} disabled={!rdvPrompt.date || rdvSaving} style={{ background: "var(--gold)", color: "#fff", border: "none", borderRadius: "8px", padding: "8px 14px", fontSize: "12.5px", opacity: !rdvPrompt.date || rdvSaving ? 0.6 : 1 }}>
-              {rdvSaving ? "Création..." : "Créer la tâche"}
-            </button>
-            <button className="focusable" onClick={() => setRdvPrompt(null)} style={{ background: "transparent", color: "var(--gold-deep)", border: "none", fontSize: "12.5px", padding: "8px 4px" }}>
-              Ignorer
-            </button>
-          </div>
-        </div>
-      )}
+      {suggestion && (
+        <Modal onClose={() => setSuggestion(null)}>
+          {suggestion.kind === "rdv" && (
+            <>
+              <div className="display" style={{ fontWeight: 700, fontSize: "16px", marginBottom: "6px" }}>Un rendez-vous a été mentionné</div>
+              <div style={{ fontSize: "13px", color: "var(--text-dim)", marginBottom: "16px" }}>Créer une tâche de suivi ?</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "18px" }}>
+                <select value={suggestion.type} onChange={(e) => setSuggestion((s) => ({ ...s, type: e.target.value }))} style={{ ...inputStyle, width: "100%" }}>
+                  {Object.entries(TASK_TYPE_META).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}
+                </select>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input type="date" value={suggestion.date} onChange={(e) => setSuggestion((s) => ({ ...s, date: e.target.value }))} style={{ ...inputStyle, flex: 1 }} />
+                  <input type="time" value={suggestion.time} onChange={(e) => setSuggestion((s) => ({ ...s, time: e.target.value }))} style={{ ...inputStyle, flex: 1 }} />
+                </div>
+                {suggestion.date && <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>Date détectée automatiquement dans la note — modifiable si besoin.</div>}
+              </div>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button className="focusable" onClick={createRdvTask} disabled={!suggestion.date || rdvSaving} style={{ flex: 1, background: "var(--gold)", color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: !suggestion.date || rdvSaving ? 0.6 : 1 }}>
+                  {rdvSaving ? "Création..." : "Créer la tâche"}
+                </button>
+                <button className="focusable" onClick={() => setSuggestion(null)} style={{ background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px 16px", fontSize: "13px" }}>
+                  Ignorer
+                </button>
+              </div>
+            </>
+          )}
 
-      {followUpPrompt && (
-        <div style={{ marginTop: "10px", background: "var(--blue-dim)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "12px" }}>
-          <div style={{ fontSize: "12.5px", color: "var(--blue)", fontWeight: 600, marginBottom: "8px" }}>
-            Note enregistrée — prochaine étape ?
-          </div>
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-            <button className="focusable" onClick={createFollowUpTask} disabled={followUpSaving} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "8px 14px", fontSize: "12.5px", opacity: followUpSaving ? 0.6 : 1 }}>
-              {followUpSaving ? "Création..." : "Créer une tâche de suivi (demain)"}
-            </button>
-            <button className="focusable" onClick={openEmailTool} style={{ background: "var(--panel)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "8px 14px", fontSize: "12.5px" }}>
-              Générer un email
-            </button>
-            <button className="focusable" onClick={() => setFollowUpPrompt(false)} style={{ background: "transparent", color: "var(--blue)", border: "none", fontSize: "12.5px", padding: "8px 4px" }}>
-              Ignorer
-            </button>
-          </div>
-        </div>
+          {suggestion.kind === "email" && (
+            <>
+              <div className="display" style={{ fontWeight: 700, fontSize: "16px", marginBottom: "6px" }}>Un email a été mentionné</div>
+              <div style={{ fontSize: "13px", color: "var(--text-dim)", marginBottom: "18px" }}>Générer la relance maintenant, ou créer une tâche pour plus tard ?</div>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button className="focusable" onClick={openEmailTool} style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
+                  <SparklesIcon size={13} color="#fff" /> Générer un email
+                </button>
+                <button className="focusable" onClick={createFollowUpTask} disabled={followUpSaving} style={{ background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px 14px", fontSize: "13px", opacity: followUpSaving ? 0.6 : 1 }}>
+                  {followUpSaving ? "Création..." : "Créer une tâche"}
+                </button>
+              </div>
+              <button className="focusable" onClick={() => setSuggestion(null)} style={{ marginTop: "10px", background: "none", color: "var(--text-faint)", border: "none", fontSize: "12.5px", padding: 0 }}>
+                Ignorer
+              </button>
+            </>
+          )}
+
+          {suggestion.kind === "generic" && (
+            <>
+              <div className="display" style={{ fontWeight: 700, fontSize: "16px", marginBottom: "6px" }}>Note enregistrée</div>
+              <div style={{ fontSize: "13px", color: "var(--text-dim)", marginBottom: "18px" }}>Prochaine étape ?</div>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button className="focusable" onClick={createFollowUpTask} disabled={followUpSaving} style={{ flex: 1, background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: followUpSaving ? 0.6 : 1 }}>
+                  {followUpSaving ? "Création..." : "Créer une tâche de suivi"}
+                </button>
+                <button className="focusable" onClick={openEmailTool} style={{ background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px 14px", fontSize: "13px" }}>
+                  Générer un email
+                </button>
+              </div>
+              <button className="focusable" onClick={() => setSuggestion(null)} style={{ marginTop: "10px", background: "none", color: "var(--text-faint)", border: "none", fontSize: "12.5px", padding: 0 }}>
+                Ignorer
+              </button>
+            </>
+          )}
+        </Modal>
       )}
 
       {showModal && result && (
