@@ -221,13 +221,13 @@ export function Avatar({ name, stage, size = 34 }) {
 
 export function PageTitle({ icon: IconComp, color = "#2a3ed6", children, style }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "10px", ...style }}>
+    <div style={{ display: "flex", alignItems: "center", gap: "11px", ...style }}>
       {IconComp && (
-        <span style={{ width: "28px", height: "28px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", background: `${color}17`, flexShrink: 0 }}>
-          <IconComp size={15} color={color} />
+        <span style={{ width: "30px", height: "30px", borderRadius: "var(--radius-md, 10px)", display: "flex", alignItems: "center", justifyContent: "center", background: `${color}17`, flexShrink: 0 }}>
+          <IconComp size={16} color={color} />
         </span>
       )}
-      <div className="display" style={{ fontWeight: 700, fontSize: "20px" }}>{children}</div>
+      <div className="display" style={{ fontWeight: 800, fontSize: "23px", letterSpacing: "-0.01em" }}>{children}</div>
     </div>
   );
 }

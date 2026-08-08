@@ -334,7 +334,7 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "14px", marginBottom: "22px" }}>
-          <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderTop: "2.5px solid var(--blue)", borderRadius: "10px", padding: "16px 18px" }}>
+          <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderTop: "2.5px solid var(--blue)", borderRadius: "10px", padding: "16px 18px", boxShadow: "var(--shadow-sm)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: events.length > 0 ? "10px" : 0 }}>
               <CalendarIcon size={15} color="var(--blue)" />
               <span className="display" style={{ fontWeight: 600, fontSize: "14px" }}>Agenda du jour</span>
@@ -756,7 +756,7 @@ function StatTile({ accent, icon, label, value, items, renderItem, expanded: con
   }
 
   return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderTop: `2.5px solid ${accent}`, borderRadius: "10px", padding: "16px 18px" }}>
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderTop: `2.5px solid ${accent}`, borderRadius: "10px", padding: "16px 18px", boxShadow: "var(--shadow-sm)" }}>
       <button
         className="focusable"
         onClick={toggle}

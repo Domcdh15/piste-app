@@ -164,7 +164,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
 
 function Section({ title, children, last }) {
   return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "18px", marginBottom: last ? "20px" : "16px" }}>
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "var(--radius-lg, 16px)", boxShadow: "var(--shadow-sm, 0 1px 2px rgba(15,23,42,.06))", padding: "18px", marginBottom: last ? "20px" : "16px" }}>
       <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, marginBottom: "12px", letterSpacing: "0.03em" }}>{title.toUpperCase()}</div>
       {children}
     </div>

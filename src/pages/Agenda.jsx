@@ -241,7 +241,7 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
   const showNowLine = nowTop >= 0 && nowTop <= gridHeight;
 
   return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", overflow: "hidden" }}>
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", overflow: "hidden" }}>
       <div style={{ display: "grid", gridTemplateColumns: `56px repeat(${days.length}, 1fr)`, borderBottom: "0.5px solid var(--hairline)" }}>
         <div />
         {days.map((d) => {
@@ -480,7 +480,7 @@ ${context}`;
   }
 
   return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "18px" }}>
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "18px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
         <div>
           <div className="display" style={{ fontWeight: 700, fontSize: "16px" }}>{event.title}</div>

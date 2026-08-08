@@ -198,7 +198,7 @@ export default function Tasks({ prospects, session, settings, onOpenProspect }) 
       </div>
 
       {showForm && (
-        <form onSubmit={addTask} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "16px", marginBottom: "20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+        <form onSubmit={addTask} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px", marginBottom: "20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
           <input required placeholder="Titre" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} style={{ ...inputStyle, gridColumn: "1 / -1" }} />
           <select required value={form.prospectId} onChange={(e) => setForm({ ...form, prospectId: e.target.value })} style={inputStyle}>
             <option value="">Lié à un prospect...</option>

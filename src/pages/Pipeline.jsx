@@ -275,7 +275,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
       </div>
 
       {showForm && (
-        <form onSubmit={handleAddProspect} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "16px", marginBottom: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+        <form onSubmit={handleAddProspect} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px", marginBottom: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
           <select value={form.civility} onChange={(e) => setForm({ ...form, civility: e.target.value })} style={inputStyle}>
             <option value="-">Civilité —</option>
             <option value="Monsieur">Monsieur</option>
@@ -308,11 +308,11 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
       )}
 
       {loading ? (
-        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Chargement...</div>
+        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Chargement...</div>
       ) : prospects.length === 0 ? (
-        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun prospect pour l'instant. Ajoute ton premier prospect ci-dessus.</div>
+        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun prospect pour l'instant. Ajoute ton premier prospect ci-dessus.</div>
       ) : visibleProspects.length === 0 ? (
-        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun résultat pour cette recherche ou ces filtres.</div>
+        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun résultat pour cette recherche ou ces filtres.</div>
       ) : viewMode === "kanban" ? (
         <KanbanBoard list={combinedList} tasks={openTasks} onOpenProspect={setSelectedId} team={team} />
       ) : (
@@ -375,7 +375,7 @@ function KanbanBoard({ list, tasks, onOpenProspect, team }) {
         const columnValue = items.reduce((sum, p) => sum + (p.deal_value || 0), 0);
         const accent = col.key === "closed" ? "#0ea968" : (STAGE_META[col.key]?.color || "var(--text-dim)");
         return (
-          <div key={col.key} style={{ minWidth: "260px", width: "260px", display: "flex", flexDirection: "column", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", flexShrink: 0 }}>
+          <div key={col.key} style={{ minWidth: "260px", width: "260px", display: "flex", flexDirection: "column", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", flexShrink: 0 }}>
             <div style={{ padding: "12px 14px", borderBottom: "0.5px solid var(--hairline)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "3px" }}>
                 <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: accent, flexShrink: 0 }} />
@@ -467,7 +467,7 @@ function SortHeader({ label, sortKeyName, sortKey, sortDir, onSort }) {
 function ProspectTable({ list, onSelect, onSort, sortKey, sortDir, team }) {
   const showOwners = team && (team.team?.has_multiple_sales || team.team?.has_multiple_csm);
   return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", overflow: "hidden", overflowX: "auto" }}>
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", overflow: "hidden", overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr style={{ borderBottom: "0.5px solid var(--hairline)" }}>
@@ -738,7 +738,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
         ))}
       </div>
 
-      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "18px" }}>
+      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "18px" }}>
         {tab === "email" && <EmailGenerator prospect={prospect} history={history} session={session} settings={settings} />}
         {tab === "script" && <ScriptGenerator prospect={prospect} history={history} session={session} />}
         {tab === "analyse" && <AnalyseGenerator prospect={prospect} history={history} session={session} />}
@@ -1034,7 +1034,7 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
   }
 
   return (
-    <form onSubmit={submit} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "16px", marginBottom: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+    <form onSubmit={submit} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px", marginBottom: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
       <select value={civility} onChange={(e) => setCivility(e.target.value)} style={inputStyle}>
         <option value="-">Civilité —</option>
         <option value="Monsieur">Monsieur</option>

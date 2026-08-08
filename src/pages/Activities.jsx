@@ -233,7 +233,7 @@ function ReportTile({ tileKey, expanded, onClick, icon, accent, label, value }) 
       style={{
         textAlign: "left", cursor: "pointer", background: expanded ? "var(--panel2)" : "var(--panel)",
         border: expanded ? `0.5px solid ${accent}88` : "0.5px solid var(--hairline)",
-        borderTop: `2.5px solid ${accent}`, borderRadius: expanded ? "10px 10px 0 0" : "10px", padding: "14px 16px",
+        borderTop: `2.5px solid ${accent}`, borderRadius: expanded ? "10px 10px 0 0" : "10px", padding: "14px 16px", boxShadow: "var(--shadow-sm)",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--text-dim)", fontSize: "11px", marginBottom: "8px" }}>
