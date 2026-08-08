@@ -6,22 +6,17 @@ import {
   MailIcon,
   VideoIcon,
   PinIcon,
-  TargetIcon,
   CheckIcon,
   SparklesIcon,
   AlertIcon,
-  BriefcaseIcon,
   getFirstName,
   callAI,
   parseJsonLoose,
-  STATUS_META,
-  CLOSED_STAGES,
   Avatar,
   formatEuros,
   formatShortDate,
   isOverdue,
   computeDealScore,
-  computeAtRiskDeals,
   appendSignature,
 } from "../lib/ui.jsx";
 
@@ -46,41 +41,20 @@ function formatEventTime(iso) {
 
 const FALLBACK_TIP = "Commencez par vos relances en attente, puis enchaînez avec vos appels planifiés pour maximiser vos conversions.";
 
-function computeAlerts(prospects, taches) {
-  const open = prospects.filter((p) => p.stage !== "Gagné" && p.stage !== "Perdu");
-  const now = new Date();
-  const taskProspectIds = new Set(taches.map((t) => t.prospect_id));
-  const alerts = [];
+function daysSince(iso) {
+  if (!iso) return null;
+  return Math.floor((Date.now() - new Date(iso)) / 86400000);
+}
 
-  open
-    .filter((p) => !p.last_contact_at || (now - new Date(p.last_contact_at)) / 86400000 > 7)
-    .slice(0, 3)
-    .forEach((p) => {
-      const message = p.last_contact_at
-        ? `Aucune réponse depuis ${Math.floor((now - new Date(p.last_contact_at)) / 86400000)} jours.`
-        : "Aucun contact depuis la création de ce prospect.";
-      alerts.push({ level: "urgent", prospect: p, message });
-    });
-
-  open
-    .filter((p) => p.deal_value > 0 && !p.next_contact_at && !taskProspectIds.has(p.id))
-    .sort((a, b) => b.deal_value - a.deal_value)
-    .slice(0, 3)
-    .forEach((p) => {
-      alerts.push({ level: "risk", prospect: p, message: `Cette opportunité de ${formatEuros(p.deal_value)} n'a aucune prochaine action prévue.` });
-    });
-
-  open
-    .filter((p) => {
-      const recentlyContacted = p.last_contact_at && (now - new Date(p.last_contact_at)) / 86400000 <= 3;
-      return recentlyContacted && computeDealScore(p) >= 70;
-    })
-    .slice(0, 3)
-    .forEach((p) => {
-      alerts.push({ level: "hot", prospect: p, message: `Bonne dynamique : contact récent et avancement à ${computeDealScore(p)}%.` });
-    });
-
-  return alerts;
+function startOfToday() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+function endOfToday() {
+  const d = new Date();
+  d.setHours(23, 59, 59, 999);
+  return d;
 }
 
 export default function Today({ prospects, setActiveTab, session, reload, onOpenProspect, settings }) {
@@ -90,23 +64,11 @@ export default function Today({ prospects, setActiveTab, session, reload, onOpen
   const [tipLoading, setTipLoading] = useState(true);
   const [taches, setTaches] = useState([]);
   const [tachesLoading, setTachesLoading] = useState(true);
-  const [priorities, setPriorities] = useState([]);
-  const [prioritiesLoading, setPrioritiesLoading] = useState(true);
-  const nbTaches = taches.length;
-  const prospectById = Object.fromEntries(prospects.map((p) => [p.id, p]));
-
-  const appelsList = prospects.filter((p) => p.status === "appeler");
-  const relancesList = prospects.filter((p) => p.status === "relancer");
-  const opportunitesList = prospects.filter((p) => p.priority >= 75);
-  const alerts = computeAlerts(prospects, taches);
-  const forgottenDeals = computeAtRiskDeals(prospects).slice(0, 3);
-  const nbAppels = appelsList.length;
-  const nbRelances = relancesList.length;
-  const nbRetard = prospects.filter((p) => p.status === "retard").length;
-  const nbOpportunites = opportunitesList.length;
-  const firstName = getFirstName(session.user);
   const [showBrief, setShowBrief] = useState(false);
-  const [openTile, setOpenTile] = useState(null);
+  const [showOrganize, setShowOrganize] = useState(false);
+  const [doneToday, setDoneToday] = useState(0);
+  const prospectById = Object.fromEntries(prospects.map((p) => [p.id, p]));
+  const firstName = getFirstName(session.user);
 
   async function updateStatus(id, status) {
     await supabase.from("prospects").update({ status }).eq("id", id);
@@ -115,7 +77,21 @@ export default function Today({ prospects, setActiveTab, session, reload, onOpen
 
   async function toggleTaskDone(task) {
     setTaches((prev) => prev.filter((t) => t.id !== task.id));
+    setDoneToday((n) => n + 1);
     await supabase.from("tasks").update({ done: true }).eq("id", task.id);
+  }
+
+  async function reportTask(task, newDue) {
+    setTaches((prev) => prev.map((t) => (t.id === task.id ? { ...t, due_at: newDue.toISOString() } : t)));
+    await supabase.from("tasks").update({ due_at: newDue.toISOString() }).eq("id", task.id);
+  }
+
+  async function reportAllOverdue() {
+    const t = new Date();
+    t.setHours(9, 0, 0, 0);
+    for (const task of overdueTasks) {
+      await reportTask(task, t);
+    }
   }
 
   useEffect(() => {
@@ -151,7 +127,8 @@ export default function Today({ prospects, setActiveTab, session, reload, onOpen
         .from("tasks")
         .select("*")
         .eq("done", false)
-        .order("due_at", { ascending: true, nullsFirst: false });
+        .not("due_at", "is", null)
+        .order("due_at", { ascending: true });
       setTaches(data || []);
       setTachesLoading(false);
     }
@@ -184,61 +161,41 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventsLoading]);
 
-  useEffect(() => {
-    async function loadPriorities() {
-      setPrioritiesLoading(true);
-      const open = prospects.filter((p) => p.stage !== "Gagné" && p.stage !== "Perdu");
-      function rank(p) {
-        let r = (p.priority || 0) / 5;
-        if (p.status === "retard") r += 50;
-        if (p.next_contact_at && isOverdue(p.next_contact_at)) r += 40;
-        if (p.status === "appeler") r += 20;
-        return r;
-      }
-      const ranked = [...open].sort((a, b) => rank(b) - rank(a)).slice(0, 3);
+  const overdueTasks = taches.filter((t) => new Date(t.due_at) < startOfToday());
+  const todayTasks = taches.filter((t) => new Date(t.due_at) >= startOfToday() && new Date(t.due_at) <= endOfToday());
+  const todayEvents = events.filter((e) => e.start && e.start.length > 10);
 
-      if (ranked.length === 0) {
-        setPriorities([]);
-        setPrioritiesLoading(false);
-        return;
-      }
+  const todayItems = [
+    ...todayTasks.map((t) => ({ kind: "task", time: new Date(t.due_at), data: t })),
+    ...todayEvents.map((e) => ({ kind: "event", time: new Date(e.start), data: e })),
+  ].sort((a, b) => a.time - b.time);
 
-      function fallbackReason(p) {
-        if (p.status === "retard") return "Suivi en retard.";
-        if (p.next_contact_at && isOverdue(p.next_contact_at)) return "Relance prévue dépassée.";
-        if (p.status === "appeler") return "Appel à faire.";
-        return "Deal à forte priorité.";
-      }
+  const nbRdv = todayEvents.length + todayTasks.filter((t) => t.type === "rdv_physique" || t.type === "appel_visio").length;
+  const nbRelances = todayTasks.filter((t) => t.type === "relance_email").length;
+  const nbAppels = todayTasks.filter((t) => t.type === "appel_telephone" || t.type === "appel_visio").length;
+  const totalActions = todayTasks.length + todayEvents.length;
+  const totalWithDone = totalActions + doneToday;
 
-      try {
-        const prompt = `Pour chacun de ces prospects, donne en français une raison courte (moins de 12 mots) d'en faire une priorité aujourd'hui, et un score d'urgence de 0 à 100. Réponds UNIQUEMENT avec un tableau JSON de ${ranked.length} objets, dans le même ordre que la liste, format : [{"reason": "...", "score": 85}]
+  const now = new Date();
+  const open = prospects.filter((p) => p.stage !== "Gagné" && p.stage !== "Perdu");
+  const watchAtRisk = open
+    .filter((p) => !p.last_contact_at || (now - new Date(p.last_contact_at)) / 86400000 >= 5)
+    .sort((a, b) => (b.deal_value || 0) - (a.deal_value || 0));
+  const watchHot = open.filter((p) => {
+    const recentlyContacted = p.last_contact_at && (now - new Date(p.last_contact_at)) / 86400000 <= 3;
+    return recentlyContacted && computeDealScore(p) >= 70;
+  });
+  const watchList = [
+    ...watchHot.slice(0, 1).map((p) => ({ p, emoji: "🔥", label: "Contact récent, forte dynamique.", cta: "Relancer aujourd'hui", action: () => onOpenProspect?.(p.id, "email") })),
+    ...watchAtRisk.slice(0, 2).map((p) => ({ p, emoji: "⚠", label: `Aucune activité depuis ${daysSince(p.last_contact_at) ?? "longtemps"} jours.`, cta: "Planifier un suivi", action: () => onOpenProspect?.(p.id) })),
+  ].slice(0, 3);
 
-${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage}, statut: ${p.status}, dernier contact: ${p.last_contact_at || "jamais"}, prochain contact prévu: ${p.next_contact_at || "aucun"}`).join("\n")}`;
-        const raw = await callAI(prompt, session.access_token);
-        const parsed = parseJsonLoose(raw);
-        if (!Array.isArray(parsed)) throw new Error("parse_failed");
-        setPriorities(ranked.map((p, i) => ({ prospect: p, reason: parsed[i]?.reason || fallbackReason(p), score: parsed[i]?.score ?? 50 })));
-      } catch (e) {
-        setPriorities(ranked.map((p) => ({ prospect: p, reason: fallbackReason(p), score: 50 })));
-      } finally {
-        setPrioritiesLoading(false);
-      }
-    }
-    loadPriorities();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prospects]);
+  const attentionCount = watchAtRisk.length;
+  const attentionValue = watchAtRisk.reduce((sum, p) => sum + (p.deal_value || 0), 0);
 
   return (
     <div>
-      <div
-        style={{
-          background: "linear-gradient(135deg, #4d5eea, #16209e)",
-          color: "#fff",
-          padding: "32px 32px 30px",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
+      <div style={{ background: "linear-gradient(135deg, #4d5eea, #16209e)", color: "#fff", padding: "32px 32px 28px", position: "relative", overflow: "hidden" }}>
         <svg viewBox="0 0 500 200" preserveAspectRatio="none" aria-hidden="true" style={{ position: "absolute", top: 0, right: 0, width: "60%", height: "100%", opacity: 0.5 }}>
           <path d="M -20 210 C 100 210 140 130 220 110 C 300 90 320 30 460 -20" stroke="url(#todayMomentum)" strokeWidth="2" fill="none" strokeDasharray="1 9" strokeLinecap="round" />
           <circle cx="140" cy="150" r="3" fill="rgba(255,255,255,0.4)" />
@@ -252,172 +209,163 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
           </defs>
         </svg>
 
-        <div style={{ position: "relative" }}>
-          <div className="display" style={{ fontWeight: 700, fontSize: "32px", display: "flex", alignItems: "center", gap: "10px" }}>
-            Bonjour{firstName ? ` ${firstName}` : ""} <span>👋</span>
+        <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
+          <div>
+            <div className="display" style={{ fontWeight: 700, fontSize: "28px", display: "flex", alignItems: "center", gap: "10px" }}>
+              Bonjour{firstName ? ` ${firstName}` : ""} <span>👋</span>
+            </div>
+            <div style={{ opacity: 0.9, fontSize: "13.5px", marginTop: "4px" }}>Voici ce qui mérite votre attention aujourd'hui.</div>
+            <div style={{ opacity: 0.7, fontSize: "12.5px", marginTop: "2px" }}>{todayLabel()}</div>
           </div>
-          <div style={{ opacity: 0.85, fontSize: "14px", marginTop: "6px", marginBottom: "20px" }}>{todayLabel()}</div>
+          <button className="focusable" onClick={() => setShowOrganize((s) => !s)} style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.3)", borderRadius: "10px", padding: "10px 16px", color: "#fff", fontSize: "13px", fontWeight: 600 }}>
+            <SparklesIcon size={14} color="#fff" /> Organiser ma journée
+          </button>
+        </div>
 
-          <div style={{ background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.28)", borderRadius: "14px", padding: "18px 20px", display: "flex", gap: "12px", alignItems: "flex-start" }}>
-            <span style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              <SparklesIcon size={16} color="#fff" />
-            </span>
-            <div>
-              <div style={{ fontSize: "11px", fontWeight: 700, opacity: 0.8, letterSpacing: "0.05em", marginBottom: "5px" }}>CONSEIL DU JOUR</div>
-              <span style={{ fontSize: "16px", fontWeight: 500, opacity: 0.98, lineHeight: 1.45 }}>{tipLoading ? "Analyse de ta journée en cours..." : tip || FALLBACK_TIP}</span>
+        <div style={{ position: "relative", display: "flex", gap: "20px", flexWrap: "wrap", marginTop: "22px" }}>
+          <SummaryStat value={totalWithDone} label="actions" />
+          <SummaryStat value={nbRdv} label="rendez-vous" />
+          <SummaryStat value={nbRelances} label="relances" />
+          <SummaryStat value={nbAppels} label="appels" />
+          {overdueTasks.length > 0 && <SummaryStat value={overdueTasks.length} label="en retard" warn />}
+        </div>
+
+        {totalWithDone > 0 && (
+          <div style={{ position: "relative", marginTop: "16px" }}>
+            <div style={{ fontSize: "11.5px", opacity: 0.85, marginBottom: "5px" }}>
+              {doneToday === totalWithDone ? "✓ Journée commerciale terminée" : `${doneToday} / ${totalWithDone} actions terminées`}
+            </div>
+            <div style={{ height: "5px", width: "220px", background: "rgba(255,255,255,0.2)", borderRadius: "3px", overflow: "hidden" }}>
+              <div style={{ width: `${(doneToday / totalWithDone) * 100}%`, height: "100%", background: "var(--gold, #b8862e)", borderRadius: "3px" }} />
             </div>
           </div>
-        </div>
+        )}
       </div>
 
-      <div style={{ padding: "28px 32px 48px" }}>
-        <ForgottenDealsBox deals={forgottenDeals} session={session} settings={settings} reload={reload} onOpen={onOpenProspect} />
+      <div style={{ padding: "24px 32px 48px" }}>
+        {showOrganize && (
+          <OrganizeDayPanel
+            tasks={[...overdueTasks, ...todayTasks]}
+            prospectById={prospectById}
+            session={session}
+            onClose={() => setShowOrganize(false)}
+          />
+        )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px", marginBottom: "14px", alignItems: "start" }}>
-          <StatTile
-            accent="var(--blue)"
-            icon={<CalendarIcon size={15} color="var(--blue)" />}
-            label="RDV Aujourd'hui"
-            value={eventsLoading ? "…" : events.length}
-            items={events}
-            expanded={openTile === "rdv"}
-            onToggle={(v) => setOpenTile(v ? "rdv" : null)}
-            renderItem={(e) => (
-              <div key={e.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
-                <span style={{ color: "var(--text)" }}>{e.title}</span>
-                <span className="mono" style={{ color: "var(--text-faint)" }}>{formatEventTime(e.start)}</span>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr)", gap: "20px", alignItems: "start", marginBottom: "24px" }}>
+          <div>
+            {overdueTasks.length > 0 && (
+              <div style={{ marginBottom: "22px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", flexWrap: "wrap" }}>
+                  <AlertIcon size={13} color="var(--red)" />
+                  <span className="display" style={{ fontWeight: 700, fontSize: "13px", color: "var(--red)" }}>EN RETARD ({overdueTasks.length})</span>
+                  <button className="focusable" onClick={reportAllOverdue} style={{ marginLeft: "auto", fontSize: "11.5px", fontWeight: 600, color: "var(--red)", background: "none", border: "none", padding: 0 }}>
+                    Reporter toutes au prochain créneau (09h)
+                  </button>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {overdueTasks.map((t) => (
+                    <ActionTaskCard key={t.id} task={t} prospect={prospectById[t.prospect_id]} overdue onDone={toggleTaskDone} onReport={reportTask} onOpenProspect={onOpenProspect} />
+                  ))}
+                </div>
               </div>
             )}
-          />
-          <StatTile
-            accent="#7c3aed"
-            icon={<PhoneIcon size={15} color="#7c3aed" />}
-            label="Appels à faire"
-            value={nbAppels}
-            items={appelsList}
-            expanded={openTile === "appels"}
-            onToggle={(v) => setOpenTile(v ? "appels" : null)}
-            renderItem={(p) => <MissionRow key={p.id} prospect={p} onUpdateStatus={updateStatus} onOpen={onOpenProspect} />}
-          />
-          <StatTile
-            accent="var(--amber)"
-            icon={<MailIcon size={15} color="var(--amber)" />}
-            label="Emails en attente"
-            value={nbRelances}
-            items={relancesList}
-            expanded={openTile === "relances"}
-            onToggle={(v) => setOpenTile(v ? "relances" : null)}
-            renderItem={(p) => <MissionRow key={p.id} prospect={p} onUpdateStatus={updateStatus} onOpen={onOpenProspect} />}
-          />
-          <StatTile
-            accent="#0ea968"
-            icon={<TargetIcon size={15} color="#0ea968" />}
-            label="Opportunités prioritaires"
-            value={nbOpportunites}
-            items={opportunitesList}
-            expanded={openTile === "opportunites"}
-            onToggle={(v) => setOpenTile(v ? "opportunites" : null)}
-            renderItem={(p) => <MissionRow key={p.id} prospect={p} onUpdateStatus={updateStatus} onOpen={onOpenProspect} />}
-          />
-        </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "14px", marginBottom: "22px" }}>
-          <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderTop: "2.5px solid var(--blue)", borderRadius: "10px", padding: "16px 18px", boxShadow: "var(--shadow-sm)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: events.length > 0 ? "10px" : 0 }}>
-              <CalendarIcon size={15} color="var(--blue)" />
-              <span className="display" style={{ fontWeight: 600, fontSize: "14px" }}>Agenda du jour</span>
-              <span className="mono" style={{ marginLeft: "auto", background: "var(--panel2)", color: "var(--blue)", borderRadius: "999px", fontSize: "12px", fontWeight: 700, padding: "2px 9px" }}>
-                {eventsLoading ? "…" : events.length}
-              </span>
-            </div>
-            {!eventsLoading && events.length === 0 && (
-              <div style={{ color: "var(--text-faint)", fontSize: "12px" }}>
-                Aucun événement — <button className="focusable" onClick={() => setActiveTab("settings")} style={{ background: "none", border: "none", padding: 0, color: "var(--blue)", fontSize: "12px", cursor: "pointer" }}>connecte ton agenda</button>
+            <div className="display" style={{ fontWeight: 700, fontSize: "13px", marginBottom: "10px" }}>À FAIRE MAINTENANT</div>
+            {todayItems.length === 0 ? (
+              <div style={{ color: "var(--text-faint)", fontSize: "13px" }}>Rien de prévu pour l'instant aujourd'hui.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {todayItems.map((item) =>
+                  item.kind === "task" ? (
+                    <ActionTaskCard key={`t-${item.data.id}`} task={item.data} prospect={prospectById[item.data.prospect_id]} onDone={toggleTaskDone} onReport={reportTask} onOpenProspect={onOpenProspect} />
+                  ) : (
+                    <ActionEventCard key={`e-${item.data.id}`} event={item.data} />
+                  )
+                )}
               </div>
             )}
-            {events.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {events.slice(0, 4).map((e) => (
-                  <div key={e.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
-                    <span style={{ color: "var(--text)" }}>{e.title}</span>
-                    <span className="mono" style={{ color: "var(--text-faint)" }}>{formatEventTime(e.start)}</span>
-                  </div>
+          </div>
+
+          <div>
+            <div className="display" style={{ fontWeight: 700, fontSize: "13px", marginBottom: "10px" }}>À SURVEILLER</div>
+            {watchList.length === 0 ? (
+              <div style={{ color: "var(--text-faint)", fontSize: "12.5px" }}>Rien à signaler.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {watchList.map(({ p, emoji, label, cta, action }) => (
+                  <button key={p.id} className="focusable" onClick={action} style={{ display: "block", width: "100%", textAlign: "left", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px" }}>
+                    <div style={{ fontSize: "12.5px", fontWeight: 600, marginBottom: "2px" }}>{emoji} {p.company}</div>
+                    <div className="mono" style={{ fontSize: "12px", fontWeight: 700, color: "var(--gold-deep)", marginBottom: "4px" }}>{formatEuros(p.deal_value || 0)}</div>
+                    <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "6px" }}>{label}</div>
+                    <div style={{ fontSize: "11.5px", color: "var(--blue)", fontWeight: 600 }}>→ {cta}</div>
+                  </button>
                 ))}
               </div>
             )}
           </div>
-          <StatTile
-            accent="#7c3aed"
-            icon={<CheckIcon size={15} color="#7c3aed" />}
-            label="Mes tâches"
-            value={tachesLoading ? "…" : nbTaches}
-            items={taches}
-            renderItem={(t) => <TaskRow key={t.id} task={t} prospect={prospectById[t.prospect_id]} onOpen={onOpenProspect} />}
-          />
         </div>
 
-        <button
-          className="focusable"
-          onClick={() => setActiveTab("pipeline")}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-            background: "transparent",
-            border: "none",
-            padding: "10px 2px",
-            marginBottom: "8px",
-            textAlign: "left",
-          }}
-        >
-          <BriefcaseIcon size={16} color="var(--text-dim)" />
-          <span className="display" style={{ fontWeight: 700, fontSize: "15px", color: "var(--text)" }}>Sales Pipeline</span>
-          <span style={{ color: "var(--text-faint)", fontSize: "13px" }}>Vue d'ensemble de vos prospects</span>
-        </button>
-
-        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "8px" }}>
-          {prospects.length === 0 ? (
-            <div style={{ color: "var(--text-dim)", padding: "16px", fontSize: "13px" }}>Aucun prospect pour l'instant.</div>
+        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "16px 18px", marginBottom: "20px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+            <span className="display" style={{ fontWeight: 600, fontSize: "13.5px" }}>Votre journée</span>
+            <button className="focusable" onClick={() => setActiveTab("planning")} style={{ fontSize: "12px", color: "var(--blue)", background: "none", border: "none", padding: 0, fontWeight: 600 }}>
+              Voir l'agenda →
+            </button>
+          </div>
+          {todayItems.length === 0 ? (
+            <div style={{ color: "var(--text-faint)", fontSize: "12px" }}>Rien de planifié.</div>
           ) : (
-            prospects
-              .filter((p) => !CLOSED_STAGES.includes(p.stage))
-              .slice(0, 5)
-              .map((p) => {
-                const meta = STATUS_META[p.status] || STATUS_META.attente;
+            <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+              {todayItems.slice(0, 6).map((item, i) => {
+                const meta = item.kind === "task" ? (TASK_TYPE_META[item.data.type] || TASK_TYPE_META.appel_telephone) : EVENT_META;
+                const label = item.kind === "task" ? item.data.note : item.data.title;
                 return (
-                  <button
-                    key={p.id}
-                    onClick={() => setActiveTab("pipeline")}
-                    className="focusable"
-                    style={{ display: "flex", alignItems: "center", gap: "12px", padding: "9px 10px", width: "100%", textAlign: "left", background: "transparent", border: "0.5px solid transparent", borderRadius: "8px" }}
-                  >
-                    <Avatar name={p.name} stage={p.stage} size={28} />
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div className="display" style={{ fontWeight: 500, fontSize: "13px" }}>{p.name}</div>
-                      <div style={{ color: "var(--text-dim)", fontSize: "11px" }}>{p.company} · {p.stage}</div>
-                    </div>
-                    <div className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "10px", fontWeight: 700, color: meta.color, background: meta.dim, border: `0.5px solid ${meta.color}55`, borderRadius: "6px", padding: "3px 7px" }}>
-                      <meta.Icon size={10} color={meta.color} />
-                      {meta.label}
-                    </div>
-                    <div className="mono" style={{ fontSize: "12px", color: "var(--blue)", width: "80px", textAlign: "right" }}>{formatEuros(p.deal_value)}</div>
-                  </button>
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px" }}>
+                    <span className="mono" style={{ color: "var(--text-faint)", width: "42px", flexShrink: 0 }}>{formatEventTime(item.time.toISOString())}</span>
+                    <meta.Icon size={11} color={meta.color} />
+                    <span style={{ color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+                  </div>
                 );
-              })
+              })}
+            </div>
           )}
         </div>
 
-        <div style={{ marginTop: "28px" }}>
-          <AlertsBox alerts={alerts} onOpen={onOpenProspect} />
-          <PriorityCard priorities={priorities} loading={prioritiesLoading} onOpen={onOpenProspect} />
+        {attentionCount > 0 && (
+          <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2a3ed655", borderRadius: "12px", padding: "16px 18px", marginBottom: "20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <SparklesIcon size={14} color="var(--blue)" />
+              <span className="display" style={{ fontWeight: 700, fontSize: "13.5px", color: "var(--blue)" }}>Closia a une recommandation</span>
+            </div>
+            <div style={{ fontSize: "13px", color: "var(--text)", lineHeight: 1.6, marginBottom: "12px" }}>
+              Vous avez {totalWithDone} action{totalWithDone > 1 ? "s" : ""} prévue{totalWithDone > 1 ? "s" : ""} aujourd'hui, mais {attentionCount} deal{attentionCount > 1 ? "s" : ""} représentant {formatEuros(attentionValue)} de pipeline n'{attentionCount > 1 ? "ont" : "a"} pas reçu de suivi depuis plus de 5 jours.
+              {watchAtRisk.length > 0 && ` Je vous recommande de traiter ${watchAtRisk.slice(0, 2).map((p) => p.company).join(" et ")} en priorité.`}
+            </div>
+            <button className="focusable" onClick={() => setShowOrganize(true)} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "8px 16px", fontSize: "13px", fontWeight: 600 }}>
+              Organiser ma journée
+            </button>
+          </div>
+        )}
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+          <div>
+            <span className="display" style={{ fontWeight: 600, fontSize: "12.5px", color: "var(--text-dim)" }}>Votre activité</span>
+            <div style={{ fontSize: "12px", color: "var(--text-faint)", marginTop: "2px" }}>
+              {doneToday} action{doneToday > 1 ? "s" : ""} terminée{doneToday > 1 ? "s" : ""} · {nbAppels} appel{nbAppels > 1 ? "s" : ""} · {nbRelances} email{nbRelances > 1 ? "s" : ""} · {nbRdv} RDV
+            </div>
+          </div>
+          <button className="focusable" onClick={() => setActiveTab("activities")} style={{ fontSize: "12px", color: "var(--blue)", background: "none", border: "none", padding: 0, fontWeight: 600 }}>
+            Voir l'activité →
+          </button>
         </div>
       </div>
 
       {showBrief && (
         <DailyBriefModal
           firstName={firstName}
-          events={events}
-          taches={taches}
+          events={todayEvents}
+          taches={todayTasks}
           prospectById={prospectById}
           tip={tipLoading ? FALLBACK_TIP : tip || FALLBACK_TIP}
           onOpenProspect={(id) => { setShowBrief(false); onOpenProspect?.(id); }}
@@ -430,10 +378,149 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
   );
 }
 
+function SummaryStat({ value, label, warn }) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: "5px" }}>
+      <span className="mono" style={{ fontSize: "16px", fontWeight: 700, color: warn ? "#fca5a5" : "#fff" }}>{warn ? "⚠ " : ""}{value}</span>
+      <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.75)" }}>{label}</span>
+    </div>
+  );
+}
+
+const REPORT_OPTIONS = [
+  { label: "Aujourd'hui 17h", compute: () => { const d = new Date(); d.setHours(17, 0, 0, 0); return d; } },
+  { label: "Demain 09h", compute: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); return d; } },
+];
+
+function ActionTaskCard({ task, prospect, overdue, onDone, onReport, onOpenProspect }) {
+  const [showReport, setShowReport] = useState(false);
+  const meta = TASK_TYPE_META[task.type] || TASK_TYPE_META.appel_telephone;
+  const days = prospect?.last_contact_at ? daysSince(prospect.last_contact_at) : null;
+
+  return (
+    <div style={{ background: "var(--panel)", border: `0.5px solid ${overdue ? "var(--red)55" : "var(--hairline)"}`, borderLeft: `3px solid ${overdue ? "var(--red)" : meta.color}`, borderRadius: "10px", padding: "14px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+        <span className="mono" style={{ fontSize: "11px", fontWeight: 700, color: overdue ? "var(--red)" : "var(--text-faint)", width: "44px", flexShrink: 0, marginTop: "1px" }}>
+          {overdue ? formatShortDate(task.due_at) : formatEventTime(task.due_at)}
+        </span>
+        <meta.Icon size={13} color={meta.color} style={{ marginTop: "2px", flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <button className="focusable" onClick={() => prospect && onOpenProspect?.(prospect.id)} style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: prospect ? "pointer" : "default" }}>
+            <div style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--text)" }}>{task.note}</div>
+          </button>
+          {prospect && (
+            <div style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "2px" }}>
+              {prospect.name} · {prospect.company}{prospect.deal_value > 0 ? ` · ${formatEuros(prospect.deal_value)}` : ""}
+            </div>
+          )}
+          {days !== null && days >= 3 && <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginTop: "2px" }}>Dernier échange il y a {days} jours.</div>}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: "6px", marginTop: "10px", paddingLeft: "66px", flexWrap: "wrap", position: "relative" }}>
+        {task.type === "relance_email" ? (
+          <button className="focusable" onClick={() => prospect && onOpenProspect?.(prospect.id, "email")} style={{ fontSize: "11.5px", fontWeight: 600, background: meta.dim, color: meta.color, border: "none", borderRadius: "6px", padding: "6px 10px" }}>
+            Générer avec l'IA
+          </button>
+        ) : task.type === "rdv_physique" ? (
+          <button className="focusable" onClick={() => prospect && onOpenProspect?.(prospect.id, "script")} style={{ fontSize: "11.5px", fontWeight: 600, background: meta.dim, color: meta.color, border: "none", borderRadius: "6px", padding: "6px 10px" }}>
+            Préparer avec l'IA
+          </button>
+        ) : prospect?.phone ? (
+          <a href={`tel:${prospect.phone}`} className="focusable" style={{ fontSize: "11.5px", fontWeight: 600, background: meta.dim, color: meta.color, border: "none", borderRadius: "6px", padding: "6px 10px", textDecoration: "none" }}>
+            Appeler
+          </a>
+        ) : null}
+        <button className="focusable" onClick={() => onDone(task)} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11.5px", fontWeight: 600, background: "#e2f7ec", color: "#0ea968", border: "none", borderRadius: "6px", padding: "6px 10px" }}>
+          <CheckIcon size={11} color="#0ea968" /> Terminer
+        </button>
+        {overdue && (
+          <div style={{ position: "relative" }}>
+            <button className="focusable" onClick={() => setShowReport((s) => !s)} style={{ fontSize: "11.5px", fontWeight: 600, background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "6px", padding: "6px 10px" }}>
+              Reporter
+            </button>
+            {showReport && (
+              <div style={{ position: "absolute", top: "34px", left: 0, zIndex: 5, background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "8px", boxShadow: "var(--shadow-md)", padding: "6px", display: "flex", flexDirection: "column", gap: "2px", minWidth: "140px" }}>
+                {REPORT_OPTIONS.map((opt) => (
+                  <button key={opt.label} className="focusable" onClick={() => { onReport(task, opt.compute()); setShowReport(false); }} style={{ textAlign: "left", fontSize: "12px", background: "none", border: "none", padding: "6px 8px", borderRadius: "5px" }}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ActionEventCard({ event }) {
+  return (
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderLeft: "3px solid var(--blue)", borderRadius: "10px", padding: "14px", display: "flex", alignItems: "flex-start", gap: "10px" }}>
+      <span className="mono" style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-faint)", width: "44px", flexShrink: 0, marginTop: "1px" }}>{formatEventTime(event.start)}</span>
+      <CalendarIcon size={13} color="var(--blue)" style={{ marginTop: "2px", flexShrink: 0 }} />
+      <div style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--text)" }}>{event.title}</div>
+    </div>
+  );
+}
+
+function OrganizeDayPanel({ tasks, prospectById, session, onClose }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null);
+
+  async function organize() {
+    setLoading(true);
+    setError("");
+    try {
+      const list = tasks.map((t) => {
+        const p = prospectById[t.prospect_id];
+        return `- ${t.note} · ${TASK_TYPE_META[t.type]?.label || t.type} · ${t.due_at ? formatShortDate(t.due_at) : "sans heure"}${p ? ` · ${p.name} (${p.company}) · ${formatEuros(p.deal_value || 0)}` : ""}`;
+      }).join("\n");
+      const prompt = `Tu es un coach commercial. Voici les actions en retard et prévues aujourd'hui pour ce commercial. Réponds UNIQUEMENT en JSON valide, format :
+{"summary": "1-2 phrases expliquant la priorité du jour", "order": ["intitulé de l'action 1 dans l'ordre recommandé", "..."]}
+
+"order" reprend les intitulés d'action (le champ avant le premier "·") dans l'ordre recommandé, du plus urgent au moins urgent. N'invente pas d'action qui n'est pas dans la liste.
+
+Actions :
+${list || "Aucune."}`;
+      const raw = await callAI(prompt, session.access_token);
+      const parsed = parseJsonLoose(raw);
+      if (!parsed) throw new Error("parse_failed");
+      setResult(parsed);
+    } catch (e) {
+      setError(e.message && e.message !== "parse_failed" ? e.message : "L'organisation a échoué. Réessaie.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2a3ed655", borderRadius: "12px", padding: "16px", marginBottom: "20px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+        <span className="display" style={{ fontWeight: 700, fontSize: "13px", color: "var(--blue)" }}>✨ Closia organise votre journée</span>
+        <button className="focusable" onClick={onClose} style={{ background: "none", border: "none", color: "var(--blue)", fontSize: "13px" }}>✕</button>
+      </div>
+      {!result && (
+        <button className="focusable" onClick={organize} disabled={loading || tasks.length === 0} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600, opacity: loading || tasks.length === 0 ? 0.6 : 1 }}>
+          {loading ? "Analyse..." : tasks.length === 0 ? "Rien à organiser" : "Organiser ma journée"}
+        </button>
+      )}
+      {error && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "8px" }}>{error}</div>}
+      {result && (
+        <>
+          <div style={{ fontSize: "13px", color: "var(--text)", lineHeight: 1.5, marginBottom: "12px" }}>{result.summary}</div>
+          <ol style={{ margin: 0, paddingLeft: "20px", fontSize: "12.5px", color: "var(--text)", lineHeight: 1.9 }}>
+            {(result.order || []).map((label, i) => <li key={i}>{label}</li>)}
+          </ol>
+        </>
+      )}
+    </div>
+  );
+}
+
 function buildDayAgenda(events, taches) {
-  const endOfToday = new Date();
-  endOfToday.setHours(23, 59, 59, 999);
-  const todayTasks = taches.filter((t) => !t.due_at || new Date(t.due_at) <= endOfToday);
   const timed = [];
   const untimed = [];
   events.forEach((e) => {
@@ -441,7 +528,7 @@ function buildDayAgenda(events, taches) {
     if (!e.start || e.start.length <= 10) untimed.push(item);
     else timed.push({ ...item, sortKey: new Date(e.start).getTime() });
   });
-  todayTasks.forEach((t) => {
+  taches.forEach((t) => {
     const item = { kind: "task", data: t };
     if (!t.due_at) untimed.push(item);
     else timed.push({ ...item, sortKey: new Date(t.due_at).getTime() });
@@ -532,288 +619,6 @@ function BriefAgendaRow({ item, prospect, onOpen, onToggleDone }) {
       <span className="mono" style={{ fontSize: "9px", fontWeight: 700, color: meta.color, background: meta.dim, borderRadius: "5px", padding: "3px 6px", whiteSpace: "nowrap", flexShrink: 0 }}>
         {meta.label}
       </span>
-    </div>
-  );
-}
-
-function ForgottenDealsBox({ deals, session, settings, reload, onOpen }) {
-  if (deals.length === 0) return null;
-  return (
-    <div style={{ background: "var(--red-dim)", border: "0.5px solid var(--red)55", borderRadius: "12px", padding: "18px", marginBottom: "18px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-        <AlertIcon size={15} color="var(--red)" />
-        <div className="display" style={{ fontWeight: 700, fontSize: "15px", color: "var(--text)" }}>Deals oubliés</div>
-        <span className="mono" style={{ background: "var(--red)", color: "#fff", borderRadius: "999px", fontSize: "11px", fontWeight: 700, padding: "2px 8px" }}>
-          {deals.length}
-        </span>
-      </div>
-      <div style={{ color: "var(--text-dim)", fontSize: "12px", marginBottom: "14px" }}>Ces opportunités n'ont eu aucune activité depuis au moins 5 jours — relancez-les avant qu'elles ne refroidissent.</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        {deals.map(({ prospect, days }) => (
-          <ForgottenDealCard key={prospect.id} prospect={prospect} days={days} session={session} settings={settings} reload={reload} onOpen={onOpen} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ForgottenDealCard({ prospect, days, session, settings, reload, onOpen }) {
-  const [loading, setLoading] = useState(false);
-  const [content, setContent] = useState("");
-  const [error, setError] = useState("");
-  const [sent, setSent] = useState(false);
-
-  async function relancerMaintenant() {
-    setLoading(true);
-    setError("");
-    try {
-      const prompt = `Tu es un assistant commercial. Rédige un email de relance très court (4 à 5 phrases maximum), professionnel mais chaleureux, en français, pour un prospect resté sans réponse depuis ${days} jours. Ne mets pas d'objet, uniquement le corps de l'email, termine par une formule de politesse simple (ex : "Bonne journée,"), sans nom ni signature.
-
-Nom du contact : ${prospect.name}
-Entreprise : ${prospect.company}
-Étape du pipeline : ${prospect.stage}
-Valeur de l'opportunité : ${formatEuros(prospect.deal_value || 0)}`;
-      const text = await callAI(prompt, session.access_token);
-      setContent(appendSignature(text, settings));
-    } catch (e) {
-      setError(e.message || "La génération a échoué. Réessaie.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function markAsSent() {
-    await supabase.from("emails_generes").insert({ user_id: session.user.id, prospect_id: prospect.id, type: "relance", content });
-    await supabase.from("prospects").update({ last_contact_at: new Date().toISOString() }).eq("id", prospect.id);
-    setSent(true);
-    reload?.();
-  }
-
-  function copy() {
-    navigator.clipboard?.writeText(content);
-  }
-
-  if (sent) {
-    return (
-      <div style={{ background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px 14px", fontSize: "12.5px", color: "#0ea968", display: "flex", alignItems: "center", gap: "8px" }}>
-        <CheckIcon size={13} color="#0ea968" /> Relance envoyée à <strong>{prospect.name}</strong>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px 14px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", marginBottom: content ? "10px" : 0 }}>
-        <button className="focusable" onClick={() => onOpen?.(prospect.id)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", minWidth: 0 }}>
-          <div className="display" style={{ fontWeight: 600, fontSize: "13px", color: "var(--text)" }}>{prospect.name} <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>· {prospect.company}</span></div>
-          <div style={{ fontSize: "11.5px", color: "var(--red)" }}>Aucune activité depuis {days} jour{days > 1 ? "s" : ""}</div>
-        </button>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-          {prospect.deal_value > 0 && (
-            <span className="mono" style={{ fontSize: "12px", fontWeight: 700, color: "var(--gold-deep)", background: "var(--gold-dim)", borderRadius: "999px", padding: "3px 9px" }}>
-              {formatEuros(prospect.deal_value)}
-            </span>
-          )}
-          {!content && (
-            <button className="focusable" onClick={relancerMaintenant} disabled={loading} style={{ fontSize: "12px", fontWeight: 600, padding: "7px 12px", borderRadius: "7px", background: "var(--blue)", color: "#fff", border: "none", opacity: loading ? 0.7 : 1, whiteSpace: "nowrap" }}>
-            {loading ? "Génération..." : "Relancer maintenant"}
-          </button>
-          )}
-        </div>
-      </div>
-
-      {error && <div style={{ color: "var(--red)", fontSize: "12px" }}>{error}</div>}
-
-      {content && (
-        <div>
-          <div style={{ fontSize: "12.5px", color: "var(--text-dim)", whiteSpace: "pre-wrap", lineHeight: 1.5, background: "var(--panel)", borderRadius: "8px", padding: "10px 12px", marginBottom: "8px" }}>
-            {content}
-          </div>
-          <div style={{ display: "flex", gap: "6px" }}>
-            <button className="focusable" onClick={copy} style={{ fontSize: "11.5px", padding: "6px 10px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
-              Copier
-            </button>
-            <button className="focusable" onClick={markAsSent} style={{ fontSize: "11.5px", padding: "6px 10px", borderRadius: "6px", background: "#e2f7ec", color: "#0ea968", border: "0.5px solid #0ea96855" }}>
-              Marquer comme envoyée
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-const ALERT_STYLE = {
-  urgent: { bg: "var(--red-dim)", border: "var(--red)55", stripe: "var(--red)", label: "URGENT" },
-  risk: { bg: "var(--amber-dim)", border: "var(--amber)55", stripe: "var(--amber)", label: "OPPORTUNITÉ À RISQUE" },
-  hot: { bg: "#e2f7ec", border: "#0ea96855", stripe: "#0ea968", label: "OPPORTUNITÉ CHAUDE" },
-};
-
-function AlertsBox({ alerts, onOpen }) {
-  if (alerts.length === 0) return null;
-  return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "18px", marginBottom: "18px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-        <AlertIcon size={14} color="var(--text)" />
-        <div className="display" style={{ fontWeight: 700, fontSize: "15px" }}>Alertes IA</div>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        {alerts.map((a, i) => {
-          const style = ALERT_STYLE[a.level];
-          return (
-            <button
-              key={i}
-              className="focusable"
-              onClick={() => onOpen?.(a.prospect.id)}
-              style={{ display: "flex", alignItems: "flex-start", gap: "10px", background: style.bg, border: `0.5px solid ${style.border}`, borderRadius: "8px", padding: "10px 12px 10px 10px", textAlign: "left" }}
-            >
-              <span style={{ width: "3px", alignSelf: "stretch", borderRadius: "2px", background: style.stripe, flexShrink: 0 }} />
-              <div style={{ minWidth: 0 }}>
-                <div className="mono" style={{ fontSize: "10px", fontWeight: 700, color: "var(--text-faint)", marginBottom: "2px" }}>{style.label}</div>
-                <div style={{ fontSize: "12px", color: "var(--text)" }}>
-                  <strong>{a.prospect.name}</strong> ({a.prospect.company}) — {a.message}
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function PriorityCard({ priorities, loading, onOpen }) {
-  return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "18px", marginBottom: "22px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px" }}>
-        <SparklesIcon size={14} color="var(--blue)" />
-        <span className="display" style={{ fontWeight: 700, fontSize: "15px" }}>Assistant IA — priorités du jour</span>
-      </div>
-
-      {loading ? (
-        <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Analyse en cours...</div>
-      ) : priorities.length === 0 ? (
-        <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Rien d'urgent aujourd'hui — bravo.</div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          {priorities.map(({ prospect: p, reason, score }, i) => (
-            <div key={p.id} style={{ display: "flex", flexDirection: "column", gap: "8px", paddingBottom: i < priorities.length - 1 ? "12px" : 0, borderBottom: i < priorities.length - 1 ? "0.5px solid var(--hairline)" : "none" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-                  <Avatar name={p.name} stage={p.stage} size={26} />
-                  <div style={{ minWidth: 0 }}>
-                    <div className="display" style={{ fontWeight: 600, fontSize: "13px" }}>
-                      {p.name} <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>· {p.company}</span>
-                    </div>
-                    <div style={{ color: "var(--text-dim)", fontSize: "12px" }}>{reason}</div>
-                  </div>
-                </div>
-                <span className="mono" style={{ background: "var(--blue-dim)", color: "var(--blue)", borderRadius: "999px", fontSize: "11px", fontWeight: 700, padding: "3px 8px", flexShrink: 0 }}>
-                  {score}
-                </span>
-              </div>
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                <button className="focusable" onClick={() => onOpen?.(p.id, "script")} style={{ fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
-                  Préparer un appel
-                </button>
-                <button className="focusable" onClick={() => onOpen?.(p.id, "email")} style={{ fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
-                  Générer une relance
-                </button>
-                <button className="focusable" onClick={() => onOpen?.(p.id, "email")} style={{ fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655" }}>
-                  Ouvrir le dossier
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function StatTile({ accent, icon, label, value, items, renderItem, expanded: controlledExpanded, onToggle }) {
-  const [localExpanded, setLocalExpanded] = useState(false);
-  const isControlled = controlledExpanded !== undefined;
-  const expanded = isControlled ? controlledExpanded : localExpanded;
-  const hasItems = items && items.length > 0;
-
-  function toggle() {
-    if (!hasItems) return;
-    if (isControlled) onToggle?.(!expanded);
-    else setLocalExpanded((e) => !e);
-  }
-
-  return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderTop: `2.5px solid ${accent}`, borderRadius: "10px", padding: "16px 18px", boxShadow: "var(--shadow-sm)" }}>
-      <button
-        className="focusable"
-        onClick={toggle}
-        disabled={!hasItems}
-        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", width: "100%", background: "none", border: "none", padding: 0, textAlign: "left", cursor: hasItems ? "pointer" : "default" }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          {icon}
-          <span className="display" style={{ fontWeight: 600, fontSize: "14px", color: "var(--text)" }}>{label}</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <span className="mono" style={{ background: "var(--panel2)", color: accent, borderRadius: "999px", fontSize: "12px", fontWeight: 700, padding: "2px 9px" }}>
-            {value}
-          </span>
-          {hasItems && <span style={{ color: "var(--text-faint)", fontSize: "10px", transform: expanded ? "rotate(180deg)" : "none" }}>▾</span>}
-        </div>
-      </button>
-
-      {expanded && hasItems && (
-        <div style={{ marginTop: "10px", borderTop: "0.5px solid var(--hairline)", paddingTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
-          {items.map(renderItem)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TaskRow({ task, prospect, onOpen }) {
-  const nameStyle = { fontSize: "12px", color: prospect ? "var(--blue)" : "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
-        {(() => { const meta = TASK_TYPE_META[task.type] || TASK_TYPE_META.appel_telephone; return <meta.Icon size={12} color={meta.color} />; })()}
-        {prospect ? (
-          <button className="focusable" onClick={() => onOpen?.(prospect.id)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", ...nameStyle }}>
-            {prospect.name} — <span style={{ color: "var(--text)" }}>{task.note}</span>
-          </button>
-        ) : (
-          <span style={nameStyle}>{task.note}</span>
-        )}
-      </div>
-      <span className="mono" style={{ fontSize: "11px", color: task.due_at && isOverdue(task.due_at) ? "var(--red)" : "var(--text-faint)", flexShrink: 0 }}>
-        {task.due_at ? formatShortDate(task.due_at) : "Sans échéance"}
-      </span>
-    </div>
-  );
-}
-
-function MissionRow({ prospect, onUpdateStatus, onOpen }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-      <button
-        className="focusable"
-        onClick={() => onOpen?.(prospect.id)}
-        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontSize: "12px", color: "var(--blue)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-      >
-        {prospect.name}
-      </button>
-      <select
-        value={prospect.status}
-        onClick={(e) => e.stopPropagation()}
-        onChange={(e) => onUpdateStatus(prospect.id, e.target.value)}
-        style={{ fontSize: "11px", padding: "3px 5px", borderRadius: "5px", border: "0.5px solid var(--hairline)", background: "var(--panel2)", color: "var(--text-dim)", flexShrink: 0 }}
-      >
-        <option value="appeler">À appeler</option>
-        <option value="relancer">À relancer</option>
-        <option value="attente">En attente</option>
-        <option value="retard">En retard</option>
-      </select>
     </div>
   );
 }
