@@ -33,6 +33,10 @@ export default function Tasks({ prospects, session, settings, onOpenProspect }) 
   const [form, setForm] = useState({ note: "", prospectId: "", type: "appel_telephone", dueDate: "", dueTime: "", priority: "50" });
   const [saving, setSaving] = useState(false);
   const [justDone, setJustDone] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkDate, setBulkDate] = useState("");
+  const [bulkTime, setBulkTime] = useState("");
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -79,6 +83,31 @@ export default function Tasks({ prospects, session, settings, onOpenProspect }) 
 
   async function remove(id) {
     await supabase.from("tasks").delete().eq("id", id);
+    load();
+  }
+
+  function toggleSelect(id) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+    setBulkDate("");
+    setBulkTime("");
+  }
+
+  async function applyBulkDeadline() {
+    if (!bulkDate || selectedIds.size === 0 || bulkSaving) return;
+    setBulkSaving(true);
+    const time = bulkTime || settings?.default_task_time || "17:00";
+    const dueAt = new Date(`${bulkDate}T${time}`).toISOString();
+    await supabase.from("tasks").update({ due_at: dueAt }).in("id", Array.from(selectedIds));
+    setBulkSaving(false);
+    clearSelection();
     load();
   }
 
@@ -197,6 +226,22 @@ export default function Tasks({ prospects, session, settings, onOpenProspect }) 
         })}
       </div>
 
+      {selectedIds.size > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", background: "var(--blue-dim)", border: "0.5px solid #2a3ed655", borderRadius: "10px", padding: "10px 12px", marginBottom: "16px" }}>
+          <span style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--blue)" }}>
+            {selectedIds.size} tâche{selectedIds.size > 1 ? "s" : ""} sélectionnée{selectedIds.size > 1 ? "s" : ""}
+          </span>
+          <input type="date" value={bulkDate} onChange={(e) => setBulkDate(e.target.value)} style={inputStyle} />
+          <input type="time" value={bulkTime} onChange={(e) => setBulkTime(e.target.value)} title={`Heure (défaut : ${settings?.default_task_time || "17:00"})`} style={inputStyle} />
+          <button className="focusable" onClick={applyBulkDeadline} disabled={!bulkDate || bulkSaving} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "8px 14px", fontSize: "12.5px", opacity: !bulkDate || bulkSaving ? 0.6 : 1 }}>
+            {bulkSaving ? "Application..." : "Modifier l'échéance"}
+          </button>
+          <button className="focusable" onClick={clearSelection} style={{ background: "transparent", color: "var(--blue)", border: "none", fontSize: "12.5px", padding: "8px 4px" }}>
+            Annuler la sélection
+          </button>
+        </div>
+      )}
+
       {showForm && (
         <form onSubmit={addTask} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px", marginBottom: "20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
           <input required placeholder="Titre" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} style={{ ...inputStyle, gridColumn: "1 / -1" }} />
@@ -238,7 +283,7 @@ export default function Tasks({ prospects, session, settings, onOpenProspect }) 
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {bucket.tasks.map((t) => (
-                  <TaskRow key={t.id} t={t} prospect={prospectById[t.prospect_id]} onToggle={() => toggleDone(t)} onRemove={() => remove(t.id)} onOpen={onOpenProspect} justDone={justDone === t.id} />
+                  <TaskRow key={t.id} t={t} prospect={prospectById[t.prospect_id]} onToggle={() => toggleDone(t)} onRemove={() => remove(t.id)} onOpen={onOpenProspect} justDone={justDone === t.id} selected={selectedIds.has(t.id)} onToggleSelect={() => toggleSelect(t.id)} />
                 ))}
               </div>
             </div>
@@ -264,7 +309,7 @@ export default function Tasks({ prospects, session, settings, onOpenProspect }) 
   );
 }
 
-function TaskRow({ t, prospect, onToggle, onRemove, onOpen, justDone }) {
+function TaskRow({ t, prospect, onToggle, onRemove, onOpen, justDone, selected, onToggleSelect }) {
   const level = PRIORITY_LEVELS.find((l) => l.value === t.priority) || PRIORITY_LEVELS[1];
   const priorityColor = PRIORITY_COLORS[level.value] || PRIORITY_COLORS[50];
   const type = TYPE_META[t.type] || TYPE_META.appel_telephone;
@@ -274,12 +319,20 @@ function TaskRow({ t, prospect, onToggle, onRemove, onOpen, justDone }) {
     <div
       style={{
         display: "flex", alignItems: "center", gap: "12px", background: "var(--panel)",
-        border: "0.5px solid " + (overdue ? "var(--red)55" : "var(--hairline)"),
+        border: "0.5px solid " + (selected ? "var(--blue)" : overdue ? "var(--red)55" : "var(--hairline)"),
         borderLeft: `3px solid ${t.done ? "var(--hairline)" : priorityColor.color}`,
         borderRadius: "10px", padding: "12px", opacity: t.done ? 0.55 : 1,
         transform: justDone ? "scale(0.99)" : "scale(1)", transition: "opacity 0.2s, transform 0.2s",
       }}
     >
+      {onToggleSelect && (
+        <input
+          type="checkbox"
+          checked={!!selected}
+          onChange={onToggleSelect}
+          style={{ width: "15px", height: "15px", flexShrink: 0, cursor: "pointer", accentColor: "var(--blue)" }}
+        />
+      )}
       <button className="focusable" onClick={onToggle} style={{ background: "none", border: "none", padding: 0, display: "flex", cursor: "pointer" }}>
         <span style={{ width: "22px", height: "22px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: t.done ? "#0ea96822" : "var(--panel2)", border: `1.5px solid ${t.done ? "#0ea968" : "var(--hairline-strong)"}` }}>
           {t.done && <CheckIcon size={12} color="#0ea968" />}

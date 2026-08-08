@@ -14,7 +14,7 @@ const TASK_TYPE_KEYS = Object.keys(TASK_TYPE_META);
 const GRID_START_HOUR = 7;
 const GRID_END_HOUR = 20;
 const ROW_HEIGHT = 56;
-const TASK_LANE_PCT = 26;
+const TASK_LANE_PCT = 32;
 
 function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
 function endOfDay(d) { const x = new Date(d); x.setHours(23, 59, 59, 999); return x; }
@@ -52,10 +52,24 @@ function heightFor(startIso, endIso) {
 
 function layoutDayEvents(dayEvents) {
   const sorted = [...dayEvents].sort((a, b) => new Date(a.start) - new Date(b.start));
-  const columnEnds = [];
-  const placed = sorted.map((event) => {
+  const results = [];
+  let group = [];
+  let columnEnds = [];
+  let groupEndMax = null;
+
+  function flushGroup() {
+    if (!group.length) return;
+    const colCount = columnEnds.length || 1;
+    group.forEach((g) => results.push({ event: g.event, colIndex: g.colIndex, colCount }));
+    group = [];
+    columnEnds = [];
+    groupEndMax = null;
+  }
+
+  for (const event of sorted) {
     const start = new Date(event.start).getTime();
     const end = new Date(event.end || event.start).getTime();
+    if (groupEndMax !== null && start >= groupEndMax) flushGroup();
     let colIndex = columnEnds.findIndex((endTime) => endTime <= start);
     if (colIndex === -1) {
       colIndex = columnEnds.length;
@@ -63,10 +77,11 @@ function layoutDayEvents(dayEvents) {
     } else {
       columnEnds[colIndex] = end;
     }
-    return { event, colIndex };
-  });
-  const colCount = columnEnds.length || 1;
-  return placed.map((p) => ({ ...p, colCount }));
+    group.push({ event, colIndex });
+    groupEndMax = groupEndMax === null ? end : Math.max(groupEndMax, end);
+  }
+  flushGroup();
+  return results;
 }
 
 function rangeLabel(view, refDate) {
@@ -304,11 +319,12 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                   const prospect = prospectById?.[task.prospect_id];
                   const meta = TASK_TYPE_META[task.type] || TASK_TYPE_META.appel_telephone;
                   const top = Math.max(0, topFor(task.due_at));
-                  const height = Math.max(22, heightFor(task.start, task.end));
+                  const height = Math.max(26, heightFor(task.start, task.end));
                   const widthPct = TASK_LANE_PCT / colCount;
                   return (
                     <div
                       key={task.id}
+                      title={`${meta.label} · ${formatTime(task.due_at)} · ${task.note}`}
                       style={{
                         position: "absolute", top, height,
                         left: `calc(${colIndex * widthPct}% + 1px)`, width: `calc(${widthPct}% - 2px)`,
@@ -320,7 +336,7 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                       <button
                         className="focusable"
                         onClick={() => prospect && onOpenProspect?.(prospect.id)}
-                        style={{ background: "none", border: "none", padding: 0, textAlign: "left", fontSize: "9px", lineHeight: 1.2, color: meta.color, overflow: "hidden", cursor: prospect ? "pointer" : "default" }}
+                        style={{ background: "none", border: "none", padding: 0, textAlign: "left", fontSize: "10px", lineHeight: 1.25, color: meta.color, overflow: "hidden", cursor: prospect ? "pointer" : "default" }}
                       >
                         {task.note}
                       </button>
@@ -339,6 +355,7 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                       key={event.id}
                       className="focusable"
                       onClick={() => onSelect(event.id)}
+                      title={`${event.title} · ${formatTime(event.start)}${prospect ? ` · ${prospect.name}` : ""}`}
                       style={{
                         position: "absolute", top, height,
                         left: `calc(${eventsLeftPct + colIndex * widthPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,

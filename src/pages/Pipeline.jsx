@@ -708,24 +708,28 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
         />
       </div>
 
-      <NoteAnalyzer prospect={prospect} history={history} session={session} onLogActivity={onLogActivity} onUpdate={onUpdate} />
+      <NoteAnalyzer prospect={prospect} history={history} session={session} onLogActivity={onLogActivity} onUpdate={onUpdate} settings={settings} />
 
       <CoachingCard prospect={prospect} history={history} session={session} />
 
       <div style={{ display: "flex", gap: "4px", marginBottom: "16px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
-        {[["email", "Email"], ["script", "Script"], ["analyse", "Analyse"], ["taches", "Tâches"], ["historique", "Historique"]].map(([key, label]) => (
+        {[["email", "Email"], ["script", "Script"], ["analyse", "Analyse"], ["taches", "Tâches"]].map(([key, label]) => (
           <button key={key} className="focusable" onClick={() => setTab(key)} style={{ flex: 1, padding: "7px 6px", borderRadius: "6px", fontSize: "11px", fontWeight: 500, background: tab === key ? "var(--hairline)" : "transparent", color: tab === key ? "var(--text)" : "var(--text-dim)" }}>
             {label}
           </button>
         ))}
       </div>
 
-      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "18px" }}>
+      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "18px", marginBottom: "16px" }}>
         {tab === "email" && <EmailGenerator prospect={prospect} history={history} session={session} settings={settings} />}
         {tab === "script" && <ScriptGenerator prospect={prospect} history={history} session={session} />}
         {tab === "analyse" && <AnalyseGenerator prospect={prospect} history={history} session={session} />}
         {tab === "taches" && <TasksTab prospect={prospect} session={session} settings={settings} />}
-        {tab === "historique" && <Historique history={history} />}
+      </div>
+
+      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "18px" }}>
+        <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginBottom: "12px" }}>HISTORIQUE</div>
+        <Historique history={history} />
       </div>
     </div>
   );
@@ -739,7 +743,13 @@ const ACTION_TYPES = [
   { key: "message_linkedin", label: "Message LinkedIn", Icon: LinkedinIcon },
 ];
 
-function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate }) {
+const RDV_KEYWORDS = /\brdv\b|rendez-vous|rendez vous/i;
+
+function mentionsRdv(actionType, text) {
+  return actionType === "rdv_physique" || actionType === "appel_visio" || RDV_KEYWORDS.test(text);
+}
+
+function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate, settings }) {
   const [actionType, setActionType] = useState("appel_abouti");
   const [note, setNote] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
@@ -751,14 +761,24 @@ function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate }) {
   const [selected, setSelected] = useState([]);
   const [creating, setCreating] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [rdvPrompt, setRdvPrompt] = useState(null);
+  const [rdvSaving, setRdvSaving] = useState(false);
 
   async function saveNote() {
     if (saving) return;
     setSaving(true);
     setError("");
+    const text = note.trim();
     try {
-      await onLogActivity(actionType, note.trim() || undefined);
+      await onLogActivity(actionType, text || undefined);
       onUpdate?.({ last_contact_at: new Date().toISOString() });
+      if (mentionsRdv(actionType, text)) {
+        setRdvPrompt({
+          type: actionType === "appel_visio" ? "appel_visio" : "rdv_physique",
+          date: "",
+          time: settings?.default_task_time || "17:00",
+        });
+      }
       setNote("");
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
@@ -768,6 +788,21 @@ function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate }) {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function createRdvTask() {
+    if (!rdvPrompt?.date || rdvSaving) return;
+    setRdvSaving(true);
+    const time = rdvPrompt.time || settings?.default_task_time || "17:00";
+    await supabase.from("tasks").insert({
+      user_id: session.user.id,
+      prospect_id: prospect.id,
+      type: rdvPrompt.type,
+      note: `${TASK_TYPE_META[rdvPrompt.type]?.label || "RDV"} avec ${prospect.name}`,
+      due_at: new Date(`${rdvPrompt.date}T${time}`).toISOString(),
+    });
+    setRdvSaving(false);
+    setRdvPrompt(null);
   }
 
   async function improveWithAI() {
@@ -901,6 +936,27 @@ ${buildHistoryContext(history)}`;
         </button>
       </div>
       {error && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "6px" }}>{error}</div>}
+
+      {rdvPrompt && (
+        <div style={{ marginTop: "10px", background: "var(--gold-dim)", border: "0.5px solid var(--gold)55", borderRadius: "8px", padding: "12px" }}>
+          <div style={{ fontSize: "12.5px", color: "var(--gold-deep)", fontWeight: 600, marginBottom: "8px" }}>
+            Un rendez-vous a été mentionné — créer une tâche de suivi ?
+          </div>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+            <select value={rdvPrompt.type} onChange={(e) => setRdvPrompt((p) => ({ ...p, type: e.target.value }))} style={{ ...inputStyle, width: "auto" }}>
+              {Object.entries(TASK_TYPE_META).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}
+            </select>
+            <input type="date" value={rdvPrompt.date} onChange={(e) => setRdvPrompt((p) => ({ ...p, date: e.target.value }))} style={inputStyle} />
+            <input type="time" value={rdvPrompt.time} onChange={(e) => setRdvPrompt((p) => ({ ...p, time: e.target.value }))} style={inputStyle} />
+            <button className="focusable" onClick={createRdvTask} disabled={!rdvPrompt.date || rdvSaving} style={{ background: "var(--gold)", color: "#fff", border: "none", borderRadius: "8px", padding: "8px 14px", fontSize: "12.5px", opacity: !rdvPrompt.date || rdvSaving ? 0.6 : 1 }}>
+              {rdvSaving ? "Création..." : "Créer la tâche"}
+            </button>
+            <button className="focusable" onClick={() => setRdvPrompt(null)} style={{ background: "transparent", color: "var(--gold-deep)", border: "none", fontSize: "12.5px", padding: "8px 4px" }}>
+              Ignorer
+            </button>
+          </div>
+        </div>
+      )}
 
       {showModal && result && (
         <Modal onClose={() => setShowModal(false)}>
