@@ -178,7 +178,7 @@ function ActivityTab({ prospects, feedItems, activities, loading, filter, setFil
             key={key}
             className="focusable"
             onClick={() => setFilter(key)}
-            style={{ padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 500, background: filter === key ? "var(--blue-dim)" : "var(--panel2)", color: filter === key ? "var(--blue)" : "var(--text-dim)", border: filter === key ? "0.5px solid #2a3ed655" : "0.5px solid var(--hairline)" }}
+            style={{ padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 500, background: filter === key ? "var(--blue-dim)" : "var(--panel2)", color: filter === key ? "var(--blue)" : "var(--text-dim)", border: filter === key ? "0.5px solid #2563eb55" : "0.5px solid var(--hairline)" }}
           >
             {label}
           </button>
@@ -383,11 +383,11 @@ Durée moyenne du cycle de vente : ${avgCycle !== null ? avgCycle + " jours" : "
         </div>
       </div>
 
-      <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2a3ed655", borderRadius: "12px", padding: "16px" }}>
+      <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2563eb55", borderRadius: "12px", padding: "16px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
           <span className="display" style={{ fontWeight: 700, fontSize: "13px", color: "var(--blue)" }}>✨ Ce que Closia remarque</span>
           {!insight && (
-            <button className="focusable" onClick={generateInsight} disabled={loadingInsight} style={{ fontSize: "11px", padding: "5px 10px", borderRadius: "6px", background: "var(--panel)", color: "var(--blue)", border: "0.5px solid #2a3ed640" }}>
+            <button className="focusable" onClick={generateInsight} disabled={loadingInsight} style={{ fontSize: "11px", padding: "5px 10px", borderRadius: "6px", background: "var(--panel)", color: "var(--blue)", border: "0.5px solid #2563eb40" }}>
               {loadingInsight ? "Analyse..." : "Générer"}
             </button>
           )}

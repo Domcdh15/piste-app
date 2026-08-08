@@ -8,7 +8,7 @@ export const STATUS_META = {
 export const STAGE_META = {
   "À contacter": { color: "#64748b", dim: "#eef1f5" },
   "Contact établi": { color: "#7c3aed", dim: "#f1e9fe" },
-  "Rendez-vous prévu": { color: "#2a3ed6", dim: "#e8f0fe" },
+  "Rendez-vous prévu": { color: "#2563eb", dim: "#e8f0fe" },
   "Proposition envoyée": { color: "#d97706", dim: "#fdf0dc" },
   "Négociation": { color: "#e2492a", dim: "#fde9e3" },
   "Gagné": { color: "#0ea968", dim: "#e2f7ec" },
@@ -237,7 +237,7 @@ export function Avatar({ name, stage, size = 34 }) {
   );
 }
 
-export function PageTitle({ icon: IconComp, color = "#2a3ed6", children, style }) {
+export function PageTitle({ icon: IconComp, color = "#2563eb", children, style }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "11px", ...style }}>
       {IconComp && (

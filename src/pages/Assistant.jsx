@@ -24,6 +24,9 @@ const TEXT2 = "#64748B";
 const ACCENT = "#2563EB";
 const ACCENT_DIM = "#EFF6FF";
 const BORDER = "#E2E8F0";
+const AI = "#7C3AED";
+const AI_DIM = "#F5F3FF";
+const AI_BORDER = "#DDD6FE";
 const RED = "#dc2626";
 const RED_DIM = "#fef2f2";
 
@@ -105,7 +108,7 @@ function Header() {
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px", marginBottom: "24px" }}>
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <SparklesIcon size={18} color={ACCENT} />
+          <SparklesIcon size={18} color={AI} />
           <span className="display" style={{ fontWeight: 700, fontSize: "20px", color: TEXT }}>Assistant IA</span>
         </div>
         <div style={{ fontSize: "13px", color: TEXT2, marginTop: "4px" }}>Votre copilote commercial pour analyser vos opportunités et passer à l'action.</div>
@@ -514,8 +517,8 @@ ${ctx.text}`;
             ))}
           </div>
 
-          <button className="focusable" onClick={generate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: ACCENT, color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: loading ? 0.6 : 1, marginBottom: "12px" }}>
-            <SparklesIcon size={13} color="#fff" /> {loading ? "Génération..." : content ? "Régénérer" : "Générer avec l'IA"}
+          <button className="focusable" onClick={generate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: AI_DIM, color: AI, border: `0.5px solid ${AI_BORDER}`, borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: loading ? 0.6 : 1, marginBottom: "12px" }}>
+            <SparklesIcon size={13} color={AI} /> {loading ? "Génération..." : content ? "Régénérer" : "Générer avec l'IA"}
           </button>
           {error && <div style={{ color: RED, fontSize: "12px", marginBottom: "10px" }}>{error}</div>}
 
@@ -621,8 +624,8 @@ ${ctx.text}`;
         <>
           <ProspectSummaryCard prospect={prospect} />
 
-          <button className="focusable" onClick={generate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: ACCENT, color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: loading ? 0.6 : 1, marginBottom: "16px" }}>
-            <SparklesIcon size={13} color="#fff" /> {loading ? "Analyse..." : result ? "Réanalyser" : "Analyser avec l'IA"}
+          <button className="focusable" onClick={generate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: AI_DIM, color: AI, border: `0.5px solid ${AI_BORDER}`, borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: loading ? 0.6 : 1, marginBottom: "16px" }}>
+            <SparklesIcon size={13} color={AI} /> {loading ? "Analyse..." : result ? "Réanalyser" : "Analyser avec l'IA"}
           </button>
           {error && <div style={{ color: RED, fontSize: "12px", marginBottom: "10px" }}>{error}</div>}
 
@@ -705,8 +708,8 @@ ${ctx.text}`;
       {prospect && (
         <>
           <ProspectSummaryCard prospect={prospect} />
-          <button className="focusable" onClick={generate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: ACCENT, color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: loading ? 0.6 : 1, marginBottom: "16px" }}>
-            <SparklesIcon size={13} color="#fff" /> {loading ? "Préparation..." : "Préparer avec l'IA"}
+          <button className="focusable" onClick={generate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: AI_DIM, color: AI, border: `0.5px solid ${AI_BORDER}`, borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: loading ? 0.6 : 1, marginBottom: "16px" }}>
+            <SparklesIcon size={13} color={AI} /> {loading ? "Préparation..." : "Préparer avec l'IA"}
           </button>
           {error && <div style={{ color: RED, fontSize: "12px", marginBottom: "10px" }}>{error}</div>}
           {result && (
@@ -768,8 +771,8 @@ ${ctx.text}`;
       {prospect && (
         <>
           <ProspectSummaryCard prospect={prospect} />
-          <button className="focusable" onClick={generate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: ACCENT, color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: loading ? 0.6 : 1, marginBottom: "16px" }}>
-            <SparklesIcon size={13} color="#fff" /> {loading ? "Résumé..." : "Résumer avec l'IA"}
+          <button className="focusable" onClick={generate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: AI_DIM, color: AI, border: `0.5px solid ${AI_BORDER}`, borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: loading ? 0.6 : 1, marginBottom: "16px" }}>
+            <SparklesIcon size={13} color={AI} /> {loading ? "Résumé..." : "Résumer avec l'IA"}
           </button>
           {error && <div style={{ color: RED, fontSize: "12px", marginBottom: "10px" }}>{error}</div>}
           {summary && (

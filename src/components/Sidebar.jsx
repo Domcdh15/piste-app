@@ -1,6 +1,6 @@
 import { Logo, HomeIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIcon, GearIcon } from "../lib/ui.jsx";
 
-const NAV_COLOR = "#2a3ed6";
+const NAV_COLOR = "#2563eb";
 const AI_COLOR = "#7c3aed";
 
 const NAV_GROUPS = [

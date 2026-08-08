@@ -204,7 +204,7 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
 
   return (
     <div>
-      <div style={{ background: "linear-gradient(135deg, #4d5eea, #16209e)", color: "#fff", padding: "32px 32px 28px", position: "relative", overflow: "hidden" }}>
+      <div style={{ background: "linear-gradient(135deg, #2563eb, #1d4ed8)", color: "#fff", padding: "32px 32px 28px", position: "relative", overflow: "hidden" }}>
         <svg viewBox="0 0 500 200" preserveAspectRatio="none" aria-hidden="true" style={{ position: "absolute", top: 0, right: 0, width: "60%", height: "100%", opacity: 0.5 }}>
           <path d="M -20 210 C 100 210 140 130 220 110 C 300 90 320 30 460 -20" stroke="url(#todayMomentum)" strokeWidth="2" fill="none" strokeDasharray="1 9" strokeLinecap="round" />
           <circle cx="140" cy="150" r="3" fill="rgba(255,255,255,0.4)" />
@@ -342,7 +342,7 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
         </div>
 
         {attentionCount > 0 && (
-          <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2a3ed655", borderRadius: "12px", padding: "16px 18px", marginBottom: "20px" }}>
+          <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2563eb55", borderRadius: "12px", padding: "16px 18px", marginBottom: "20px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
               <SparklesIcon size={14} color="var(--blue)" />
               <span className="display" style={{ fontWeight: 700, fontSize: "13.5px", color: "var(--blue)" }}>Closia a une recommandation</span>
@@ -506,7 +506,7 @@ ${list || "Aucune."}`;
   }
 
   return (
-    <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2a3ed655", borderRadius: "12px", padding: "16px", marginBottom: "20px" }}>
+    <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2563eb55", borderRadius: "12px", padding: "16px", marginBottom: "20px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
         <span className="display" style={{ fontWeight: 700, fontSize: "13px", color: "var(--blue)" }}>✨ Closia organise votre journée</span>
         <button className="focusable" onClick={onClose} style={{ background: "none", border: "none", color: "var(--blue)", fontSize: "13px" }}>✕</button>
@@ -578,7 +578,7 @@ function DailyBriefModal({ firstName, events, taches, prospectById, tip, onOpenP
         </div>
 
         <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
-          <button className="focusable" onClick={onGoToPlanning} style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
+          <button className="focusable" onClick={onGoToPlanning} style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
             Voir mon agenda complet
           </button>
           <button className="focusable" onClick={onClose} style={{ flex: 1, background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px", fontSize: "13px" }}>
