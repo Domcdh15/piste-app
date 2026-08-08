@@ -6,7 +6,6 @@ import {
   computeDealScore,
   computeHotProspects,
   computeAtRiskDeals,
-  formatRelative,
   SCRIPT_SECTIONS,
   OPEN_STAGES,
   CLOSED_STAGES,
@@ -132,6 +131,9 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
   const [sortDir, setSortDir] = useState("desc");
   const [viewMode, setViewMode] = useState("table");
   const [openTasks, setOpenTasks] = useState([]);
+  const [quickFilter, setQuickFilter] = useState("tous");
+  const [panelId, setPanelId] = useState(null);
+  const [showOptimize, setShowOptimize] = useState(false);
 
   useEffect(() => {
     supabase.from("tasks").select("*").eq("done", false).order("due_at", { ascending: true, nullsFirst: false }).then(({ data }) => setOpenTasks(data || []));
@@ -221,7 +223,31 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
     .filter((p) => stageFilter === "Toutes" || p.stage === stageFilter)
     .filter((p) => statusFilter === "Tous" || p.status === statusFilter)
     .filter((p) => !q || p.name.toLowerCase().includes(q) || p.company.toLowerCase().includes(q));
-  const combinedList = sortList(visibleProspects);
+  const now = new Date();
+  const nextTaskByProspect = {};
+  for (const t of openTasks) {
+    if (!nextTaskByProspect[t.prospect_id]) nextTaskByProspect[t.prospect_id] = t;
+  }
+  const isAtRisk = (p) => !CLOSED_STAGES.includes(p.stage) && (!p.last_contact_at || (now - new Date(p.last_contact_at)) / 86400000 >= 7);
+  const hasNoNextAction = (p) => !CLOSED_STAGES.includes(p.stage) && !nextTaskByProspect[p.id] && !p.next_contact_at;
+  const openList = prospects.filter((p) => !CLOSED_STAGES.includes(p.stage));
+  const atRiskCount = openList.filter(isAtRisk).length;
+  const noActionCount = openList.filter(hasNoNextAction).length;
+  const totalValue = openList.reduce((sum, p) => sum + (p.deal_value || 0), 0);
+
+  const quickFiltered = visibleProspects.filter((p) => {
+    if (quickFilter === "risque") return isAtRisk(p);
+    if (quickFilter === "a_traiter") return isAtRisk(p) || hasNoNextAction(p);
+    if (quickFilter === "semaine") {
+      const t = nextTaskByProspect[p.id];
+      const inWeek = (iso) => iso && (new Date(iso) - now) / 86400000 <= 7 && (new Date(iso) - now) / 86400000 >= -1;
+      return inWeek(t?.due_at) || inWeek(p.next_contact_at);
+    }
+    if (quickFilter === "moi") return p.sales_owner_id === session.user.id || p.csm_owner_id === session.user.id;
+    return true;
+  });
+
+  const combinedList = sortList(quickFiltered);
   const priorityLabel =
     presetFilter === "chauds" ? "PROSPECTS CHAUDS" : presetFilter === "a-sauver" ? "DEALS À SAUVER" : "FILE DE PRIORITÉ";
 
@@ -245,21 +271,51 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
 
   return (
     <div style={{ padding: "28px 32px 48px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "12px", flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div className="display" style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.06em", color: "var(--text-dim)", whiteSpace: "nowrap" }}>{priorityLabel}</div>
-          <div style={{ display: "flex", gap: "4px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
-            <button className="focusable" onClick={() => setViewMode("table")} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: viewMode === "table" ? "var(--bg)" : "transparent", color: viewMode === "table" ? "var(--blue)" : "var(--text-dim)", boxShadow: viewMode === "table" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
-              <TableIcon size={13} color={viewMode === "table" ? "var(--blue)" : "var(--text-dim)"} /> Tableau
-            </button>
-            <button className="focusable" onClick={() => setViewMode("kanban")} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: viewMode === "kanban" ? "var(--bg)" : "transparent", color: viewMode === "kanban" ? "var(--blue)" : "var(--text-dim)", boxShadow: viewMode === "kanban" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
-              <KanbanIcon size={13} color={viewMode === "kanban" ? "var(--blue)" : "var(--text-dim)"} /> Kanban
-            </button>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px", gap: "12px", flexWrap: "wrap" }}>
+        <div>
+          <div className="display" style={{ fontWeight: 700, fontSize: "20px" }}>Opportunités</div>
+          <div style={{ color: "var(--text-dim)", fontSize: "13px", marginTop: "2px" }}>
+            {openList.length} opportunité{openList.length > 1 ? "s" : ""} · {formatEuros(totalValue)} de pipeline
           </div>
         </div>
-        <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "7px 12px", fontSize: "13px", whiteSpace: "nowrap" }}>
-          {showForm ? "Annuler" : "+ Ajouter un prospect"}
-        </button>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <button className="focusable" onClick={() => setShowOptimize((s) => !s)} style={{ display: "flex", alignItems: "center", gap: "6px", background: showOptimize ? "var(--blue)" : "var(--blue-dim)", color: showOptimize ? "#fff" : "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "8px 12px", fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap" }}>
+            <SparklesIcon size={13} color={showOptimize ? "#fff" : "var(--blue)"} /> Optimiser mon pipeline
+          </button>
+          <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "8px 12px", fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap" }}>
+            {showForm ? "Annuler" : "+ Opportunité"}
+          </button>
+        </div>
+      </div>
+
+      {(atRiskCount > 0 || noActionCount > 0) && (
+        <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", background: "var(--red-dim)", border: "0.5px solid var(--red)33", borderRadius: "8px", padding: "9px 14px", marginBottom: "14px" }}>
+          <span style={{ fontSize: "12.5px", color: "var(--red)", fontWeight: 600 }}>⚠ {atRiskCount} deal{atRiskCount > 1 ? "s" : ""} à risque</span>
+          {noActionCount > 0 && <span style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>{noActionCount} sans prochaine action</span>}
+          <button className="focusable" onClick={() => setQuickFilter("a_traiter")} style={{ marginLeft: "auto", fontSize: "12px", fontWeight: 600, color: "var(--red)", background: "none", border: "none", padding: 0 }}>
+            Voir →
+          </button>
+        </div>
+      )}
+
+      {showOptimize && <OptimizePipelinePanel prospects={openList} session={session} onOpenProspect={setPanelId} onClose={() => setShowOptimize(false)} />}
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "12px", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+          {QUICK_FILTERS.map((f) => (
+            <button key={f.key} className="focusable" onClick={() => setQuickFilter(f.key)} style={{ padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 600, background: quickFilter === f.key ? "var(--blue)" : "var(--panel2)", color: quickFilter === f.key ? "#fff" : "var(--text-dim)", border: "none" }}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: "4px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
+          <button className="focusable" onClick={() => setViewMode("kanban")} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: viewMode === "kanban" ? "var(--bg)" : "transparent", color: viewMode === "kanban" ? "var(--blue)" : "var(--text-dim)", boxShadow: viewMode === "kanban" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
+            <KanbanIcon size={13} color={viewMode === "kanban" ? "var(--blue)" : "var(--text-dim)"} /> Pipeline
+          </button>
+          <button className="focusable" onClick={() => setViewMode("table")} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: viewMode === "table" ? "var(--bg)" : "transparent", color: viewMode === "table" ? "var(--blue)" : "var(--text-dim)", boxShadow: viewMode === "table" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
+            <TableIcon size={13} color={viewMode === "table" ? "var(--blue)" : "var(--text-dim)"} /> Liste
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
@@ -286,6 +342,18 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
           </optgroup>
         </select>
       </div>
+
+      {panelId && (() => {
+        const panelProspect = prospects.find((p) => p.id === panelId);
+        return panelProspect ? (
+          <ProspectSidePanel
+            prospect={panelProspect}
+            nextTask={nextTaskByProspect[panelProspect.id]}
+            onClose={() => setPanelId(null)}
+            onOpenFull={() => { setSelectedId(panelProspect.id); setPanelId(null); }}
+          />
+        ) : null;
+      })()}
 
       {showForm && (
         <form onSubmit={handleAddProspect} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px", marginBottom: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
@@ -327,9 +395,9 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
       ) : visibleProspects.length === 0 ? (
         <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun résultat pour cette recherche ou ces filtres.</div>
       ) : viewMode === "kanban" ? (
-        <KanbanBoard list={combinedList} tasks={openTasks} onOpenProspect={setSelectedId} team={team} />
+        <KanbanBoard list={combinedList} tasks={openTasks} onOpenProspect={setPanelId} team={team} />
       ) : (
-        <ProspectTable list={combinedList} onSelect={setSelectedId} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} team={team} />
+        <ProspectTable list={combinedList} onSelect={setPanelId} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} team={team} />
       )}
     </div>
   );
@@ -343,6 +411,30 @@ const KANBAN_COLUMNS = [
   { key: "Négociation", label: "Négociation" },
   { key: "closed", label: "Gagné / Perdu" },
 ];
+
+const QUICK_FILTERS = [
+  { key: "a_traiter", label: "À traiter" },
+  { key: "tous", label: "Tous" },
+  { key: "risque", label: "À risque" },
+  { key: "semaine", label: "Cette semaine" },
+  { key: "moi", label: "Mes deals" },
+];
+
+function nextActionInfo(p, nextTask) {
+  if (nextTask) {
+    const overdue = nextTask.due_at && isOverdue(nextTask.due_at);
+    const dueToday = nextTask.due_at && new Date(nextTask.due_at).toDateString() === new Date().toDateString();
+    const label = nextTask.due_at
+      ? overdue ? `${nextTask.note} · en retard` : dueToday ? `${nextTask.note} aujourd'hui` : `${nextTask.note} · ${formatShortDate(nextTask.due_at)}`
+      : nextTask.note;
+    return { dot: overdue ? "🔴" : dueToday ? "🟢" : "🟠", color: overdue ? "var(--red)" : dueToday ? "#0ea968" : "var(--amber)", text: label };
+  }
+  const days = p.last_contact_at ? Math.floor((Date.now() - new Date(p.last_contact_at)) / 86400000) : null;
+  if (days === null) return { dot: "🔴", color: "var(--red)", text: "Aucune activité enregistrée" };
+  if (days >= 10) return { dot: "🔴", color: "var(--red)", text: `Aucune activité depuis ${days} jours` };
+  if (days >= 4) return { dot: "🟠", color: "var(--amber)", text: `Relancer depuis ${days} jours` };
+  return { dot: "🟢", color: "#0ea968", text: "À jour" };
+}
 
 function ownerInitials(team, userId) {
   if (!userId || !team) return null;
@@ -415,53 +507,185 @@ function KanbanBoard({ list, tasks, onOpenProspect, team }) {
 }
 
 function OpportunityCard({ prospect: p, nextTask, onClick, team }) {
-  const score = computeDealScore(p);
-  const scoreColor = score >= 70 ? "#0ea968" : score >= 40 ? "var(--amber)" : "var(--red)";
+  const temp = prospectTemperature(p);
+  const action = nextActionInfo(p, nextTask);
+  const days = p.last_contact_at ? Math.floor((Date.now() - new Date(p.last_contact_at)) / 86400000) : null;
 
   return (
     <button
       onClick={onClick}
       className="focusable"
-      style={{ textAlign: "left", background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px", display: "flex", flexDirection: "column", gap: "8px" }}
+      style={{ textAlign: "left", background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px", display: "flex", flexDirection: "column", gap: "6px" }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
-        <div className="display" style={{ fontWeight: 700, fontSize: "13px", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.company}</div>
-        <span className="mono" style={{ background: "#e2f7ec", color: "#0ea968", borderRadius: "999px", fontSize: "11px", fontWeight: 700, padding: "2px 8px", flexShrink: 0 }}>
-          {formatEuros(p.deal_value)}
-        </span>
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px", color: "var(--text-dim)", fontSize: "11px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
-          <Avatar name={p.name} stage={p.stage} size={18} />
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+        <div className="display" style={{ fontWeight: 700, fontSize: "13px", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {p.company}{temp && <span style={{ marginLeft: "5px" }}>{temp.emoji}</span>}
         </div>
         <OwnerBadges team={team} prospect={p} />
       </div>
 
-      <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "8px", display: "flex", flexDirection: "column", gap: "4px" }}>
-        <KanbanRow label="Dernière activité" value={p.last_contact_at ? formatRelative(p.last_contact_at) : "Jamais"} />
-        <KanbanRow
-          label="Prochaine action"
-          value={nextTask ? `${nextTask.note}${nextTask.due_at ? ` (${formatShortDate(nextTask.due_at)})` : ""}` : p.next_contact_at ? `Relance le ${formatShortDate(p.next_contact_at)}` : "Aucune prévue"}
-        />
+      <div style={{ color: "var(--text-dim)", fontSize: "11.5px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+
+      <div className="mono" style={{ fontWeight: 700, fontSize: "15px", color: "var(--text)" }}>{formatEuros(p.deal_value)}</div>
+
+      <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>
+        {p.stage}{days !== null ? ` · il y a ${days} j` : ""}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "0.5px solid var(--hairline)", paddingTop: "8px" }}>
-        <span className="mono" style={{ background: "var(--panel2)", color: scoreColor, borderRadius: "999px", fontSize: "11px", fontWeight: 700, padding: "2px 8px" }}>
-          {score} %
-        </span>
-        <SparklesIcon size={12} color="var(--blue)" />
+      <div style={{ fontSize: "11.5px", color: action.color, fontWeight: 600, marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {action.dot} {action.text}
       </div>
     </button>
   );
 }
 
-function KanbanRow({ label, value }) {
+
+function ProspectSidePanel({ prospect, nextTask, onClose, onOpenFull }) {
+  const history = useProspectHistory(prospect.id);
+  const temp = prospectTemperature(prospect);
+  const action = nextActionInfo(prospect, nextTask);
+  const recentActivities = history.activities.slice(0, 3);
+  const recommendation = prospect.last_analysis?.recommendation || prospect.last_analysis?.next_action;
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", fontSize: "11px" }}>
-      <span style={{ color: "var(--text-faint)" }}>{label}</span>
-      <span style={{ color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</span>
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.25)", zIndex: 40 }} />
+      <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: "360px", maxWidth: "92vw", background: "var(--bg)", borderLeft: "0.5px solid var(--hairline)", boxShadow: "var(--shadow-md)", zIndex: 41, overflowY: "auto", padding: "20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
+          <div>
+            <div className="display" style={{ fontWeight: 700, fontSize: "16px" }}>{prospect.company}</div>
+            <div style={{ color: "var(--text-dim)", fontSize: "12.5px" }}>{prospect.name}</div>
+          </div>
+          <button className="focusable" onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "16px", padding: "2px" }}>✕</button>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
+          {temp && <span style={{ fontSize: "11px", fontWeight: 700, color: temp.color, background: temp.bg, borderRadius: "999px", padding: "3px 9px" }}>{temp.emoji} {temp.label}</span>}
+          <span className="mono" style={{ fontSize: "13px", fontWeight: 700 }}>{formatEuros(prospect.deal_value)}</span>
+          <span style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>· {prospect.stage}</span>
+        </div>
+
+        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px", marginBottom: "14px" }}>
+          <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.03em", marginBottom: "6px" }}>PROCHAINE ACTION</div>
+          <div style={{ fontSize: "13px", fontWeight: 600, color: action.color, marginBottom: nextTask ? "10px" : 0 }}>{action.dot} {action.text}</div>
+          {nextTask && (
+            <div style={{ display: "flex", gap: "6px" }}>
+              {prospect.phone && (
+                <a href={`tel:${prospect.phone}`} className="focusable" style={{ fontSize: "12px", fontWeight: 600, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "6px", padding: "6px 12px", textDecoration: "none" }}>
+                  Appeler
+                </a>
+              )}
+              <button className="focusable" onClick={onOpenFull} style={{ fontSize: "12px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "6px", padding: "6px 12px" }}>
+                Modifier
+              </button>
+            </div>
+          )}
+        </div>
+
+        {recommendation && (
+          <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2a3ed655", borderRadius: "10px", padding: "12px", marginBottom: "14px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "10px", fontWeight: 700, color: "var(--blue)", letterSpacing: "0.03em", marginBottom: "6px" }}>
+              <SparklesIcon size={11} color="var(--blue)" /> RECOMMANDATION CLOSIA
+            </div>
+            <div style={{ fontSize: "12.5px", color: "var(--text)", lineHeight: 1.5 }}>{recommendation}</div>
+          </div>
+        )}
+
+        <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.03em", marginBottom: "8px" }}>DERNIÈRES ACTIVITÉS</div>
+        {recentActivities.length === 0 ? (
+          <div style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "16px" }}>Aucune activité enregistrée.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "16px" }}>
+            {recentActivities.map((a) => (
+              <div key={a.id} style={{ fontSize: "12px", color: "var(--text-dim)" }}>
+                {ACTIVITY_LABEL[a.type] || a.type} · {formatShortDate(a.created_at)}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button className="focusable" onClick={onOpenFull} style={{ width: "100%", background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
+          Voir la fiche complète
+        </button>
+      </div>
+    </>
+  );
+}
+
+function OptimizePipelinePanel({ prospects, session, onOpenProspect, onClose }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null);
+
+  async function analyze() {
+    setLoading(true);
+    setError("");
+    try {
+      const now = new Date();
+      const atRisk = prospects.filter((p) => !p.last_contact_at || (now - new Date(p.last_contact_at)) / 86400000 >= 7);
+      const summary = prospects
+        .slice(0, 40)
+        .map((p) => `- ${p.name} (${p.company}) · ${p.stage} · ${formatEuros(p.deal_value || 0)} · dernier contact ${p.last_contact_at ? `${Math.floor((now - new Date(p.last_contact_at)) / 86400000)}j` : "jamais"}`)
+        .join("\n");
+      const prompt = `Tu es un coach commercial. Analyse ce pipeline et réponds UNIQUEMENT en JSON valide, format :
+{"at_risk_count": 0, "hot_count": 0, "cooling_count": 0, "proposal_value": 0, "priorities": [{"name": "...", "company": "...", "action": "..."}]}
+
+"priorities" liste au maximum 3 deals prioritaires (nom du contact, entreprise, action recommandée courte), classés par urgence/valeur. "proposal_value" est la somme approximative en euros des deals actuellement en phase de proposition/négociation, en te basant sur les montants listés.
+
+Pipeline (${prospects.length} opportunités ouvertes) :
+${summary}
+
+Opportunités sans activité depuis 7+ jours (${atRisk.length}) :
+${atRisk.slice(0, 15).map((p) => `- ${p.name} (${p.company}), ${formatEuros(p.deal_value || 0)}`).join("\n") || "Aucune."}`;
+      const raw = await callAI(prompt, session.access_token);
+      const parsed = parseJsonLoose(raw);
+      if (!parsed) throw new Error("parse_failed");
+      setResult(parsed);
+    } catch (e) {
+      setError(e.message && e.message !== "parse_failed" ? e.message : "L'analyse a échoué. Réessaie.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px", marginBottom: "16px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+        <span className="display" style={{ fontWeight: 700, fontSize: "13px" }}>Analyse de votre pipeline</span>
+        <button className="focusable" onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "13px" }}>✕</button>
+      </div>
+
+      {!result && (
+        <button className="focusable" onClick={analyze} disabled={loading} style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600, opacity: loading ? 0.6 : 1 }}>
+          <SparklesIcon size={13} color="#fff" /> {loading ? "Analyse..." : "Lancer l'analyse"}
+        </button>
+      )}
+      {error && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "8px" }}>{error}</div>}
+
+      {result && (
+        <>
+          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "14px" }}>
+            <span style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>{prospects.length} deals actifs</span>
+            <span style={{ fontSize: "12.5px", color: "var(--red)" }}>⚠ {result.at_risk_count} nécessitent une action</span>
+            <span style={{ fontSize: "12.5px", color: "#0ea968" }}>🔥 {result.hot_count} fort potentiel</span>
+            <span style={{ fontSize: "12.5px", color: "var(--blue)" }}>🧊 {result.cooling_count} refroidissent</span>
+            <span style={{ fontSize: "12.5px", color: "var(--gold-deep)" }}>💰 {formatEuros(result.proposal_value || 0)} en proposition</span>
+          </div>
+
+          <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.03em", marginBottom: "8px" }}>VOS PRIORITÉS</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {(result.priorities || []).map((pr, i) => {
+              const match = prospects.find((p) => p.name === pr.name && p.company === pr.company) || prospects.find((p) => p.company === pr.company);
+              return (
+                <button key={i} className="focusable" onClick={() => match && onOpenProspect(match.id)} style={{ textAlign: "left", background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px 12px", cursor: match ? "pointer" : "default" }}>
+                  <div style={{ fontSize: "12.5px", fontWeight: 600 }}>{i + 1}. {pr.name} <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>· {pr.company}</span></div>
+                  <div style={{ fontSize: "12px", color: "var(--blue)", marginTop: "2px" }}>{pr.action}</div>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }
