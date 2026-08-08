@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import Sidebar from "../components/Sidebar.jsx";
 import Today from "./Today.jsx";
-import Planning from "./Planning.jsx";
+import Agenda from "./Agenda.jsx";
 import Pipeline from "./Pipeline.jsx";
 import Assistant from "./Assistant.jsx";
 import Activities from "./Activities.jsx";
@@ -104,7 +104,7 @@ export default function Shell({ session, team, reloadTeam }) {
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       <div style={{ flex: 1, minWidth: 0 }}>
         {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} onOpenProspect={openProspect} settings={settings} />}
-        {activeTab === "planning" && <Planning prospects={prospects} session={session} onOpenProspect={openProspect} settings={settings} />}
+        {activeTab === "planning" && <Agenda prospects={prospects} session={session} onOpenProspect={openProspect} />}
         {(activeTab === "pipeline" || activeTab === "chauds" || activeTab === "a-sauver") && (
           <Pipeline
             prospects={prospects}

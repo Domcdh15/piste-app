@@ -12,7 +12,7 @@ const NAV_GROUPS = [
     section: "Pipeline commercial",
     items: [
       { key: "pipeline", label: "Pipeline", Icon: TargetIcon, color: NAV_COLOR },
-      { key: "planning", label: "Tâches & Agenda", Icon: CalendarIcon, color: NAV_COLOR },
+      { key: "planning", label: "Agenda", Icon: CalendarIcon, color: NAV_COLOR },
     ],
   },
   {

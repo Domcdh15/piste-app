@@ -117,7 +117,7 @@ function buildHistoryContext(history) {
   return parts.length > 0 ? parts.join("\n\n") : "Aucun échange précédent enregistré — premier contact.";
 }
 
-const TAB_LABELS = { today: "Aujourd'hui", planning: "Tâches & Agenda", assistant: "Assistant IA", activities: "Activités", integrations: "Intégrations", settings: "Paramètres", chauds: "Chauds", "a-sauver": "À sauver", equipe: "Équipe" };
+const TAB_LABELS = { today: "Aujourd'hui", planning: "Agenda", assistant: "Assistant IA", activities: "Activités", integrations: "Intégrations", settings: "Paramètres", chauds: "Chauds", "a-sauver": "À sauver", equipe: "Équipe" };
 
 export default function Pipeline({ prospects, loading, reload, session, initialSelectedId, onConsumeInitialSelection, initialShowForm, onConsumeInitialShowForm, initialTab, settings, returnTab, onBackToPrevious, team, presetFilter }) {
   const [showForm, setShowForm] = useState(!!initialShowForm);
