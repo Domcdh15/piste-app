@@ -21,6 +21,7 @@ import {
   formatShortDate,
   isOverdue,
   computeDealScore,
+  appendSignature,
 } from "../lib/ui.jsx";
 
 const TASK_TYPE_META = {
@@ -81,7 +82,20 @@ function computeAlerts(prospects, taches) {
   return alerts;
 }
 
-export default function Today({ prospects, setActiveTab, session, reload, onOpenProspect }) {
+function computeForgottenDeals(prospects) {
+  const now = new Date();
+  const open = prospects.filter((p) => !CLOSED_STAGES.includes(p.stage));
+  return open
+    .map((p) => {
+      const days = p.last_contact_at ? Math.floor((now - new Date(p.last_contact_at)) / 86400000) : 999;
+      return { prospect: p, days };
+    })
+    .filter((x) => x.days >= 5)
+    .sort((a, b) => (b.prospect.deal_value || 0) - (a.prospect.deal_value || 0) || b.days - a.days)
+    .slice(0, 3);
+}
+
+export default function Today({ prospects, setActiveTab, session, reload, onOpenProspect, settings }) {
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [tip, setTip] = useState("");
@@ -97,6 +111,7 @@ export default function Today({ prospects, setActiveTab, session, reload, onOpen
   const relancesList = prospects.filter((p) => p.status === "relancer");
   const opportunitesList = prospects.filter((p) => p.priority >= 75);
   const alerts = computeAlerts(prospects, taches);
+  const forgottenDeals = computeForgottenDeals(prospects);
   const nbAppels = appelsList.length;
   const nbRelances = relancesList.length;
   const nbRetard = prospects.filter((p) => p.status === "retard").length;
@@ -259,6 +274,8 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
       </div>
 
       <div style={{ padding: "28px 32px 48px" }}>
+        <ForgottenDealsBox deals={forgottenDeals} session={session} settings={settings} reload={reload} onOpen={onOpenProspect} />
+
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px", marginBottom: "14px", alignItems: "start" }}>
           <StatTile
             accent="var(--blue)"
@@ -518,6 +535,113 @@ function BriefAgendaRow({ item, prospect, onOpen, onToggleDone }) {
       <span className="mono" style={{ fontSize: "9px", fontWeight: 700, color: meta.color, background: meta.dim, borderRadius: "5px", padding: "3px 6px", whiteSpace: "nowrap", flexShrink: 0 }}>
         {meta.label}
       </span>
+    </div>
+  );
+}
+
+function ForgottenDealsBox({ deals, session, settings, reload, onOpen }) {
+  if (deals.length === 0) return null;
+  return (
+    <div style={{ background: "var(--red-dim)", border: "0.5px solid var(--red)55", borderRadius: "12px", padding: "18px", marginBottom: "18px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+        <AlertIcon size={15} color="var(--red)" />
+        <div className="display" style={{ fontWeight: 700, fontSize: "15px", color: "var(--text)" }}>Deals oubliés</div>
+        <span className="mono" style={{ background: "var(--red)", color: "#fff", borderRadius: "999px", fontSize: "11px", fontWeight: 700, padding: "2px 8px" }}>
+          {deals.length}
+        </span>
+      </div>
+      <div style={{ color: "var(--text-dim)", fontSize: "12px", marginBottom: "14px" }}>Ces opportunités n'ont eu aucune activité depuis au moins 5 jours — relancez-les avant qu'elles ne refroidissent.</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        {deals.map(({ prospect, days }) => (
+          <ForgottenDealCard key={prospect.id} prospect={prospect} days={days} session={session} settings={settings} reload={reload} onOpen={onOpen} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ForgottenDealCard({ prospect, days, session, settings, reload, onOpen }) {
+  const [loading, setLoading] = useState(false);
+  const [content, setContent] = useState("");
+  const [error, setError] = useState("");
+  const [sent, setSent] = useState(false);
+
+  async function relancerMaintenant() {
+    setLoading(true);
+    setError("");
+    try {
+      const prompt = `Tu es un assistant commercial. Rédige un email de relance très court (4 à 5 phrases maximum), professionnel mais chaleureux, en français, pour un prospect resté sans réponse depuis ${days} jours. Ne mets pas d'objet, uniquement le corps de l'email, termine par une formule de politesse simple (ex : "Bonne journée,"), sans nom ni signature.
+
+Nom du contact : ${prospect.name}
+Entreprise : ${prospect.company}
+Étape du pipeline : ${prospect.stage}
+Valeur de l'opportunité : ${formatEuros(prospect.deal_value || 0)}`;
+      const text = await callAI(prompt, session.access_token);
+      setContent(appendSignature(text, settings));
+    } catch (e) {
+      setError(e.message || "La génération a échoué. Réessaie.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function markAsSent() {
+    await supabase.from("emails_generes").insert({ user_id: session.user.id, prospect_id: prospect.id, type: "relance", content });
+    await supabase.from("prospects").update({ last_contact_at: new Date().toISOString() }).eq("id", prospect.id);
+    setSent(true);
+    reload?.();
+  }
+
+  function copy() {
+    navigator.clipboard?.writeText(content);
+  }
+
+  if (sent) {
+    return (
+      <div style={{ background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px 14px", fontSize: "12.5px", color: "#0ea968", display: "flex", alignItems: "center", gap: "8px" }}>
+        <CheckIcon size={13} color="#0ea968" /> Relance envoyée à <strong>{prospect.name}</strong>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px 14px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", marginBottom: content ? "10px" : 0 }}>
+        <button className="focusable" onClick={() => onOpen?.(prospect.id)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", minWidth: 0 }}>
+          <div className="display" style={{ fontWeight: 600, fontSize: "13px", color: "var(--text)" }}>{prospect.name} <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>· {prospect.company}</span></div>
+          <div style={{ fontSize: "11.5px", color: "var(--red)" }}>Aucune activité depuis {days} jour{days > 1 ? "s" : ""}</div>
+        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+          {prospect.deal_value > 0 && (
+            <span className="mono" style={{ fontSize: "12px", fontWeight: 700, color: "var(--gold-deep)", background: "var(--gold-dim)", borderRadius: "999px", padding: "3px 9px" }}>
+              {formatEuros(prospect.deal_value)}
+            </span>
+          )}
+          {!content && (
+            <button className="focusable" onClick={relancerMaintenant} disabled={loading} style={{ fontSize: "12px", fontWeight: 600, padding: "7px 12px", borderRadius: "7px", background: "var(--blue)", color: "#fff", border: "none", opacity: loading ? 0.7 : 1, whiteSpace: "nowrap" }}>
+            {loading ? "Génération..." : "Relancer maintenant"}
+          </button>
+          )}
+        </div>
+      </div>
+
+      {error && <div style={{ color: "var(--red)", fontSize: "12px" }}>{error}</div>}
+
+      {content && (
+        <div>
+          <div style={{ fontSize: "12.5px", color: "var(--text-dim)", whiteSpace: "pre-wrap", lineHeight: 1.5, background: "var(--panel)", borderRadius: "8px", padding: "10px 12px", marginBottom: "8px" }}>
+            {content}
+          </div>
+          <div style={{ display: "flex", gap: "6px" }}>
+            <button className="focusable" onClick={copy} style={{ fontSize: "11.5px", padding: "6px 10px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
+              Copier
+            </button>
+            <button className="focusable" onClick={markAsSent} style={{ fontSize: "11.5px", padding: "6px 10px", borderRadius: "6px", background: "#e2f7ec", color: "#0ea968", border: "0.5px solid #0ea96855" }}>
+              Marquer comme envoyée
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
