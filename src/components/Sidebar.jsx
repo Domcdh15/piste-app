@@ -1,34 +1,65 @@
-import { Logo, HomeIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIcon, PlugIcon, GearIcon } from "../lib/ui.jsx";
+import { Logo, HomeIcon, FlameIcon, AlertIcon, TargetIcon, UsersIcon, CalendarIcon, SparklesIcon, ListIcon, PlugIcon, GearIcon } from "../lib/ui.jsx";
 
 const NAV_COLOR = "#2a3ed6";
 const AI_COLOR = "#7c3aed";
+const HOT_COLOR = "#b8862e";
+const RISK_COLOR = "#dc2626";
 
-const NAV_GROUPS = [
-  {
-    section: null,
-    items: [{ key: "today", label: "Aujourd'hui", Icon: HomeIcon, color: NAV_COLOR }],
-  },
-  {
-    section: "Pipeline commercial",
-    items: [
-      { key: "pipeline", label: "Pipeline", Icon: TargetIcon, color: NAV_COLOR },
-      { key: "planning", label: "Tâches & Agenda", Icon: CalendarIcon, color: NAV_COLOR },
-    ],
-  },
-  {
-    section: "Suivi & IA",
-    items: [
-      { key: "assistant", label: "Assistant IA", Icon: SparklesIcon, color: AI_COLOR },
-      { key: "activities", label: "Activités", Icon: ListIcon, color: NAV_COLOR },
-    ],
-  },
-  {
-    section: "Configuration",
-    items: [{ key: "integrations", label: "Intégrations", Icon: PlugIcon, color: NAV_COLOR }],
-  },
+const PRIMARY_ITEMS = [
+  { key: "today", label: "Aujourd'hui", Icon: HomeIcon, color: NAV_COLOR },
+  { key: "chauds", label: "Chauds", Icon: FlameIcon, color: HOT_COLOR },
+  { key: "a-sauver", label: "À sauver", Icon: AlertIcon, color: RISK_COLOR },
+  { key: "pipeline", label: "Pipeline", Icon: TargetIcon, color: NAV_COLOR },
+  { key: "equipe", label: "Équipe", Icon: UsersIcon, color: NAV_COLOR },
+];
+
+const SECONDARY_ITEMS = [
+  { key: "planning", label: "Tâches & Agenda", Icon: CalendarIcon, color: NAV_COLOR },
+  { key: "assistant", label: "Assistant IA", Icon: SparklesIcon, color: AI_COLOR },
+  { key: "activities", label: "Activités", Icon: ListIcon, color: NAV_COLOR },
+  { key: "integrations", label: "Intégrations", Icon: PlugIcon, color: NAV_COLOR },
 ];
 
 const SETTINGS_COLOR = NAV_COLOR;
+
+function NavButton({ item, active, onClick, compact }) {
+  const Icon = item.Icon;
+  return (
+    <button
+      className="focusable"
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        padding: compact ? "6px 10px" : "7px 10px",
+        borderRadius: "9px",
+        fontSize: compact ? "12.5px" : "13.5px",
+        fontWeight: active ? 600 : 500,
+        background: active ? `${item.color}1c` : "transparent",
+        color: active ? item.color : "var(--text-dim)",
+        textAlign: "left",
+      }}
+    >
+      <span
+        style={{
+          width: compact ? "22px" : "26px",
+          height: compact ? "22px" : "26px",
+          borderRadius: "8px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          background: active ? item.color : `${item.color}17`,
+          boxShadow: active ? `0 2px 6px ${item.color}55` : "none",
+        }}
+      >
+        <Icon size={compact ? 13 : 15} color={active ? "#fff" : item.color} />
+      </span>
+      {item.label}
+    </button>
+  );
+}
 
 export default function Sidebar({ activeTab, setActiveTab }) {
   return (
@@ -56,57 +87,17 @@ export default function Sidebar({ activeTab, setActiveTab }) {
         </div>
       </div>
 
-      <nav style={{ display: "flex", flexDirection: "column", gap: "18px", flex: 1 }}>
-        {NAV_GROUPS.map((group, i) => (
-          <div key={i}>
-            {group.section && (
-              <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.04em", textTransform: "uppercase", padding: "0 10px 6px" }}>
-                {group.section}
-              </div>
-            )}
-            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-              {group.items.map((item) => {
-                const active = activeTab === item.key;
-                const Icon = item.Icon;
-                return (
-                  <button
-                    key={item.key}
-                    className="focusable"
-                    onClick={() => setActiveTab(item.key)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      padding: "7px 10px",
-                      borderRadius: "9px",
-                      fontSize: "13.5px",
-                      fontWeight: active ? 600 : 500,
-                      background: active ? `${item.color}1c` : "transparent",
-                      color: active ? item.color : "var(--text-dim)",
-                      textAlign: "left",
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: "26px",
-                        height: "26px",
-                        borderRadius: "8px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                        background: active ? item.color : `${item.color}17`,
-                        boxShadow: active ? `0 2px 6px ${item.color}55` : "none",
-                      }}
-                    >
-                      <Icon size={15} color={active ? "#fff" : item.color} />
-                    </span>
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+      <nav style={{ display: "flex", flexDirection: "column", gap: "2px", marginBottom: "18px" }}>
+        {PRIMARY_ITEMS.map((item) => (
+          <NavButton key={item.key} item={item} active={activeTab === item.key} onClick={() => setActiveTab(item.key)} />
+        ))}
+      </nav>
+
+      <div style={{ height: "0.5px", background: "var(--hairline)", margin: "0 10px 14px" }} />
+
+      <nav style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1 }}>
+        {SECONDARY_ITEMS.map((item) => (
+          <NavButton key={item.key} item={item} active={activeTab === item.key} onClick={() => setActiveTab(item.key)} compact />
         ))}
       </nav>
 

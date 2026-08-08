@@ -21,6 +21,7 @@ import {
   formatShortDate,
   isOverdue,
   computeDealScore,
+  computeAtRiskDeals,
   appendSignature,
 } from "../lib/ui.jsx";
 
@@ -82,19 +83,6 @@ function computeAlerts(prospects, taches) {
   return alerts;
 }
 
-function computeForgottenDeals(prospects) {
-  const now = new Date();
-  const open = prospects.filter((p) => !CLOSED_STAGES.includes(p.stage));
-  return open
-    .map((p) => {
-      const days = p.last_contact_at ? Math.floor((now - new Date(p.last_contact_at)) / 86400000) : 999;
-      return { prospect: p, days };
-    })
-    .filter((x) => x.days >= 5)
-    .sort((a, b) => (b.prospect.deal_value || 0) - (a.prospect.deal_value || 0) || b.days - a.days)
-    .slice(0, 3);
-}
-
 export default function Today({ prospects, setActiveTab, session, reload, onOpenProspect, settings }) {
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(true);
@@ -111,7 +99,7 @@ export default function Today({ prospects, setActiveTab, session, reload, onOpen
   const relancesList = prospects.filter((p) => p.status === "relancer");
   const opportunitesList = prospects.filter((p) => p.priority >= 75);
   const alerts = computeAlerts(prospects, taches);
-  const forgottenDeals = computeForgottenDeals(prospects);
+  const forgottenDeals = computeAtRiskDeals(prospects).slice(0, 3);
   const nbAppels = appelsList.length;
   const nbRelances = relancesList.length;
   const nbRetard = prospects.filter((p) => p.status === "retard").length;

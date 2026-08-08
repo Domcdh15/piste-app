@@ -4,6 +4,8 @@ import {
   STATUS_META,
   STAGE_META,
   computeDealScore,
+  computeHotProspects,
+  computeAtRiskDeals,
   formatRelative,
   SCRIPT_SECTIONS,
   OPEN_STAGES,
@@ -116,9 +118,9 @@ function buildHistoryContext(history) {
   return parts.length > 0 ? parts.join("\n\n") : "Aucun échange précédent enregistré — premier contact.";
 }
 
-const TAB_LABELS = { today: "Aujourd'hui", planning: "Tâches & Agenda", assistant: "Assistant IA", activities: "Activités", integrations: "Intégrations", settings: "Paramètres" };
+const TAB_LABELS = { today: "Aujourd'hui", planning: "Tâches & Agenda", assistant: "Assistant IA", activities: "Activités", integrations: "Intégrations", settings: "Paramètres", chauds: "Chauds", "a-sauver": "À sauver", equipe: "Équipe" };
 
-export default function Pipeline({ prospects, loading, reload, session, initialSelectedId, onConsumeInitialSelection, initialShowForm, onConsumeInitialShowForm, initialTab, settings, returnTab, onBackToPrevious, team }) {
+export default function Pipeline({ prospects, loading, reload, session, initialSelectedId, onConsumeInitialSelection, initialShowForm, onConsumeInitialShowForm, initialTab, settings, returnTab, onBackToPrevious, team, presetFilter }) {
   const [showForm, setShowForm] = useState(!!initialShowForm);
   const [form, setForm] = useState({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", email: "", phone: "", stage: "À contacter", status: "attente", priority: 50, deal_value: "" });
   const [saving, setSaving] = useState(false);
@@ -208,11 +210,20 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
 
   const selected = prospects.find((p) => p.id === selectedId);
   const q = search.trim().toLowerCase();
+  const presetIds =
+    presetFilter === "chauds"
+      ? new Set(computeHotProspects(prospects).map((p) => p.id))
+      : presetFilter === "a-sauver"
+      ? new Set(computeAtRiskDeals(prospects).map((x) => x.prospect.id))
+      : null;
   const visibleProspects = prospects
+    .filter((p) => !presetIds || presetIds.has(p.id))
     .filter((p) => stageFilter === "Toutes" || p.stage === stageFilter)
     .filter((p) => statusFilter === "Tous" || p.status === statusFilter)
     .filter((p) => !q || p.name.toLowerCase().includes(q) || p.company.toLowerCase().includes(q));
   const combinedList = sortList(visibleProspects);
+  const priorityLabel =
+    presetFilter === "chauds" ? "PROSPECTS CHAUDS" : presetFilter === "a-sauver" ? "DEALS À SAUVER" : "FILE DE PRIORITÉ";
 
   if (selected) {
     return (
@@ -236,7 +247,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
     <div style={{ padding: "28px 32px 48px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "12px", flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div className="display" style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.06em", color: "var(--text-dim)", whiteSpace: "nowrap" }}>FILE DE PRIORITÉ</div>
+          <div className="display" style={{ fontWeight: 700, fontSize: "13px", letterSpacing: "0.06em", color: "var(--text-dim)", whiteSpace: "nowrap" }}>{priorityLabel}</div>
           <div style={{ display: "flex", gap: "4px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
             <button className="focusable" onClick={() => setViewMode("table")} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: viewMode === "table" ? "var(--bg)" : "transparent", color: viewMode === "table" ? "var(--blue)" : "var(--text-dim)", boxShadow: viewMode === "table" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
               <TableIcon size={13} color={viewMode === "table" ? "var(--blue)" : "var(--text-dim)"} /> Tableau

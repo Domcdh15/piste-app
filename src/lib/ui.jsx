@@ -119,6 +119,24 @@ export function computeDealScore(p) {
   return Math.max(5, Math.min(100, Math.round(score)));
 }
 
+export function computeHotProspects(prospects) {
+  const now = new Date();
+  return prospects.filter((p) => {
+    if (CLOSED_STAGES.includes(p.stage)) return false;
+    const recentlyContacted = p.last_contact_at && (now - new Date(p.last_contact_at)) / 86400000 <= 3;
+    return recentlyContacted && computeDealScore(p) >= 70;
+  });
+}
+
+export function computeAtRiskDeals(prospects) {
+  const now = new Date();
+  return prospects
+    .filter((p) => !CLOSED_STAGES.includes(p.stage))
+    .map((p) => ({ prospect: p, days: p.last_contact_at ? Math.floor((now - new Date(p.last_contact_at)) / 86400000) : 999 }))
+    .filter((x) => x.days >= 5)
+    .sort((a, b) => (b.prospect.deal_value || 0) - (a.prospect.deal_value || 0) || b.days - a.days);
+}
+
 export function formatRelative(d) {
   if (!d) return null;
   const diffDays = Math.floor((new Date() - new Date(d)) / 86400000);

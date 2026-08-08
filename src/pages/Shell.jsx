@@ -8,6 +8,7 @@ import Assistant from "./Assistant.jsx";
 import Activities from "./Activities.jsx";
 import Settings from "./Settings.jsx";
 import Integrations from "./Integrations.jsx";
+import EquipePage from "./EquipePage.jsx";
 
 export default function Shell({ session, team, reloadTeam }) {
   const [activeTab, setActiveTab] = useState("today");
@@ -86,7 +87,7 @@ export default function Shell({ session, team, reloadTeam }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} onOpenProspect={openProspect} settings={settings} />}
         {activeTab === "planning" && <Planning prospects={prospects} session={session} onOpenProspect={openProspect} settings={settings} />}
-        {activeTab === "pipeline" && (
+        {(activeTab === "pipeline" || activeTab === "chauds" || activeTab === "a-sauver") && (
           <Pipeline
             prospects={prospects}
             loading={loading}
@@ -101,12 +102,14 @@ export default function Shell({ session, team, reloadTeam }) {
             returnTab={returnTab}
             onBackToPrevious={backFromPipeline}
             team={team}
+            presetFilter={activeTab === "chauds" ? "chauds" : activeTab === "a-sauver" ? "a-sauver" : null}
           />
         )}
         {activeTab === "assistant" && <Assistant session={session} prospects={prospects} onOpenProspect={openProspect} settings={settings} />}
         {activeTab === "activities" && <Activities prospects={prospects} onOpenProspect={openProspect} session={session} team={team} />}
         {activeTab === "settings" && <Settings session={session} prospects={prospects} settings={settings} reloadSettings={loadSettings} team={team} reloadTeam={reloadTeam} />}
         {activeTab === "integrations" && <Integrations session={session} />}
+        {activeTab === "equipe" && <EquipePage session={session} team={team} reloadTeam={reloadTeam} />}
       </div>
     </div>
   );
