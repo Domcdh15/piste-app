@@ -1541,7 +1541,7 @@ function Modal({ children, onClose }) {
 }
 
 function ProspectOwnersReadout({ team, prospect }) {
-  if (!team || (team.members || []).length <= 1) return null;
+  if (!team) return null;
   const memberLabel = (id) => {
     const m = (team.members || []).find((x) => x.user_id === id);
     if (!m) return null;
