@@ -345,13 +345,19 @@ function TaskRow({ t, prospect, onToggle, onRemove, onOpen, justDone, selected, 
 
       {prospect ? (
         <button className="focusable" onClick={() => onOpen?.(prospect.id)} style={{ flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}>
-          <div style={{ fontSize: "13px", fontWeight: 500, textDecoration: t.done ? "line-through" : "none", color: "var(--text)" }}>{t.note}</div>
+          <div style={{ fontSize: "13px", fontWeight: 500, textDecoration: t.done && !t.missed ? "line-through" : "none", color: "var(--text)" }}>{t.note}</div>
           <div style={{ fontSize: "11px", color: "var(--blue)" }}>{prospect.name} · {prospect.company}</div>
         </button>
       ) : (
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: "13px", fontWeight: 500, textDecoration: t.done ? "line-through" : "none" }}>{t.note}</div>
+          <div style={{ fontSize: "13px", fontWeight: 500, textDecoration: t.done && !t.missed ? "line-through" : "none" }}>{t.note}</div>
         </div>
+      )}
+
+      {t.missed && (
+        <span style={{ fontSize: "10px", fontWeight: 700, color: "var(--red)", background: "var(--red-dim, #fbe7e7)", borderRadius: "5px", padding: "3px 7px", whiteSpace: "nowrap" }}>
+          Oubliée
+        </span>
       )}
 
       <span className="mono" style={{ fontSize: "10px", fontWeight: 700, color: priorityColor.color, background: priorityColor.dim, borderRadius: "5px", padding: "3px 7px", whiteSpace: "nowrap" }}>

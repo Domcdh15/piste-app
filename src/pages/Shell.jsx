@@ -58,7 +58,25 @@ export default function Shell({ session, team, reloadTeam }) {
   async function rolloverOverdueTasks() {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
-    await supabase.from("tasks").update({ due_at: startOfToday.toISOString() }).eq("done", false).lt("due_at", startOfToday.toISOString());
+    const { data: overdue } = await supabase.from("tasks").select("*").eq("done", false).eq("missed", false).lt("due_at", startOfToday.toISOString());
+    if (!overdue || overdue.length === 0) return;
+
+    const tomorrow8h = new Date(startOfToday);
+    tomorrow8h.setDate(tomorrow8h.getDate() + 1);
+    tomorrow8h.setHours(8, 0, 0, 0);
+
+    for (const t of overdue) {
+      await supabase.from("tasks").update({ missed: true, done: true }).eq("id", t.id);
+      const note = t.note?.startsWith("Tâche oubliée : ") ? t.note : `Tâche oubliée : ${t.note}`;
+      await supabase.from("tasks").insert({
+        user_id: t.user_id,
+        prospect_id: t.prospect_id,
+        type: t.type,
+        note,
+        due_at: tomorrow8h.toISOString(),
+        priority: t.priority,
+      });
+    }
   }
 
   useEffect(() => {
