@@ -622,7 +622,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
             <ProspectOwnersReadout team={team} prospect={prospect} />
           </div>
 
-          <PipelineStepper stage={prospect.stage} />
+          <PipelineStepper stage={prospect.stage} onChange={handleStageChange} />
 
           {(prospect.email || prospect.phone || prospect.linkedin_url) && (
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -688,27 +688,14 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
                 onSave={(changes) => onUpdate(changes)}
                 onCancel={() => setShowEdit(false)}
               />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                <div>
-                  <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>STATUT</div>
-                  <select value={prospect.status} onChange={(e) => onUpdate({ status: e.target.value })} style={{ ...selectStyle, width: "100%" }}>
-                    <option value="appeler">À appeler</option>
-                    <option value="relancer">À relancer</option>
-                    <option value="attente">En attente</option>
-                    <option value="retard">En retard</option>
-                  </select>
-                </div>
-                <div>
-                  <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>ÉTAPE</div>
-                  <select value={prospect.stage} onChange={(e) => handleStageChange(e.target.value)} style={{ ...selectStyle, width: "100%" }}>
-                    <optgroup label="En cours">
-                      {OPEN_STAGES.map((s) => <option key={s}>{s}</option>)}
-                    </optgroup>
-                    <optgroup label="Clôturé">
-                      {CLOSED_STAGES.map((s) => <option key={s}>{s}</option>)}
-                    </optgroup>
-                  </select>
-                </div>
+              <div>
+                <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>STATUT</div>
+                <select value={prospect.status} onChange={(e) => onUpdate({ status: e.target.value })} style={{ ...selectStyle, width: "100%" }}>
+                  <option value="appeler">À appeler</option>
+                  <option value="relancer">À relancer</option>
+                  <option value="attente">En attente</option>
+                  <option value="retard">En retard</option>
+                </select>
               </div>
               <div>
                 <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>PROCHAIN CONTACT</div>
@@ -738,7 +725,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
         <div style={{ minWidth: 0 }}>
           <NextActionCard prospect={prospect} refreshKey={taskVersion} onOpenTab={setTab} />
 
-          <NoteAnalyzer prospect={prospect} history={history} session={session} onLogActivity={onLogActivity} onUpdate={onUpdate} settings={settings} onTaskCreated={bumpTasks} />
+          <NoteAnalyzer prospect={prospect} history={history} session={session} onLogActivity={onLogActivity} onUpdate={onUpdate} settings={settings} onTaskCreated={bumpTasks} onOpenTab={setTab} />
 
           <OpportunityAI prospect={prospect} history={history} session={session} onUpdate={onUpdate} />
 
@@ -776,26 +763,36 @@ function prospectTemperature(p) {
   return null;
 }
 
-function PipelineStepper({ stage }) {
-  if (CLOSED_STAGES.includes(stage)) {
-    const won = stage === "Gagné";
-    return (
-      <span style={{ display: "inline-flex", alignSelf: "flex-start", fontSize: "12px", fontWeight: 700, color: won ? "#0ea968" : "var(--text-faint)", background: won ? "#e2f7ec" : "var(--panel2)", borderRadius: "999px", padding: "5px 12px" }}>
-        {won ? "🏆 Gagné" : "Perdu"}
-      </span>
-    );
-  }
+function PipelineStepper({ stage, onChange }) {
+  const closed = CLOSED_STAGES.includes(stage);
   const currentIndex = OPEN_STAGES.indexOf(stage);
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-      {OPEN_STAGES.map((s, i) => (
-        <div key={s} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ width: "8px", height: "8px", borderRadius: "50%", flexShrink: 0, background: i <= currentIndex ? "var(--blue)" : "var(--hairline-strong, var(--hairline))" }} />
-          <span style={{ fontSize: "11.5px", fontWeight: i === currentIndex ? 700 : 500, color: i === currentIndex ? "var(--blue)" : i < currentIndex ? "var(--text-dim)" : "var(--text-faint)" }}>
-            {s}
-          </span>
+    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      {!closed && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+          {OPEN_STAGES.map((s, i) => (
+            <div key={s} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ width: "8px", height: "8px", borderRadius: "50%", flexShrink: 0, background: i <= currentIndex ? "var(--blue)" : "var(--hairline-strong, var(--hairline))" }} />
+              <span style={{ fontSize: "11.5px", fontWeight: i === currentIndex ? 700 : 500, color: i === currentIndex ? "var(--blue)" : i < currentIndex ? "var(--text-dim)" : "var(--text-faint)" }}>
+                {s}
+              </span>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
+      {closed && (
+        <span style={{ display: "inline-flex", alignSelf: "flex-start", fontSize: "12px", fontWeight: 700, color: stage === "Gagné" ? "#0ea968" : "var(--text-faint)", background: stage === "Gagné" ? "#e2f7ec" : "var(--panel2)", borderRadius: "999px", padding: "5px 12px" }}>
+          {stage === "Gagné" ? "🏆 Gagné" : "Perdu"}
+        </span>
+      )}
+      <select value={stage} onChange={(e) => onChange(e.target.value)} style={{ ...selectStyle, width: "100%" }}>
+        <optgroup label="En cours">
+          {OPEN_STAGES.map((s) => <option key={s}>{s}</option>)}
+        </optgroup>
+        <optgroup label="Clôturé">
+          {CLOSED_STAGES.map((s) => <option key={s}>{s}</option>)}
+        </optgroup>
+      </select>
     </div>
   );
 }
@@ -897,7 +894,7 @@ function mentionsRdv(actionType, text) {
   return actionType === "rdv_physique" || actionType === "appel_visio" || RDV_KEYWORDS.test(text);
 }
 
-function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate, settings, onTaskCreated }) {
+function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate, settings, onTaskCreated, onOpenTab }) {
   const [actionType, setActionType] = useState("appel_abouti");
   const [note, setNote] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
@@ -911,6 +908,8 @@ function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate, set
   const [showModal, setShowModal] = useState(false);
   const [rdvPrompt, setRdvPrompt] = useState(null);
   const [rdvSaving, setRdvSaving] = useState(false);
+  const [followUpPrompt, setFollowUpPrompt] = useState(false);
+  const [followUpSaving, setFollowUpSaving] = useState(false);
 
   async function saveNote() {
     if (saving) return;
@@ -926,6 +925,8 @@ function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate, set
           date: "",
           time: settings?.default_task_time || "17:00",
         });
+      } else {
+        setFollowUpPrompt(true);
       }
       setNote("");
       setSaved(true);
@@ -952,6 +953,29 @@ function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate, set
     setRdvSaving(false);
     setRdvPrompt(null);
     onTaskCreated?.();
+  }
+
+  async function createFollowUpTask() {
+    if (followUpSaving) return;
+    setFollowUpSaving(true);
+    const time = settings?.default_task_time || "17:00";
+    const due = new Date();
+    due.setDate(due.getDate() + 1);
+    await supabase.from("tasks").insert({
+      user_id: session.user.id,
+      prospect_id: prospect.id,
+      type: "appel_telephone",
+      note: `Relancer ${prospect.name} suite à la note du ${new Date().toLocaleDateString("fr-FR")}`,
+      due_at: new Date(`${due.toISOString().slice(0, 10)}T${time}`).toISOString(),
+    });
+    setFollowUpSaving(false);
+    setFollowUpPrompt(false);
+    onTaskCreated?.();
+  }
+
+  function openEmailTool() {
+    setFollowUpPrompt(false);
+    onOpenTab?.("email");
   }
 
   async function improveWithAI() {
@@ -1101,6 +1125,25 @@ ${buildHistoryContext(history)}`;
               {rdvSaving ? "Création..." : "Créer la tâche"}
             </button>
             <button className="focusable" onClick={() => setRdvPrompt(null)} style={{ background: "transparent", color: "var(--gold-deep)", border: "none", fontSize: "12.5px", padding: "8px 4px" }}>
+              Ignorer
+            </button>
+          </div>
+        </div>
+      )}
+
+      {followUpPrompt && (
+        <div style={{ marginTop: "10px", background: "var(--blue-dim)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "12px" }}>
+          <div style={{ fontSize: "12.5px", color: "var(--blue)", fontWeight: 600, marginBottom: "8px" }}>
+            Note enregistrée — prochaine étape ?
+          </div>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            <button className="focusable" onClick={createFollowUpTask} disabled={followUpSaving} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "8px 14px", fontSize: "12.5px", opacity: followUpSaving ? 0.6 : 1 }}>
+              {followUpSaving ? "Création..." : "Créer une tâche de suivi (demain)"}
+            </button>
+            <button className="focusable" onClick={openEmailTool} style={{ background: "var(--panel)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "8px 14px", fontSize: "12.5px" }}>
+              Générer un email
+            </button>
+            <button className="focusable" onClick={() => setFollowUpPrompt(false)} style={{ background: "transparent", color: "var(--blue)", border: "none", fontSize: "12.5px", padding: "8px 4px" }}>
               Ignorer
             </button>
           </div>
