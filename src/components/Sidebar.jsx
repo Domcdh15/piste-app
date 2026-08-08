@@ -1,31 +1,34 @@
 import { Logo, HomeIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIcon, PlugIcon, GearIcon } from "../lib/ui.jsx";
 
+const NAV_COLOR = "#2a3ed6";
+const AI_COLOR = "#7c3aed";
+
 const NAV_GROUPS = [
   {
     section: null,
-    items: [{ key: "today", label: "Aujourd'hui", Icon: HomeIcon, color: "#2a3ed6" }],
+    items: [{ key: "today", label: "Aujourd'hui", Icon: HomeIcon, color: NAV_COLOR }],
   },
   {
     section: "Pipeline commercial",
     items: [
-      { key: "pipeline", label: "Pipeline", Icon: TargetIcon, color: "#1d4ed8" },
-      { key: "planning", label: "Tâches & Agenda", Icon: CalendarIcon, color: "#0ea5e9" },
+      { key: "pipeline", label: "Pipeline", Icon: TargetIcon, color: NAV_COLOR },
+      { key: "planning", label: "Tâches & Agenda", Icon: CalendarIcon, color: NAV_COLOR },
     ],
   },
   {
     section: "Suivi & IA",
     items: [
-      { key: "assistant", label: "Assistant IA", Icon: SparklesIcon, color: "#3b82f6" },
-      { key: "activities", label: "Activités", Icon: ListIcon, color: "#0284c7" },
+      { key: "assistant", label: "Assistant IA", Icon: SparklesIcon, color: AI_COLOR },
+      { key: "activities", label: "Activités", Icon: ListIcon, color: NAV_COLOR },
     ],
   },
   {
     section: "Configuration",
-    items: [{ key: "integrations", label: "Intégrations", Icon: PlugIcon, color: "#1e40af" }],
+    items: [{ key: "integrations", label: "Intégrations", Icon: PlugIcon, color: NAV_COLOR }],
   },
 ];
 
-const SETTINGS_COLOR = "#0369a1";
+const SETTINGS_COLOR = NAV_COLOR;
 
 export default function Sidebar({ activeTab, setActiveTab }) {
   return (

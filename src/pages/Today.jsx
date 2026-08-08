@@ -244,16 +244,25 @@ ${ranked.map((p, i) => `${i + 1}. ${p.name} (${p.company}) — étape: ${p.stage
     <div>
       <div
         style={{
-          background: "linear-gradient(135deg, #3b6cff, #1631a8)",
+          background: "linear-gradient(135deg, #4d5eea, #16209e)",
           color: "#fff",
           padding: "32px 32px 30px",
           position: "relative",
           overflow: "hidden",
         }}
       >
-        <div style={{ position: "absolute", top: "-60px", right: "-40px", width: "220px", height: "220px", borderRadius: "50%", background: "rgba(255,255,255,0.08)" }} />
-        <div style={{ position: "absolute", bottom: "-90px", right: "180px", width: "180px", height: "180px", borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
-        <div style={{ position: "absolute", top: "20px", left: "-50px", width: "140px", height: "140px", borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
+        <svg viewBox="0 0 500 200" preserveAspectRatio="none" aria-hidden="true" style={{ position: "absolute", top: 0, right: 0, width: "60%", height: "100%", opacity: 0.5 }}>
+          <path d="M -20 210 C 100 210 140 130 220 110 C 300 90 320 30 460 -20" stroke="url(#todayMomentum)" strokeWidth="2" fill="none" strokeDasharray="1 9" strokeLinecap="round" />
+          <circle cx="140" cy="150" r="3" fill="rgba(255,255,255,0.4)" />
+          <circle cx="280" cy="80" r="4" fill="rgba(255,255,255,0.65)" />
+          <circle cx="420" cy="10" r="6" fill="var(--gold, #b8862e)" />
+          <defs>
+            <linearGradient id="todayMomentum" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stopColor="rgba(255,255,255,0.15)" />
+              <stop offset="1" stopColor="var(--gold, #b8862e)" />
+            </linearGradient>
+          </defs>
+        </svg>
 
         <div style={{ position: "relative" }}>
           <div className="display" style={{ fontWeight: 700, fontSize: "32px", display: "flex", alignItems: "center", gap: "10px" }}>
