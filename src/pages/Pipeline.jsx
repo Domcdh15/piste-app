@@ -713,7 +713,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
       <CoachingCard prospect={prospect} history={history} session={session} />
 
       <div style={{ display: "flex", gap: "4px", marginBottom: "16px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
-        {[["email", "Email"], ["script", "Script"], ["analyse", "Analyse"], ["taches", "Tâches"]].map(([key, label]) => (
+        {[["email", "Email"], ["script", "Script"], ["analyse", "Analyse"], ["taches", "Tâches"], ["devis", "Devis"]].map(([key, label]) => (
           <button key={key} className="focusable" onClick={() => setTab(key)} style={{ flex: 1, padding: "7px 6px", borderRadius: "6px", fontSize: "11px", fontWeight: 500, background: tab === key ? "var(--hairline)" : "transparent", color: tab === key ? "var(--text)" : "var(--text-dim)" }}>
             {label}
           </button>
@@ -725,6 +725,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
         {tab === "script" && <ScriptGenerator prospect={prospect} history={history} session={session} />}
         {tab === "analyse" && <AnalyseGenerator prospect={prospect} history={history} session={session} />}
         {tab === "taches" && <TasksTab prospect={prospect} session={session} settings={settings} />}
+        {tab === "devis" && <DevisGenerator prospect={prospect} history={history} session={session} settings={settings} />}
       </div>
 
       <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "18px" }}>
@@ -1259,7 +1260,7 @@ function Historique({ history }) {
   if (history.loading) return <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Chargement...</div>;
 
   const items = [
-    ...history.emails.map((x) => ({ ...x, kind: "Email", filterKey: "IA" })),
+    ...history.emails.map((x) => ({ ...x, kind: x.type === "devis" ? "Devis" : "Email", filterKey: "IA" })),
     ...history.scripts.map((x) => ({ ...x, kind: `Script — ${x.section}`, filterKey: "IA" })),
     ...history.analyses.map((x) => ({ ...x, kind: "Analyse", filterKey: "IA" })),
     ...history.activities.map((x) => ({ ...x, kind: ACTIVITY_LABEL[x.type] || x.type, content: x.note || "", filterKey: HISTORIQUE_FILTER_BY_TYPE[x.type] || "Notes" })),
@@ -1491,6 +1492,79 @@ ${buildHistoryContext(history)}`;
         </Modal>
       )}
     </>
+  );
+}
+
+function DevisGenerator({ prospect, history, session, settings }) {
+  const [items, setItems] = useState([{ description: "", qty: 1, unitPrice: prospect.deal_value || 0 }]);
+  const [content, setContent] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const total = items.reduce((sum, it) => sum + (Number(it.qty) || 0) * (Number(it.unitPrice) || 0), 0);
+
+  function updateItem(i, patch) {
+    setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+  }
+  function addItem() {
+    setItems((prev) => [...prev, { description: "", qty: 1, unitPrice: 0 }]);
+  }
+  function removeItem(i) {
+    setItems((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  async function generateWithAI() {
+    const validItems = items.filter((it) => it.description.trim());
+    if (validItems.length === 0) return;
+    setLoading(true);
+    setError("");
+    try {
+      const lines = validItems.map((it) => `- ${it.description} — quantité : ${it.qty} — prix unitaire : ${formatEuros(it.unitPrice)} — sous-total : ${formatEuros((Number(it.qty) || 0) * (Number(it.unitPrice) || 0))}`).join("\n");
+      const prompt = `Tu es un assistant commercial. Rédige un devis professionnel en français, prêt à être envoyé par email, pour ce client. Structure : une phrase d'introduction personnalisée, le détail des lignes du devis reprises telles quelles (description, quantité, prix unitaire, sous-total), le total général, une mention de validité de l'offre (30 jours), et une formule de politesse simple pour conclure — sans nom ni signature, elle sera ajoutée automatiquement. Ne mets pas d'objet d'email.
+
+Client : ${prospect.name}${prospect.job_title ? `, ${prospect.job_title}` : ""}
+Entreprise : ${prospect.company}
+
+Lignes du devis :
+${lines}
+
+Total général : ${formatEuros(total)}`;
+      const text = await callAI(prompt, session.access_token);
+      setContent(appendSignature(text, settings));
+    } catch (e) {
+      setError(e.message || "La génération a échoué. Réessaie.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function save() {
+    await supabase.from("emails_generes").insert({ user_id: session.user.id, prospect_id: prospect.id, type: "devis", content });
+    history.reload();
+  }
+
+  return (
+    <div>
+      <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginBottom: "8px" }}>LIGNES DU DEVIS</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "10px" }}>
+        {items.map((it, i) => (
+          <div key={i} style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+            <input placeholder="Description" value={it.description} onChange={(e) => updateItem(i, { description: e.target.value })} style={{ ...inputStyle, flex: 1 }} />
+            <input type="number" min="1" placeholder="Qté" value={it.qty} onChange={(e) => updateItem(i, { qty: e.target.value })} style={{ ...inputStyle, width: "60px" }} />
+            <input type="number" min="0" placeholder="Prix unitaire (€)" value={it.unitPrice} onChange={(e) => updateItem(i, { unitPrice: e.target.value })} style={{ ...inputStyle, width: "120px" }} />
+            <button className="focusable" onClick={() => removeItem(i)} disabled={items.length === 1} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "13px", padding: "0 4px", opacity: items.length === 1 ? 0.3 : 1 }}>✕</button>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+        <button className="focusable" onClick={addItem} style={{ fontSize: "12px", padding: "6px 10px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
+          + Ajouter une ligne
+        </button>
+        <div style={{ fontSize: "13px", fontWeight: 700 }}>Total : {formatEuros(total)}</div>
+      </div>
+
+      <GeneratorBlock label="Générer le devis avec l'IA" loading={loading} error={error} content={content} setContent={setContent} onGenerate={generateWithAI} onSave={save} />
+    </div>
   );
 }
 
