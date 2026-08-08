@@ -61,7 +61,8 @@ export default function Shell({ session, team, reloadTeam }) {
     const { data: overdue } = await supabase.from("tasks").select("*").eq("done", false).eq("missed", false).lt("due_at", startOfToday.toISOString());
     if (!overdue || overdue.length === 0) return;
 
-    const { data: userSettings } = await supabase.from("user_settings").select("work_days").eq("user_id", session.user.id).maybeSingle();
+    const { data: userSettings } = await supabase.from("user_settings").select("work_days, auto_reschedule_missed_tasks").eq("user_id", session.user.id).maybeSingle();
+    if (userSettings?.auto_reschedule_missed_tasks === false) return;
     const workDays = userSettings?.work_days || ["Lun", "Mar", "Mer", "Jeu", "Ven"];
     const DAY_CODES = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 
@@ -112,7 +113,7 @@ export default function Shell({ session, team, reloadTeam }) {
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       <div style={{ flex: 1, minWidth: 0 }}>
         {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} onOpenProspect={openProspect} settings={settings} />}
-        {activeTab === "planning" && <Agenda prospects={prospects} session={session} onOpenProspect={openProspect} />}
+        {activeTab === "planning" && <Agenda prospects={prospects} session={session} onOpenProspect={openProspect} settings={settings} />}
         {(activeTab === "pipeline" || activeTab === "chauds" || activeTab === "a-sauver") && (
           <Pipeline
             prospects={prospects}

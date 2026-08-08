@@ -92,8 +92,8 @@ function rangeLabel(view, refDate) {
   return `${s.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} – ${e.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}`;
 }
 
-export default function Agenda({ prospects, session, onOpenProspect }) {
-  const [view, setView] = useState("Liste");
+export default function Agenda({ prospects, session, onOpenProspect, settings }) {
+  const [view, setView] = useState(settings?.agenda_default_view || "Liste");
   const [refDate, setRefDate] = useState(new Date());
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);

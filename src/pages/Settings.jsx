@@ -70,28 +70,26 @@ export default function Settings({ session, prospects, settings, reloadSettings,
       <PageTitle icon={GearIcon} color="#0369a1" style={{ marginBottom: "20px" }}>Paramètres</PageTitle>
 
       <Section title="Mon profil">
-        <div style={{ fontSize: "14px", marginBottom: "2px" }}>
-          {local.first_name || local.last_name ? `${local.first_name || ""} ${local.last_name || ""}`.trim() + " · " : ""}{session.user.email}
-        </div>
-        <div style={{ color: "var(--text-dim)", fontSize: "12px", marginBottom: "12px" }}>
-          {local.company_name ? `${local.company_name}${local.industry ? ` · ${local.industry}` : ""}${local.team_size ? ` · ${local.team_size}` : ""}` : "Connecté via Supabase"}
-        </div>
+        <Field label="Prénom">
+          <input value={local.first_name || ""} onChange={(e) => set({ first_name: e.target.value })} style={inputSm} placeholder="Prénom" />
+        </Field>
+        <Field label="Nom">
+          <input value={local.last_name || ""} onChange={(e) => set({ last_name: e.target.value })} style={inputSm} placeholder="Nom" />
+        </Field>
         {team && (
-          <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "12px" }}>
-            Rôle : <span style={{ fontWeight: 600, color: "var(--text)" }}>{ROLE_LABELS[team.role] || team.role}</span>
-            {!isAdmin && <span style={{ color: "var(--text-faint)" }}> — défini par l'administrateur de votre espace.</span>}
-          </div>
+          <Field label="Rôle" last>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{ROLE_LABELS[team.role] || team.role}</span>
+          </Field>
         )}
-        <button
-          className="focusable"
-          onClick={async () => {
-            await supabase.auth.resetPasswordForEmail(session.user.email);
-            alert("Un email de réinitialisation du mot de passe vous a été envoyé.");
-          }}
-          style={btnGhost}
-        >
-          Changer le mot de passe
-        </button>
+        {team && !isAdmin && <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "-4px", marginBottom: "14px" }}>Le rôle est défini par l'administrateur de votre espace.</div>}
+
+        <div style={{ borderTop: "0.5px solid var(--hairline)", marginTop: "4px", paddingTop: "14px" }}>
+          <ProfileEmailField session={session} />
+        </div>
+
+        <div style={{ borderTop: "0.5px solid var(--hairline)", marginTop: "14px", paddingTop: "14px" }}>
+          <ProfilePasswordField session={session} />
+        </div>
       </Section>
 
       <Section title="Notifications">
@@ -113,10 +111,22 @@ export default function Settings({ session, prospects, settings, reloadSettings,
       </Section>
 
       <Section title="Organisation quotidienne">
-        <Field label="Créneau pour les tâches sans horaire">
-          <input type="time" value={local.default_task_time || "17:00"} onChange={(e) => set({ default_task_time: e.target.value })} style={inputSm} />
-        </Field>
-        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "14px" }}>Les tâches et relances créées sans horaire précis seront placées à ce créneau dans l'Agenda.</div>
+        <div style={{ fontSize: "13px", color: "var(--text)", marginBottom: "8px" }}>Créneau des tâches sans horaire</div>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "6px" }}>
+          <input type="time" value={local.default_task_time || "09:00"} onChange={(e) => set({ default_task_time: e.target.value })} style={inputSm} />
+          <span style={{ color: "var(--text-faint)", fontSize: "13px" }}>→</span>
+          <input type="time" value={local.default_task_time_end || "12:00"} onChange={(e) => set({ default_task_time_end: e.target.value })} style={inputSm} />
+        </div>
+        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "16px" }}>Lorsque vous créez une tâche sans heure précise, Closia la place au début de ce créneau dans l'Agenda.</div>
+
+        <Toggle
+          label="Reporter automatiquement les tâches non terminées"
+          checked={local.auto_reschedule_missed_tasks !== false}
+          onChange={(v) => set({ auto_reschedule_missed_tasks: v })}
+        />
+        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "16px" }}>
+          {local.auto_reschedule_missed_tasks !== false ? "Report : prochain jour travaillé, 8h." : "Les tâches non terminées restent en retard sans être reportées automatiquement."}
+        </div>
 
         <div style={{ fontSize: "13px", color: "var(--text)", marginBottom: "8px" }}>Jours travaillés</div>
         <div style={{ display: "flex", gap: "4px", marginBottom: "10px" }}>
@@ -129,9 +139,17 @@ export default function Settings({ session, prospects, settings, reloadSettings,
             );
           })}
         </div>
-        <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>
-          Une tâche non terminée en fin de journée est reportée automatiquement au prochain jour travaillé (pas au samedi si vous ne travaillez pas le week-end).
+        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "16px" }}>
+          Une tâche non terminée en fin de journée est reportée au prochain jour travaillé (pas au samedi si vous ne travaillez pas le week-end).
         </div>
+
+        <Field label="Vue par défaut de l'Agenda" last>
+          <select value={local.agenda_default_view || "Liste"} onChange={(e) => set({ agenda_default_view: e.target.value })} style={inputSm}>
+            <option value="Liste">Liste</option>
+            <option value="Jour">Jour</option>
+            <option value="Semaine">Semaine</option>
+          </select>
+        </Field>
       </Section>
 
       <Section title="Assistant IA">
@@ -362,6 +380,17 @@ export function TeamPanel({ session, team, reloadTeam }) {
 
 const STANDARD_PRICE = 19;
 
+const PLAN_TIERS = [
+  { name: "Solo", maxPrice: 19, seats: 1, overagePrice: 12 },
+  { name: "Équipe", maxPrice: 39, seats: 3, overagePrice: 12 },
+  { name: "Business", maxPrice: 79, seats: 10, overagePrice: 10 },
+  { name: "Sur mesure", maxPrice: Infinity, seats: 20, overagePrice: 8 },
+];
+
+function planTierFor(price) {
+  return PLAN_TIERS.find((t) => price <= t.maxPrice) || PLAN_TIERS[PLAN_TIERS.length - 1];
+}
+
 function BillingPanel({ local, session, team }) {
   if (!local) return <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Chargement...</div>;
 
@@ -414,6 +443,28 @@ function BillingPanel({ local, session, team }) {
       {status === "active" && <div style={{ fontSize: "12px", color: "#0ea968", marginBottom: "16px" }}>Abonnement actif</div>}
       {status === "cancelled" && <div style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "16px" }}>Abonnement résilié</div>}
 
+      {isTeamBilling && (
+        <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px", marginBottom: "14px" }}>
+          <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "10px" }}>VOTRE ABONNEMENT</div>
+          {(() => {
+            const tier = planTierFor(price);
+            const over = memberCount > tier.seats;
+            return (
+              <>
+                <div style={{ fontSize: "13px", color: "var(--text)", marginBottom: "4px" }}>
+                  {tier.name} · <span className="mono" style={{ fontWeight: 700, color: over ? "var(--red)" : "var(--text)" }}>{memberCount} / {tier.seats}</span> places utilisées
+                </div>
+                {over ? (
+                  <div style={{ fontSize: "11.5px", color: "var(--red)" }}>Au-delà de votre quota — contacte le support pour ajuster votre abonnement (+{formatEuros(tier.overagePrice)}/mois par place supplémentaire).</div>
+                ) : (
+                  <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>+{formatEuros(tier.overagePrice)}/mois par place au-delà de {tier.seats}.</div>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      )}
+
       <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px", marginBottom: "14px" }}>
         <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "10px" }}>MOYEN DE PAIEMENT</div>
         <ComingSoon text="Aucune carte enregistrée. La saisie d'un moyen de paiement sera bientôt disponible." />
@@ -436,6 +487,82 @@ function BillingPanel({ local, session, team }) {
           <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Aucune facture pour l'instant.</div>
         )}
       </div>
+    </div>
+  );
+}
+
+function ProfileEmailField({ session }) {
+  const [email, setEmail] = useState(session.user.email);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function save() {
+    if (!email.trim() || email === session.user.email) return;
+    setSaving(true);
+    setMessage("");
+    const { error } = await supabase.auth.updateUser({ email: email.trim() });
+    setSaving(false);
+    setMessage(error ? error.message : "Un email de confirmation a été envoyé à la nouvelle adresse — cliquez sur le lien pour valider le changement.");
+  }
+
+  return (
+    <Field label="Email" last>
+      <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ ...inputSm, width: "200px" }} />
+        {email !== session.user.email && (
+          <button className="focusable" onClick={save} disabled={saving} style={{ ...btnGhost, padding: "6px 10px" }}>
+            {saving ? "..." : "Valider"}
+          </button>
+        )}
+      </div>
+      {message && <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "6px" }}>{message}</div>}
+    </Field>
+  );
+}
+
+function ProfilePasswordField({ session }) {
+  const [showForm, setShowForm] = useState(false);
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function save() {
+    if (password.length < 6) {
+      setMessage("Le mot de passe doit contenir au moins 6 caractères.");
+      return;
+    }
+    setSaving(true);
+    setMessage("");
+    const { error } = await supabase.auth.updateUser({ password });
+    setSaving(false);
+    if (error) {
+      setMessage(error.message);
+    } else {
+      setMessage("Mot de passe mis à jour.");
+      setPassword("");
+      setShowForm(false);
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: "13px", color: "var(--text)", marginBottom: "8px" }}>Mot de passe</div>
+      {!showForm ? (
+        <button className="focusable" onClick={() => setShowForm(true)} style={btnGhost}>
+          Modifier le mot de passe
+        </button>
+      ) : (
+        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Nouveau mot de passe" style={{ ...inputSm, width: "200px" }} />
+          <button className="focusable" onClick={save} disabled={saving} style={{ ...btnGhost, padding: "6px 10px" }}>
+            {saving ? "..." : "Enregistrer"}
+          </button>
+          <button className="focusable" onClick={() => { setShowForm(false); setPassword(""); setMessage(""); }} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "13px" }}>
+            Annuler
+          </button>
+        </div>
+      )}
+      {message && <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "6px" }}>{message}</div>}
     </div>
   );
 }
