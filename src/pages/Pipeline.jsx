@@ -47,6 +47,8 @@ const TASK_TYPE_META = {
 const ACTIVITY_LABEL = {
   appel_abouti: "Appel abouti",
   appel_manque: "Appel manqué",
+  rdv_physique: "RDV physique",
+  appel_visio: "Visio",
   message_linkedin: "Message LinkedIn",
   deal_gagne: "Deal gagné",
   deal_perdu: "Deal perdu",
@@ -538,7 +540,6 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [tab, setTab] = useState(initialTab || "email");
-  const [logged, setLogged] = useState("");
   const [dealValueInput, setDealValueInput] = useState(prospect.deal_value ?? 0);
 
   useEffect(() => {
@@ -558,13 +559,6 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
       await onLogActivity(stage === "Gagné" ? "deal_gagne" : "deal_perdu");
     }
     onUpdate(changes);
-  }
-
-  async function handleCallLog(outcome) {
-    await onLogActivity(outcome);
-    onUpdate({ last_contact_at: new Date().toISOString() });
-    setLogged(outcome);
-    setTimeout(() => setLogged(""), 1500);
   }
 
   return (
@@ -607,6 +601,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
                 )}
               </div>
             )}
+            <ProspectOwnersReadout team={team} prospect={prospect} />
           </div>
         </div>
         <div style={{ display: "flex", gap: "6px" }}>
@@ -702,31 +697,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
         />
       </div>
 
-      <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
-        <button
-          className="focusable"
-          onClick={() => handleCallLog("appel_abouti")}
-          style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, justifyContent: "center", background: logged === "appel_abouti" ? "var(--blue-dim)" : "var(--panel2)", color: logged === "appel_abouti" ? "var(--blue)" : "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px", fontSize: "12px" }}
-        >
-          <PhoneIcon size={13} /> {logged === "appel_abouti" ? "Appel enregistré" : "Appel abouti"}
-        </button>
-        <button
-          className="focusable"
-          onClick={() => handleCallLog("appel_manque")}
-          style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, justifyContent: "center", background: logged === "appel_manque" ? "var(--red-dim)" : "var(--panel2)", color: logged === "appel_manque" ? "var(--red)" : "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px", fontSize: "12px" }}
-        >
-          <XIcon size={13} /> {logged === "appel_manque" ? "Enregistré" : "Appel manqué"}
-        </button>
-        <button
-          className="focusable"
-          onClick={() => handleCallLog("message_linkedin")}
-          style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, justifyContent: "center", background: logged === "message_linkedin" ? "var(--blue-dim)" : "var(--panel2)", color: logged === "message_linkedin" ? "var(--blue)" : "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px", fontSize: "12px" }}
-        >
-          <LinkedinIcon size={13} /> {logged === "message_linkedin" ? "Enregistré" : "Message LinkedIn"}
-        </button>
-      </div>
-
-      <NoteAnalyzer prospect={prospect} history={history} session={session} onLogActivity={onLogActivity} />
+      <NoteAnalyzer prospect={prospect} history={history} session={session} onLogActivity={onLogActivity} onUpdate={onUpdate} />
 
       <CoachingCard prospect={prospect} history={history} session={session} />
 
@@ -749,10 +720,21 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
   );
 }
 
-function NoteAnalyzer({ prospect, history, session, onLogActivity }) {
+const ACTION_TYPES = [
+  { key: "appel_abouti", label: "Appel abouti", Icon: PhoneIcon },
+  { key: "appel_manque", label: "Appel manqué", Icon: XIcon },
+  { key: "rdv_physique", label: "RDV physique", Icon: PinIcon },
+  { key: "appel_visio", label: "Visio", Icon: VideoIcon },
+  { key: "message_linkedin", label: "Message LinkedIn", Icon: LinkedinIcon },
+];
+
+function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate }) {
+  const [actionType, setActionType] = useState("appel_abouti");
   const [note, setNote] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
+  const [improving, setImproving] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
   const [selected, setSelected] = useState([]);
@@ -760,18 +742,39 @@ function NoteAnalyzer({ prospect, history, session, onLogActivity }) {
   const [showModal, setShowModal] = useState(false);
 
   async function saveNote() {
-    const text = note.trim();
-    if (!text || saving) return;
+    if (saving) return;
     setSaving(true);
     setError("");
     try {
-      await onLogActivity("note", text);
+      await onLogActivity(actionType, note.trim() || undefined);
+      onUpdate?.({ last_contact_at: new Date().toISOString() });
       setNote("");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
       history.reload();
     } catch (e) {
       setError("L'enregistrement a échoué. Réessaie.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function improveWithAI() {
+    const text = note.trim();
+    if (!text || improving) return;
+    setImproving(true);
+    setError("");
+    try {
+      const actionLabel = ACTION_TYPES.find((a) => a.key === actionType)?.label || "échange";
+      const prompt = `Tu es un assistant commercial. Reformule cette note prise rapidement par un commercial après un(e) "${actionLabel}" avec un prospect, pour la rendre claire, structurée et professionnelle, en français. Garde exactement les mêmes informations, n'invente rien de nouveau. Réponds uniquement avec la note reformulée, sans préambule ni guillemets.
+
+Note brute : "${text}"`;
+      const improved = await callAI(prompt, session.access_token);
+      setNote(improved.trim());
+    } catch (e) {
+      setError("L'amélioration a échoué. Réessaie.");
+    } finally {
+      setImproving(false);
     }
   }
 
@@ -781,7 +784,8 @@ function NoteAnalyzer({ prospect, history, session, onLogActivity }) {
     setAnalyzing(true);
     setError("");
     try {
-      await onLogActivity("note", text);
+      await onLogActivity(actionType, text);
+      onUpdate?.({ last_contact_at: new Date().toISOString() });
       const prompt = `Tu es un assistant commercial. Un commercial vient de noter comment s'est passé un échange (appel, RDV ou autre) avec ce prospect. Analyse cette note et réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après, sans balises markdown, exactement dans ce format :
 {"summary": "résumé en 1-2 phrases de ce qu'il faut faire ensuite", "pain_points": ["...", "..."], "opportunities": ["...", "..."], "suggested_tasks": [{"type": "appel_telephone", "note": "description courte", "due_in_days": 3}]}
 
@@ -833,31 +837,56 @@ ${buildHistoryContext(history)}`;
     setSelected((s) => (s.includes(i) ? s.filter((x) => x !== i) : [...s, i]));
   }
 
+  const busy = saving || analyzing || improving;
+
   return (
     <div style={{ marginBottom: "16px" }}>
+      <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginBottom: "6px" }}>TYPE D'ACTION</div>
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "10px" }}>
+        {ACTION_TYPES.map(({ key, label, Icon }) => (
+          <button
+            key={key}
+            className="focusable"
+            onClick={() => setActionType(key)}
+            style={{ display: "flex", alignItems: "center", gap: "5px", background: actionType === key ? "var(--blue-dim)" : "var(--panel2)", color: actionType === key ? "var(--blue)" : "var(--text-dim)", border: actionType === key ? "0.5px solid #2a3ed655" : "0.5px solid var(--hairline)", borderRadius: "999px", padding: "6px 11px", fontSize: "12px" }}
+          >
+            <Icon size={12} /> {label}
+          </button>
+        ))}
+      </div>
+
       <textarea
         value={note}
         onChange={(e) => setNote(e.target.value)}
         placeholder="Comment s'est passé l'appel, le RDV... ? Note ce qui compte, l'IA en tire les prochaines étapes."
         style={{ width: "100%", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", lineHeight: 1.5, padding: "10px 12px", minHeight: "70px", resize: "vertical", fontFamily: "Inter, sans-serif", marginBottom: "8px", boxSizing: "border-box" }}
       />
-      <div style={{ display: "flex", gap: "8px" }}>
+      <div style={{ display: "flex", gap: "6px" }}>
         <button
           className="focusable"
           onClick={saveNote}
-          disabled={!note.trim() || saving || analyzing}
-          style={{ flex: 1, background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: !note.trim() || saving || analyzing ? 0.6 : 1 }}
+          disabled={busy}
+          style={{ flex: 1, background: saved ? "#e2f7ec" : "var(--panel2)", color: saved ? "#0ea968" : "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px", fontSize: "12.5px", opacity: busy ? 0.6 : 1 }}
         >
-          {saving ? "Enregistrement..." : "Enregistrer"}
+          {saving ? "Enregistrement..." : saved ? "Ajoutée ✓" : "Ajouter la note"}
+        </button>
+        <button
+          className="focusable"
+          onClick={improveWithAI}
+          disabled={!note.trim() || busy}
+          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", background: "var(--gold-dim)", color: "var(--gold-deep)", border: "0.5px solid var(--gold)55", borderRadius: "8px", padding: "9px", fontSize: "12.5px", opacity: !note.trim() || busy ? 0.6 : 1 }}
+        >
+          <SparklesIcon size={13} color="var(--gold-deep)" />
+          {improving ? "Amélioration..." : "Améliorer avec l'IA"}
         </button>
         <button
           className="focusable"
           onClick={analyze}
-          disabled={!note.trim() || analyzing || saving}
-          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: !note.trim() || analyzing || saving ? 0.6 : 1 }}
+          disabled={!note.trim() || busy}
+          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "9px", fontSize: "12.5px", opacity: !note.trim() || busy ? 0.6 : 1 }}
         >
-          <SparklesIcon size={14} color="var(--blue)" />
-          {analyzing ? "Analyse en cours..." : "Analyser la note"}
+          <SparklesIcon size={13} color="var(--blue)" />
+          {analyzing ? "Analyse..." : "Analyser la note"}
         </button>
       </div>
       {error && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "6px" }}>{error}</div>}
@@ -930,6 +959,32 @@ function Modal({ children, onClose }) {
       <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "14px", padding: "22px", maxWidth: "480px", width: "100%", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 50px rgba(15,23,42,0.25)" }}>
         {children}
       </div>
+    </div>
+  );
+}
+
+function ProspectOwnersReadout({ team, prospect }) {
+  if (!team || (team.members || []).length <= 1) return null;
+  const memberLabel = (id) => {
+    const m = (team.members || []).find((x) => x.user_id === id);
+    if (!m) return null;
+    return m.first_name || m.last_name ? `${m.first_name || ""} ${m.last_name || ""}`.trim() : m.email;
+  };
+  const salesLabel = memberLabel(prospect.sales_owner_id);
+  const csmLabel = memberLabel(prospect.csm_owner_id);
+  if (!salesLabel && !csmLabel) return null;
+  return (
+    <div style={{ display: "flex", gap: "10px", marginTop: "6px", flexWrap: "wrap" }}>
+      {salesLabel && (
+        <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "var(--blue)", background: "var(--blue-dim)", borderRadius: "999px", padding: "3px 9px" }}>
+          Commercial : {salesLabel}
+        </span>
+      )}
+      {csmLabel && (
+        <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "var(--gold-deep)", background: "var(--gold-dim)", borderRadius: "999px", padding: "3px 9px" }}>
+          CSM : {csmLabel}
+        </span>
+      )}
     </div>
   );
 }
@@ -1121,29 +1176,60 @@ ${buildHistoryContext(history)}`;
   );
 }
 
+const HISTORIQUE_FILTER_BY_TYPE = {
+  appel_abouti: "Appels", appel_manque: "Appels",
+  rdv_physique: "RDV & Visio", appel_visio: "RDV & Visio",
+  message_linkedin: "LinkedIn",
+  note: "Notes",
+  deal_gagne: "Deals", deal_perdu: "Deals",
+  reassignation: "Équipe",
+};
+
+const HISTORIQUE_FILTERS = ["Tous", "Appels", "RDV & Visio", "LinkedIn", "Notes", "Deals", "IA", "Équipe"];
+
 function Historique({ history }) {
+  const [filter, setFilter] = useState("Tous");
   if (history.loading) return <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Chargement...</div>;
 
   const items = [
-    ...history.emails.map((x) => ({ ...x, kind: "Email" })),
-    ...history.scripts.map((x) => ({ ...x, kind: `Script — ${x.section}` })),
-    ...history.analyses.map((x) => ({ ...x, kind: "Analyse" })),
-    ...history.activities.map((x) => ({ ...x, kind: ACTIVITY_LABEL[x.type] || x.type, content: x.note || "" })),
+    ...history.emails.map((x) => ({ ...x, kind: "Email", filterKey: "IA" })),
+    ...history.scripts.map((x) => ({ ...x, kind: `Script — ${x.section}`, filterKey: "IA" })),
+    ...history.analyses.map((x) => ({ ...x, kind: "Analyse", filterKey: "IA" })),
+    ...history.activities.map((x) => ({ ...x, kind: ACTIVITY_LABEL[x.type] || x.type, content: x.note || "", filterKey: HISTORIQUE_FILTER_BY_TYPE[x.type] || "Notes" })),
   ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-  if (items.length === 0) return <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Rien d'enregistré pour ce prospect pour l'instant.</div>;
+  const visible = filter === "Tous" ? items : items.filter((i) => i.filterKey === filter);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "420px", overflowY: "auto" }}>
-      {items.map((item) => (
-        <div key={`${item.kind}-${item.id}`} style={{ background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-            <span className="mono" style={{ fontSize: "11px", color: "var(--blue)" }}>{item.kind}</span>
-            <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>{formatDate(item.created_at)}</span>
-          </div>
-          {item.content && <div style={{ fontSize: "12px", color: "var(--text-dim)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{item.content}</div>}
+    <div>
+      <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", marginBottom: "12px" }}>
+        {HISTORIQUE_FILTERS.map((f) => (
+          <button
+            key={f}
+            className="focusable"
+            onClick={() => setFilter(f)}
+            style={{ padding: "5px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 500, background: filter === f ? "var(--blue-dim)" : "var(--panel2)", color: filter === f ? "var(--blue)" : "var(--text-dim)", border: filter === f ? "0.5px solid #2a3ed655" : "0.5px solid var(--hairline)" }}
+          >
+            {f}
+          </button>
+        ))}
+      </div>
+
+      {visible.length === 0 ? (
+        <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Rien pour ce filtre.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "420px", overflowY: "auto" }}>
+          {visible.map((item) => (
+            <div key={`${item.kind}-${item.id}`} style={{ background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                <span className="mono" style={{ fontSize: "11px", color: "var(--blue)" }}>{item.kind}</span>
+                <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>{formatDate(item.created_at)}</span>
+              </div>
+              {item.content && <div style={{ fontSize: "12px", color: "var(--text-dim)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{item.content}</div>}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
