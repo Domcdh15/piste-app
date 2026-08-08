@@ -1,4 +1,4 @@
-import { Logo, HomeIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIcon, PlugIcon, GearIcon } from "../lib/ui.jsx";
+import { Logo, HomeIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIcon, GearIcon } from "../lib/ui.jsx";
 
 const NAV_COLOR = "#2a3ed6";
 const AI_COLOR = "#7c3aed";
@@ -21,10 +21,6 @@ const NAV_GROUPS = [
       { key: "assistant", label: "Assistant IA", Icon: SparklesIcon, color: AI_COLOR },
       { key: "activities", label: "Activités", Icon: ListIcon, color: NAV_COLOR },
     ],
-  },
-  {
-    section: "Configuration",
-    items: [{ key: "integrations", label: "Intégrations", Icon: PlugIcon, color: NAV_COLOR }],
   },
 ];
 

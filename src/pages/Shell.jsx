@@ -125,8 +125,8 @@ export default function Shell({ session, team, reloadTeam }) {
         )}
         {activeTab === "assistant" && <Assistant session={session} prospects={prospects} onOpenProspect={openProspect} settings={settings} />}
         {activeTab === "activities" && <Activities prospects={prospects} onOpenProspect={openProspect} session={session} team={team} />}
-        {activeTab === "settings" && <Settings session={session} prospects={prospects} settings={settings} reloadSettings={loadSettings} team={team} reloadTeam={reloadTeam} />}
-        {activeTab === "integrations" && <Integrations session={session} />}
+        {activeTab === "settings" && <Settings session={session} prospects={prospects} settings={settings} reloadSettings={loadSettings} team={team} reloadTeam={reloadTeam} setActiveTab={setActiveTab} />}
+        {activeTab === "integrations" && <Integrations session={session} onBack={() => setActiveTab("settings")} />}
         {activeTab === "equipe" && <EquipePage session={session} team={team} reloadTeam={reloadTeam} />}
       </div>
     </div>

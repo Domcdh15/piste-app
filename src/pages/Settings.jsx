@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { formatEuros, buildSignatureBlock, GearIcon, PageTitle } from "../lib/ui.jsx";
+import { formatEuros, buildSignatureBlock, GearIcon, PlugIcon, PageTitle } from "../lib/ui.jsx";
 
 const TONES = ["Professionnel", "Chaleureux", "Direct"];
 
@@ -14,7 +14,7 @@ function toCSV(prospects) {
   return [headers, ...rows].map((r) => r.map(esc).join(",")).join("\n");
 }
 
-export default function Settings({ session, prospects, settings, reloadSettings, team, reloadTeam }) {
+export default function Settings({ session, prospects, settings, reloadSettings, team, reloadTeam, setActiveTab }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [local, setLocal] = useState(null);
@@ -142,6 +142,13 @@ export default function Settings({ session, prospects, settings, reloadSettings,
 
       <Section title="Facturation">
         <BillingPanel local={local} session={session} team={team} />
+      </Section>
+
+      <Section title="Intégrations">
+        <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "12px" }}>Connectez vos outils commerciaux (agenda, CRM, email) à Closia.</div>
+        <button className="focusable" onClick={() => setActiveTab?.("integrations")} style={{ display: "flex", alignItems: "center", gap: "8px", ...btnGhost }}>
+          <PlugIcon size={13} color="var(--text-dim)" /> Gérer les intégrations
+        </button>
       </Section>
 
       <Section title="Données et export" last>
