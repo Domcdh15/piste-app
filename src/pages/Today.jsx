@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import {
   CalendarIcon,
@@ -69,6 +69,15 @@ export default function Today({ prospects, setActiveTab, session, reload, onOpen
   const [doneToday, setDoneToday] = useState(0);
   const prospectById = Object.fromEntries(prospects.map((p) => [p.id, p]));
   const firstName = getFirstName(session.user);
+  const organizeRef = useRef(null);
+
+  function openOrganize() {
+    setShowOrganize(true);
+  }
+
+  useEffect(() => {
+    if (showOrganize) organizeRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [showOrganize]);
 
   async function updateStatus(id, status) {
     await supabase.from("prospects").update({ status }).eq("id", id);
@@ -217,7 +226,7 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
             <div style={{ opacity: 0.9, fontSize: "13.5px", marginTop: "4px" }}>Voici ce qui mérite votre attention aujourd'hui.</div>
             <div style={{ opacity: 0.7, fontSize: "12.5px", marginTop: "2px" }}>{todayLabel()}</div>
           </div>
-          <button className="focusable" onClick={() => setShowOrganize((s) => !s)} style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.3)", borderRadius: "10px", padding: "10px 16px", color: "#fff", fontSize: "13px", fontWeight: 600 }}>
+          <button className="focusable" onClick={openOrganize} style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.3)", borderRadius: "10px", padding: "10px 16px", color: "#fff", fontSize: "13px", fontWeight: 600 }}>
             <SparklesIcon size={14} color="#fff" /> Organiser ma journée
           </button>
         </div>
@@ -342,7 +351,7 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
               Vous avez {totalWithDone} action{totalWithDone > 1 ? "s" : ""} prévue{totalWithDone > 1 ? "s" : ""} aujourd'hui, mais {attentionCount} deal{attentionCount > 1 ? "s" : ""} représentant {formatEuros(attentionValue)} de pipeline n'{attentionCount > 1 ? "ont" : "a"} pas reçu de suivi depuis plus de 5 jours.
               {watchAtRisk.length > 0 && ` Je vous recommande de traiter ${watchAtRisk.slice(0, 2).map((p) => p.company).join(" et ")} en priorité.`}
             </div>
-            <button className="focusable" onClick={() => setShowOrganize(true)} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "8px 16px", fontSize: "13px", fontWeight: 600 }}>
+            <button className="focusable" onClick={openOrganize} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "8px 16px", fontSize: "13px", fontWeight: 600 }}>
               Organiser ma journée
             </button>
           </div>

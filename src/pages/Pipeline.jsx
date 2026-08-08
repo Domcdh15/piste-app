@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import {
   STATUS_META,
@@ -777,10 +777,16 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
   const [tab, setTab] = useState(initialTab && initialTab !== "historique" ? initialTab : "email");
   const [dealValueInput, setDealValueInput] = useState(prospect.deal_value ?? 0);
   const [taskVersion, setTaskVersion] = useState(0);
+  const toolsRef = useRef(null);
 
   useEffect(() => {
     setDealValueInput(prospect.deal_value ?? 0);
   }, [prospect.id, prospect.deal_value]);
+
+  function goToTab(key) {
+    setTab(key);
+    toolsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   function commitDealValue() {
     const n = Number(dealValueInput) || 0;
@@ -887,7 +893,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
             <button className="focusable" onClick={() => onUpdate({ last_contact_at: new Date().toISOString() })} style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: "var(--text)" }}>
               <CheckIcon size={12} color="#0ea968" /> Marquer contacté aujourd'hui
             </button>
-            <button className="focusable" onClick={() => setTab("devis")} style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: "var(--text)" }}>
+            <button className="focusable" onClick={() => goToTab("devis")} style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: "var(--text)" }}>
               <MailIcon size={12} color="var(--gold-deep)" /> Générer un devis
             </button>
             <button className="focusable" onClick={() => setShowEdit((s) => !s)} style={{ display: "flex", alignItems: "center", gap: "8px", background: showEdit ? "var(--blue-dim)" : "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: showEdit ? "var(--blue)" : "var(--text)" }}>
@@ -947,9 +953,9 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
         </div>
 
         <div style={{ minWidth: 0 }}>
-          <NextActionCard prospect={prospect} refreshKey={taskVersion} onOpenTab={setTab} />
+          <NextActionCard prospect={prospect} refreshKey={taskVersion} onOpenTab={goToTab} />
 
-          <NoteAnalyzer prospect={prospect} history={history} session={session} onLogActivity={onLogActivity} onUpdate={onUpdate} settings={settings} onTaskCreated={bumpTasks} onOpenTab={setTab} />
+          <NoteAnalyzer prospect={prospect} history={history} session={session} onLogActivity={onLogActivity} onUpdate={onUpdate} settings={settings} onTaskCreated={bumpTasks} onOpenTab={goToTab} />
 
           <OpportunityAI prospect={prospect} history={history} session={session} onUpdate={onUpdate} />
 
@@ -958,7 +964,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
             <ActivityTimeline history={history} />
           </div>
 
-          <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginBottom: "8px" }}>OUTILS</div>
+          <div ref={toolsRef} style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginBottom: "8px", scrollMarginTop: "20px" }}>OUTILS</div>
           <div style={{ display: "flex", gap: "4px", marginBottom: "16px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
             {[["email", "Email"], ["script", "Script"], ["taches", "Tâches"], ["devis", "Devis"]].map(([key, label]) => (
               <button key={key} className="focusable" onClick={() => setTab(key)} style={{ flex: 1, padding: "7px 6px", borderRadius: "6px", fontSize: "11px", fontWeight: 500, background: tab === key ? "var(--hairline)" : "transparent", color: tab === key ? "var(--text)" : "var(--text-dim)" }}>
