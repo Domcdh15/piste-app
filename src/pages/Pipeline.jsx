@@ -550,8 +550,9 @@ function ProspectTableRow({ p, onClick, team, showOwners }) {
 function ProspectDetailPage({ prospect, session, settings, team, onBack, backLabel, onUpdate, onDelete, onLogActivity, initialTab, reload }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
-  const [tab, setTab] = useState(initialTab || "email");
+  const [tab, setTab] = useState(initialTab && initialTab !== "historique" ? initialTab : "email");
   const [dealValueInput, setDealValueInput] = useState(prospect.deal_value ?? 0);
+  const [taskVersion, setTaskVersion] = useState(0);
 
   useEffect(() => {
     setDealValueInput(prospect.deal_value ?? 0);
@@ -562,6 +563,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
     if (n !== prospect.deal_value) onUpdate({ deal_value: n });
   }
   const history = useProspectHistory(prospect.id);
+  const bumpTasks = () => setTaskVersion((v) => v + 1);
 
   async function handleStageChange(stage) {
     const changes = { stage };
@@ -572,168 +574,313 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
     onUpdate(changes);
   }
 
+  const temperature = prospectTemperature(prospect);
+
   return (
-    <div style={{ padding: "24px 32px 48px", maxWidth: "820px", margin: "0 auto" }}>
+    <div style={{ padding: "24px 32px 60px", maxWidth: "1080px", margin: "0 auto" }}>
       <button className="focusable" onClick={onBack} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: "4px 0", marginBottom: "16px", color: "var(--text-dim)", fontSize: "13px" }}>
         <ArrowLeftIcon size={14} color="var(--text-dim)" /> {backLabel || "Retour à la file de priorité"}
       </button>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "18px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-          <Avatar name={prospect.name} stage={prospect.stage} size={52} />
+      <div style={{ display: "grid", gridTemplateColumns: "300px minmax(0,1fr)", gap: "24px", alignItems: "start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div>
-            <div className="display" style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 700, fontSize: "20px" }}>
-              {prospect.civility && prospect.civility !== "-" ? `${prospect.civility} ` : ""}{prospect.name}
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "10px" }}>
+              <Avatar name={prospect.name} stage={prospect.stage} size={48} />
+              <div style={{ minWidth: 0 }}>
+                <div className="display" style={{ fontWeight: 700, fontSize: "17px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {prospect.civility && prospect.civility !== "-" ? `${prospect.civility} ` : ""}{prospect.name}
+                </div>
+                <div style={{ color: "var(--text-dim)", fontSize: "12.5px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {prospect.job_title ? `${prospect.job_title} · ` : ""}{prospect.company}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginBottom: "8px" }}>
               {prospect.stage === "Gagné" && (
                 <span className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "10px", fontWeight: 700, color: "#0ea968", background: "#e2f7ec", border: "0.5px solid #0ea96855", borderRadius: "6px", padding: "3px 7px" }}>
                   <TrophyIcon size={10} color="#0ea968" /> CLIENT
                 </span>
               )}
+              {temperature && (
+                <span style={{ fontSize: "11px", fontWeight: 700, color: temperature.color, background: temperature.bg, borderRadius: "999px", padding: "3px 9px" }}>
+                  {temperature.emoji} {temperature.label}
+                </span>
+              )}
+              {prospect.deal_value > 0 && (
+                <span className="mono" style={{ fontSize: "11px", fontWeight: 700, color: "var(--gold-deep)", background: "var(--gold-dim)", borderRadius: "999px", padding: "3px 9px" }}>
+                  {formatEuros(prospect.deal_value)}
+                </span>
+              )}
             </div>
-            <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>
-              {prospect.job_title ? `${prospect.job_title} · ` : ""}{prospect.company}
+
+            <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>
+              Dernier contact : {prospect.last_contact_at ? formatShortDate(prospect.last_contact_at) : "jamais"}
             </div>
-            {(prospect.email || prospect.phone || prospect.linkedin_url) && (
-              <div style={{ display: "flex", gap: "12px", marginTop: "4px" }}>
-                {prospect.email && (
-                  <a href={`mailto:${prospect.email}`} style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--blue)", fontSize: "12px", textDecoration: "none" }}>
-                    <MailIcon size={11} color="var(--blue)" /> {prospect.email}
-                  </a>
-                )}
-                {prospect.phone && (
-                  <a href={`tel:${prospect.phone}`} style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--blue)", fontSize: "12px", textDecoration: "none" }}>
-                    <PhoneIcon size={11} color="var(--blue)" /> {prospect.phone}
-                  </a>
-                )}
-                {prospect.linkedin_url && (
-                  <a href={prospect.linkedin_url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--blue)", fontSize: "12px", textDecoration: "none" }}>
-                    <LinkedinIcon size={11} color="var(--blue)" /> LinkedIn
-                  </a>
-                )}
-              </div>
-            )}
+
             <ProspectOwnersReadout team={team} prospect={prospect} />
           </div>
-        </div>
-        <div style={{ display: "flex", gap: "6px" }}>
-          {!confirmDelete && (
-            <button className="focusable" onClick={() => setShowEdit((s) => !s)} style={{ fontSize: "11px", padding: "5px 8px", borderRadius: "6px", background: showEdit ? "var(--blue-dim)" : "transparent", color: showEdit ? "var(--blue)" : "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
-              {showEdit ? "Fermer" : "Modifier"}
-            </button>
-          )}
-          {confirmDelete ? (
-            <div style={{ display: "flex", gap: "6px" }}>
-              <button className="focusable" onClick={onDelete} style={{ fontSize: "11px", padding: "5px 8px", borderRadius: "6px", background: "var(--red-dim)", color: "var(--red)", border: "0.5px solid var(--red)55" }}>Confirmer</button>
-              <button className="focusable" onClick={() => setConfirmDelete(false)} style={{ fontSize: "11px", padding: "5px 8px", borderRadius: "6px", background: "transparent", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>Annuler</button>
+
+          <PipelineStepper stage={prospect.stage} />
+
+          {(prospect.email || prospect.phone || prospect.linkedin_url) && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {prospect.email && (
+                <a href={`mailto:${prospect.email}`} style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--blue)", fontSize: "12.5px", textDecoration: "none", minWidth: 0 }}>
+                  <MailIcon size={12} color="var(--blue)" /> <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{prospect.email}</span>
+                </a>
+              )}
+              {prospect.phone && (
+                <a href={`tel:${prospect.phone}`} style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--blue)", fontSize: "12.5px", textDecoration: "none" }}>
+                  <PhoneIcon size={12} color="var(--blue)" /> {prospect.phone}
+                </a>
+              )}
+              {prospect.linkedin_url && (
+                <a href={prospect.linkedin_url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--blue)", fontSize: "12.5px", textDecoration: "none" }}>
+                  <LinkedinIcon size={12} color="var(--blue)" /> LinkedIn
+                </a>
+              )}
             </div>
-          ) : (
-            <button className="focusable" onClick={() => setConfirmDelete(true)} style={{ fontSize: "11px", padding: "5px 8px", borderRadius: "6px", background: "transparent", color: "var(--text-faint)", border: "0.5px solid var(--hairline)" }}>Supprimer</button>
+          )}
+
+          {team && (team.team?.has_multiple_sales || team.team?.has_multiple_csm) && (
+            <ProspectOwnersPanel prospect={prospect} session={session} team={team} onAssigned={reload} />
+          )}
+
+          <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginTop: "4px" }}>ACTIONS RAPIDES</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {prospect.phone && (
+              <a href={`tel:${prospect.phone}`} className="focusable" style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: "var(--text)", textDecoration: "none" }}>
+                <PhoneIcon size={12} color="var(--blue)" /> Appeler
+              </a>
+            )}
+            {prospect.email && (
+              <a href={`mailto:${prospect.email}`} className="focusable" style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: "var(--text)", textDecoration: "none" }}>
+                <MailIcon size={12} color="var(--blue)" /> Envoyer un email
+              </a>
+            )}
+            <button className="focusable" onClick={() => onUpdate({ last_contact_at: new Date().toISOString() })} style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: "var(--text)" }}>
+              <CheckIcon size={12} color="#0ea968" /> Marquer contacté aujourd'hui
+            </button>
+            <button className="focusable" onClick={() => setTab("devis")} style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: "var(--text)" }}>
+              <MailIcon size={12} color="var(--gold-deep)" /> Générer un devis
+            </button>
+            <button className="focusable" onClick={() => setShowEdit((s) => !s)} style={{ display: "flex", alignItems: "center", gap: "8px", background: showEdit ? "var(--blue-dim)" : "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: showEdit ? "var(--blue)" : "var(--text)" }}>
+              {showEdit ? "Fermer l'édition" : "Modifier la fiche"}
+            </button>
+            {confirmDelete ? (
+              <div style={{ display: "flex", gap: "6px" }}>
+                <button className="focusable" onClick={onDelete} style={{ flex: 1, fontSize: "12px", padding: "8px", borderRadius: "8px", background: "var(--red-dim)", color: "var(--red)", border: "0.5px solid var(--red)55" }}>Confirmer</button>
+                <button className="focusable" onClick={() => setConfirmDelete(false)} style={{ flex: 1, fontSize: "12px", padding: "8px", borderRadius: "8px", background: "transparent", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>Annuler</button>
+              </div>
+            ) : (
+              <button className="focusable" onClick={() => setConfirmDelete(true)} style={{ display: "flex", alignItems: "center", gap: "8px", background: "transparent", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: "var(--text-faint)" }}>
+                Supprimer la fiche
+              </button>
+            )}
+          </div>
+
+          {showEdit && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <EditProspectForm
+                prospect={prospect}
+                onSave={(changes) => onUpdate(changes)}
+                onCancel={() => setShowEdit(false)}
+              />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                <div>
+                  <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>STATUT</div>
+                  <select value={prospect.status} onChange={(e) => onUpdate({ status: e.target.value })} style={{ ...selectStyle, width: "100%" }}>
+                    <option value="appeler">À appeler</option>
+                    <option value="relancer">À relancer</option>
+                    <option value="attente">En attente</option>
+                    <option value="retard">En retard</option>
+                  </select>
+                </div>
+                <div>
+                  <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>ÉTAPE</div>
+                  <select value={prospect.stage} onChange={(e) => handleStageChange(e.target.value)} style={{ ...selectStyle, width: "100%" }}>
+                    <optgroup label="En cours">
+                      {OPEN_STAGES.map((s) => <option key={s}>{s}</option>)}
+                    </optgroup>
+                    <optgroup label="Clôturé">
+                      {CLOSED_STAGES.map((s) => <option key={s}>{s}</option>)}
+                    </optgroup>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>PROCHAIN CONTACT</div>
+                <input
+                  type="date"
+                  value={prospect.next_contact_at ? prospect.next_contact_at.slice(0, 10) : ""}
+                  onChange={(e) => onUpdate({ next_contact_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                  style={{ ...selectStyle, width: "100%", color: isOverdue(prospect.next_contact_at) ? "var(--red)" : "var(--text)" }}
+                />
+              </div>
+              <div>
+                <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>MONTANT DU DEAL (€)</div>
+                <input
+                  type="number"
+                  min="0"
+                  value={dealValueInput}
+                  onChange={(e) => setDealValueInput(e.target.value)}
+                  onBlur={commitDealValue}
+                  onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
+                  style={{ ...selectStyle, width: "100%" }}
+                />
+              </div>
+            </div>
           )}
         </div>
-      </div>
 
-      {showEdit && (
-        <EditProspectForm
-          prospect={prospect}
-          onSave={(changes) => { onUpdate(changes); setShowEdit(false); }}
-          onCancel={() => setShowEdit(false)}
-        />
-      )}
+        <div style={{ minWidth: 0 }}>
+          <NextActionCard prospect={prospect} refreshKey={taskVersion} onOpenTab={setTab} />
 
-      {team && (team.team?.has_multiple_sales || team.team?.has_multiple_csm) && (
-        <ProspectOwnersPanel prospect={prospect} session={session} team={team} onAssigned={reload} />
-      )}
+          <NoteAnalyzer prospect={prospect} history={history} session={session} onLogActivity={onLogActivity} onUpdate={onUpdate} settings={settings} onTaskCreated={bumpTasks} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
-        <div>
-          <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>STATUT</div>
-          <select value={prospect.status} onChange={(e) => onUpdate({ status: e.target.value })} style={{ ...selectStyle }}>
-            <option value="appeler">À appeler</option>
-            <option value="relancer">À relancer</option>
-            <option value="attente">En attente</option>
-            <option value="retard">En retard</option>
-          </select>
-        </div>
-        <div>
-          <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>ÉTAPE</div>
-          <select value={prospect.stage} onChange={(e) => handleStageChange(e.target.value)} style={{ ...selectStyle }}>
-            <optgroup label="En cours">
-              {OPEN_STAGES.map((s) => <option key={s}>{s}</option>)}
-            </optgroup>
-            <optgroup label="Clôturé">
-              {CLOSED_STAGES.map((s) => <option key={s}>{s}</option>)}
-            </optgroup>
-          </select>
-        </div>
-      </div>
+          <OpportunityAI prospect={prospect} history={history} session={session} onUpdate={onUpdate} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "14px" }}>
-        <div>
-          <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>DERNIER CONTACT</div>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <span style={{ fontSize: "12px", color: prospect.last_contact_at ? "var(--text)" : "var(--text-faint)" }}>
-              {prospect.last_contact_at ? formatShortDate(prospect.last_contact_at) : "Jamais"}
-            </span>
-            <button
-              className="focusable"
-              onClick={() => onUpdate({ last_contact_at: new Date().toISOString() })}
-              title="Marquer contacté aujourd'hui"
-              style={{ fontSize: "10px", padding: "3px 7px", borderRadius: "5px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}
-            >
-              Aujourd'hui
-            </button>
+          <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "18px", marginBottom: "16px" }}>
+            <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginBottom: "12px" }}>ACTIVITÉ</div>
+            <ActivityTimeline history={history} />
+          </div>
+
+          <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginBottom: "8px" }}>OUTILS</div>
+          <div style={{ display: "flex", gap: "4px", marginBottom: "16px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
+            {[["email", "Email"], ["script", "Script"], ["taches", "Tâches"], ["devis", "Devis"]].map(([key, label]) => (
+              <button key={key} className="focusable" onClick={() => setTab(key)} style={{ flex: 1, padding: "7px 6px", borderRadius: "6px", fontSize: "11px", fontWeight: 500, background: tab === key ? "var(--hairline)" : "transparent", color: tab === key ? "var(--text)" : "var(--text-dim)" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "18px" }}>
+            {tab === "email" && <EmailGenerator prospect={prospect} history={history} session={session} settings={settings} />}
+            {tab === "script" && <ScriptGenerator prospect={prospect} history={history} session={session} />}
+            {tab === "taches" && <TasksTab prospect={prospect} session={session} settings={settings} onChange={bumpTasks} />}
+            {tab === "devis" && <DevisGenerator prospect={prospect} history={history} session={session} settings={settings} />}
           </div>
         </div>
-        <div>
-          <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>PROCHAIN CONTACT</div>
-          <input
-            type="date"
-            value={prospect.next_contact_at ? prospect.next_contact_at.slice(0, 10) : ""}
-            onChange={(e) => onUpdate({ next_contact_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
-            style={{ ...selectStyle, color: isOverdue(prospect.next_contact_at) ? "var(--red)" : "var(--text)" }}
-          />
-        </div>
-      </div>
-
-      <div style={{ marginBottom: "14px" }}>
-        <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>MONTANT DU DEAL (€)</div>
-        <input
-          type="number"
-          min="0"
-          value={dealValueInput}
-          onChange={(e) => setDealValueInput(e.target.value)}
-          onBlur={commitDealValue}
-          onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
-          style={{ ...selectStyle, width: "160px" }}
-        />
-      </div>
-
-      <NoteAnalyzer prospect={prospect} history={history} session={session} onLogActivity={onLogActivity} onUpdate={onUpdate} settings={settings} />
-
-      <CoachingCard prospect={prospect} history={history} session={session} />
-
-      <div style={{ display: "flex", gap: "4px", marginBottom: "16px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
-        {[["email", "Email"], ["script", "Script"], ["analyse", "Analyse"], ["taches", "Tâches"], ["devis", "Devis"]].map(([key, label]) => (
-          <button key={key} className="focusable" onClick={() => setTab(key)} style={{ flex: 1, padding: "7px 6px", borderRadius: "6px", fontSize: "11px", fontWeight: 500, background: tab === key ? "var(--hairline)" : "transparent", color: tab === key ? "var(--text)" : "var(--text-dim)" }}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "18px", marginBottom: "16px" }}>
-        {tab === "email" && <EmailGenerator prospect={prospect} history={history} session={session} settings={settings} />}
-        {tab === "script" && <ScriptGenerator prospect={prospect} history={history} session={session} />}
-        {tab === "analyse" && <AnalyseGenerator prospect={prospect} history={history} session={session} />}
-        {tab === "taches" && <TasksTab prospect={prospect} session={session} settings={settings} />}
-        {tab === "devis" && <DevisGenerator prospect={prospect} history={history} session={session} settings={settings} />}
-      </div>
-
-      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "18px" }}>
-        <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginBottom: "12px" }}>HISTORIQUE</div>
-        <Historique history={history} />
       </div>
     </div>
   );
+}
+
+function prospectTemperature(p) {
+  if (CLOSED_STAGES.includes(p.stage)) return null;
+  const days = p.last_contact_at ? Math.floor((Date.now() - new Date(p.last_contact_at)) / 86400000) : null;
+  if (days !== null && days <= 3 && computeDealScore(p) >= 70) return { emoji: "🔥", label: "Chaud", color: "#dc2626", bg: "#fbe7e7" };
+  if (days === null || days >= 5) return { emoji: "❄️", label: "À relancer", color: "var(--blue)", bg: "var(--blue-dim)" };
+  return null;
+}
+
+function PipelineStepper({ stage }) {
+  if (CLOSED_STAGES.includes(stage)) {
+    const won = stage === "Gagné";
+    return (
+      <span style={{ display: "inline-flex", alignSelf: "flex-start", fontSize: "12px", fontWeight: 700, color: won ? "#0ea968" : "var(--text-faint)", background: won ? "#e2f7ec" : "var(--panel2)", borderRadius: "999px", padding: "5px 12px" }}>
+        {won ? "🏆 Gagné" : "Perdu"}
+      </span>
+    );
+  }
+  const currentIndex = OPEN_STAGES.indexOf(stage);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+      {OPEN_STAGES.map((s, i) => (
+        <div key={s} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ width: "8px", height: "8px", borderRadius: "50%", flexShrink: 0, background: i <= currentIndex ? "var(--blue)" : "var(--hairline-strong, var(--hairline))" }} />
+          <span style={{ fontSize: "11.5px", fontWeight: i === currentIndex ? 700 : 500, color: i === currentIndex ? "var(--blue)" : i < currentIndex ? "var(--text-dim)" : "var(--text-faint)" }}>
+            {s}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NextActionCard({ prospect, refreshKey, onOpenTab }) {
+  const [task, setTask] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase
+      .from("tasks")
+      .select("*")
+      .eq("prospect_id", prospect.id)
+      .eq("done", false)
+      .not("due_at", "is", null)
+      .order("due_at", { ascending: true })
+      .limit(1);
+    setTask(data?.[0] || null);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prospect.id, refreshKey]);
+
+  async function markDone() {
+    if (!task) return;
+    await supabase.from("tasks").update({ done: true }).eq("id", task.id);
+    load();
+  }
+
+  if (loading) return null;
+
+  const meta = task ? (TASK_TYPE_META[task.type] || TASK_TYPE_META.appel_telephone) : null;
+  const VERB = { appel_telephone: "Appeler", appel_visio: "Appel visio avec", rdv_physique: "RDV avec", relance_email: "Relancer" };
+
+  return (
+    <div style={{ background: "var(--gold-dim)", border: "0.5px solid var(--gold)55", borderRadius: "12px", padding: "18px", marginBottom: "16px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+        <span style={{ fontSize: "14px" }}>⚡</span>
+        <span className="display" style={{ fontWeight: 700, fontSize: "11.5px", color: "var(--gold-deep)", letterSpacing: "0.04em" }}>PROCHAINE ACTION</span>
+      </div>
+      {task ? (
+        <>
+          <div className="display" style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 700, fontSize: "16px", marginBottom: "2px" }}>
+            <meta.Icon size={15} color="var(--gold-deep)" /> {VERB[task.type] || meta.label} {prospect.name}
+          </div>
+          <div className="mono" style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: task.note ? "8px" : "14px", textTransform: "capitalize" }}>
+            {formatDayTime(task.due_at)}
+          </div>
+          {task.note && <div style={{ fontSize: "13px", color: "var(--text)", marginBottom: "14px" }}>Objectif : {task.note}</div>}
+          <div style={{ display: "flex", gap: "8px" }}>
+            {prospect.phone && task.type !== "relance_email" ? (
+              <a href={`tel:${prospect.phone}`} className="focusable" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--gold)", color: "#fff", border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600, textDecoration: "none" }}>
+                Appeler
+              </a>
+            ) : (
+              <button className="focusable" onClick={markDone} style={{ background: "var(--gold)", color: "#fff", border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600 }}>
+                Marquer fait
+              </button>
+            )}
+            <button className="focusable" onClick={() => onOpenTab?.("taches")} style={{ background: "var(--panel)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px 16px", fontSize: "13px" }}>
+              Modifier
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{ fontSize: "13px", color: "var(--text-dim)", marginBottom: "12px" }}>Aucune action planifiée pour ce prospect.</div>
+          <button className="focusable" onClick={() => onOpenTab?.("taches")} style={{ background: "var(--gold)", color: "#fff", border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600 }}>
+            Planifier une action
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function formatDayTime(iso) {
+  const d = new Date(iso);
+  const day = d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "short" });
+  const time = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  return `${day} · ${time}`;
 }
 
 const ACTION_TYPES = [
@@ -750,7 +897,7 @@ function mentionsRdv(actionType, text) {
   return actionType === "rdv_physique" || actionType === "appel_visio" || RDV_KEYWORDS.test(text);
 }
 
-function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate, settings }) {
+function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate, settings, onTaskCreated }) {
   const [actionType, setActionType] = useState("appel_abouti");
   const [note, setNote] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
@@ -804,6 +951,7 @@ function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate, set
     });
     setRdvSaving(false);
     setRdvPrompt(null);
+    onTaskCreated?.();
   }
 
   async function improveWithAI() {
@@ -1188,58 +1336,84 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
   );
 }
 
-function CoachingCard({ prospect, history, session }) {
-  const [regenerating, setRegenerating] = useState(false);
+function OpportunityAI({ prospect, history, session, onUpdate }) {
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const latest = history.analyses[0];
+  const data = prospect.last_analysis;
 
-  async function regenerate() {
-    setRegenerating(true);
+  async function generate() {
+    setLoading(true);
     setError("");
     try {
-      const prompt = `Tu es un coach commercial. Sur la base des échanges réels ci-dessous avec ce prospect, donne en français deux sections courtes : "Points forts" (ce qui fonctionne dans la relation ou l'approche actuelle) et "Points à améliorer" (ce qui freine la vente ou pourrait être mieux exploité), 2 à 3 puces courtes chacune. Termine par une ligne "Conseil : " avec une recommandation concrète et actionnable pour le prochain échange (appel ou email).
+      const prompt = `Tu es un coach commercial. Analyse ce prospect à partir des échanges réels ci-dessous. Réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après, sans balises markdown, exactement dans ce format :
+{"needs": "besoin principal identifié en une phrase", "budget": "budget estimé ou fourchette si mentionné, sinon 'Non évoqué'", "recommendation": "recommandation d'action concrète en une phrase", "positive_signals": ["signal positif court", "..."], "watch_points": ["point de vigilance court", "..."]}
+
+Limite positive_signals et watch_points à 4 éléments maximum chacun, puces courtes de 5 à 8 mots, en français.
 
 Nom du contact : ${prospect.name}
 Entreprise : ${prospect.company}
 Étape du pipeline : ${prospect.stage}
 
 ${buildHistoryContext(history)}`;
-      const text = await callAI(prompt, session.access_token);
-      await supabase.from("analyses_ia").insert({ user_id: session.user.id, prospect_id: prospect.id, type: "points_forts_faibles", content: text });
-      await history.reload();
+      const raw = await callAI(prompt, session.access_token);
+      const parsed = parseJsonLoose(raw);
+      if (!parsed) throw new Error("parse_failed");
+      const readable = `Recommandation : ${parsed.recommendation}\n\nSignaux positifs :\n${(parsed.positive_signals || []).map((s) => `+ ${s}`).join("\n")}\n\nPoints de vigilance :\n${(parsed.watch_points || []).map((s) => `- ${s}`).join("\n")}`;
+      await supabase.from("analyses_ia").insert({ user_id: session.user.id, prospect_id: prospect.id, type: "opportunite", content: readable });
+      await onUpdate({ last_analysis: { ...parsed, analyzed_at: new Date().toISOString() } });
+      history.reload();
     } catch (e) {
-      setError(e.message || "La génération a échoué. Réessaie.");
+      setError(e.message && e.message !== "parse_failed" ? e.message : "L'analyse a échoué. Réessaie.");
     } finally {
-      setRegenerating(false);
+      setLoading(false);
     }
   }
 
   return (
-    <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2a3ed640", borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <SparklesIcon size={13} color="var(--blue)" />
-          <span className="display" style={{ fontWeight: 700, fontSize: "13px", color: "var(--blue)" }}>Points forts / points faibles</span>
-        </div>
-        <button className="focusable" onClick={regenerate} disabled={regenerating} style={{ fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--panel)", color: "var(--blue)", border: "0.5px solid #2a3ed640" }}>
-          {regenerating ? "Analyse..." : latest ? "Régénérer" : "Générer"}
-        </button>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px" }}>
+        <div className="display" style={{ fontWeight: 700, fontSize: "11.5px", color: "var(--text-faint)", letterSpacing: "0.04em", marginBottom: "12px" }}>RÉSUMÉ IA</div>
+        {data ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <SummaryRow label="Besoin" value={data.needs} />
+            <SummaryRow label="Budget" value={data.budget} />
+            <SummaryRow label="Recommandation" value={data.recommendation} accent />
+          </div>
+        ) : (
+          <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Pas encore d'analyse.</div>
+        )}
       </div>
 
-      {error && <div style={{ color: "var(--red)", fontSize: "12px", marginBottom: "6px" }}>{error}</div>}
-
-      {history.loading ? (
-        <div style={{ color: "var(--text-dim)", fontSize: "12px" }}>Chargement de l'historique...</div>
-      ) : latest ? (
-        <>
-          <div style={{ fontSize: "12px", color: "var(--text)", whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{latest.content}</div>
-          <div style={{ fontSize: "10px", color: "var(--text-faint)", marginTop: "8px" }}>Basé sur les échanges jusqu'au {formatShortDate(latest.created_at)}</div>
-        </>
-      ) : (
-        <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>
-          Pas encore d'analyse pour ce prospect — génère-la pour voir ce qui fonctionne et ce qui freine la vente, et pour que les emails générés s'en inspirent.
+      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+          <span className="display" style={{ fontWeight: 700, fontSize: "11.5px", color: "var(--text-faint)", letterSpacing: "0.04em" }}>ANALYSE DE L'OPPORTUNITÉ</span>
+          <button className="focusable" onClick={generate} disabled={loading} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655" }}>
+            <SparklesIcon size={11} color="var(--blue)" /> {loading ? "Analyse..." : data ? "Régénérer" : "Analyser"}
+          </button>
         </div>
-      )}
+        {error && <div style={{ color: "var(--red)", fontSize: "12px", marginBottom: "8px" }}>{error}</div>}
+        {data ? (
+          <>
+            <div style={{ display: "flex", gap: "12px", marginBottom: "10px", flexWrap: "wrap" }}>
+              <span style={{ fontSize: "12px", color: "#0ea968" }}>🟢 {(data.positive_signals || []).length} signaux positifs</span>
+              <span style={{ fontSize: "12px", color: "var(--amber)" }}>🟠 {(data.watch_points || []).length} points de vigilance</span>
+            </div>
+            <div style={{ fontSize: "12.5px", color: "var(--text)", lineHeight: 1.6, marginBottom: "6px" }}>{data.recommendation}</div>
+            <div style={{ fontSize: "10px", color: "var(--text-faint)" }}>Analysé le {formatShortDate(data.analyzed_at)}</div>
+          </>
+        ) : (
+          <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>Génère une analyse pour voir ce que Closia recommande.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value, accent }) {
+  return (
+    <div>
+      <div style={{ fontSize: "10px", color: "var(--text-faint)", marginBottom: "2px" }}>{label.toUpperCase()}</div>
+      <div style={{ fontSize: "13px", color: accent ? "var(--blue)" : "var(--text)", fontWeight: accent ? 600 : 400 }}>{value || "—"}</div>
     </div>
   );
 }
@@ -1255,14 +1429,28 @@ const HISTORIQUE_FILTER_BY_TYPE = {
 
 const HISTORIQUE_FILTERS = ["Tous", "Appels", "RDV & Visio", "LinkedIn", "Notes", "Deals", "IA", "Équipe"];
 
-function Historique({ history }) {
+const TIMELINE_EMOJI = {
+  Appels: "📞", "RDV & Visio": "📅", LinkedIn: "💬", Notes: "📝", Deals: "🏆", IA: "✉️", Équipe: "👥",
+};
+
+function timelineDayLabel(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  const startOfDay = (x) => { const y = new Date(x); y.setHours(0, 0, 0, 0); return y; };
+  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
+  if (diffDays === 0) return "Aujourd'hui";
+  if (diffDays === 1) return "Hier";
+  return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+}
+
+function ActivityTimeline({ history }) {
   const [filter, setFilter] = useState("Tous");
   if (history.loading) return <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Chargement...</div>;
 
   const items = [
     ...history.emails.map((x) => ({ ...x, kind: x.type === "devis" ? "Devis" : "Email", filterKey: "IA" })),
     ...history.scripts.map((x) => ({ ...x, kind: `Script — ${x.section}`, filterKey: "IA" })),
-    ...history.analyses.map((x) => ({ ...x, kind: "Analyse", filterKey: "IA" })),
+    ...history.analyses.map((x) => ({ ...x, kind: x.type === "opportunite" ? "Analyse Closia" : "Analyse", filterKey: "IA" })),
     ...history.activities.map((x) => ({ ...x, kind: ACTIVITY_LABEL[x.type] || x.type, content: x.note || "", filterKey: HISTORIQUE_FILTER_BY_TYPE[x.type] || "Notes" })),
   ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
@@ -1286,14 +1474,15 @@ function Historique({ history }) {
       {visible.length === 0 ? (
         <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Rien pour ce filtre.</div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "420px", overflowY: "auto" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "2px", maxHeight: "420px", overflowY: "auto" }}>
           {visible.map((item) => (
-            <div key={`${item.kind}-${item.id}`} style={{ background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                <span className="mono" style={{ fontSize: "11px", color: "var(--blue)" }}>{item.kind}</span>
-                <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>{formatDate(item.created_at)}</span>
+            <div key={`${item.kind}-${item.id}`} title={item.content || item.kind} style={{ display: "flex", alignItems: "flex-start", gap: "10px", padding: "8px 4px", borderBottom: "0.5px solid var(--hairline)" }}>
+              <div style={{ width: "62px", flexShrink: 0, fontSize: "11px", color: "var(--text-faint)", paddingTop: "1px" }}>{timelineDayLabel(item.created_at)}</div>
+              <div style={{ fontSize: "13px", flexShrink: 0 }}>{TIMELINE_EMOJI[item.filterKey] || "•"}</div>
+              <div style={{ flex: 1, minWidth: 0, fontSize: "12.5px", color: "var(--text)" }}>
+                <span style={{ fontWeight: 600 }}>{item.kind}</span>
+                {item.content && <span style={{ color: "var(--text-dim)" }}> · {item.content.length > 70 ? `${item.content.slice(0, 70)}…` : item.content}</span>}
               </div>
-              {item.content && <div style={{ fontSize: "12px", color: "var(--text-dim)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{item.content}</div>}
             </div>
           ))}
         </div>
@@ -1302,7 +1491,7 @@ function Historique({ history }) {
   );
 }
 
-function TasksTab({ prospect, session, settings }) {
+function TasksTab({ prospect, session, settings, onChange }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [type, setType] = useState("appel_telephone");
@@ -1322,6 +1511,7 @@ function TasksTab({ prospect, session, settings }) {
       .order("due_at", { ascending: true, nullsFirst: false });
     setTasks(data || []);
     setLoading(false);
+    onChange?.();
   }
 
   useEffect(() => {
@@ -1622,43 +1812,6 @@ ${buildHistoryContext(history)}`;
       </div>
       <GeneratorBlock label={`Générer : ${section}`} loading={loading} error={error} content={content} setContent={setContent} onGenerate={generate} onSave={save} />
     </div>
-  );
-}
-
-function AnalyseGenerator({ prospect, history, session }) {
-  const [content, setContent] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  async function generate() {
-    setLoading(true);
-    setError("");
-    try {
-      const prompt = `Tu es un assistant commercial. Analyse ce prospect et donne, en français, deux sections claires : "Points positifs" (ce qui va dans le bon sens) et "Points à améliorer" (ce qui freine la vente), chacune en 2 à 3 puces courtes. Base ton analyse sur les échanges réels ci-dessous, pas seulement sur le statut actuel.
-
-Nom du contact : ${prospect.name}
-Entreprise : ${prospect.company}
-Étape du pipeline : ${prospect.stage}
-Statut : ${prospect.status}
-
-Historique des échanges avec ce prospect :
-${buildHistoryContext(history)}`;
-      const text = await callAI(prompt, session.access_token);
-      setContent(text);
-    } catch (e) {
-      setError(e.message || "La génération a échoué. Réessaie.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function save() {
-    await supabase.from("analyses_ia").insert({ user_id: session.user.id, prospect_id: prospect.id, type: "points_forts_faibles", content });
-    history.reload();
-  }
-
-  return (
-    <GeneratorBlock label="Analyser ce prospect" loading={loading} error={error} content={content} setContent={setContent} onGenerate={generate} onSave={save} />
   );
 }
 
