@@ -61,9 +61,17 @@ export default function Shell({ session, team, reloadTeam }) {
     const { data: overdue } = await supabase.from("tasks").select("*").eq("done", false).eq("missed", false).lt("due_at", startOfToday.toISOString());
     if (!overdue || overdue.length === 0) return;
 
-    const tomorrow8h = new Date(startOfToday);
-    tomorrow8h.setDate(tomorrow8h.getDate() + 1);
-    tomorrow8h.setHours(8, 0, 0, 0);
+    const { data: userSettings } = await supabase.from("user_settings").select("work_days").eq("user_id", session.user.id).maybeSingle();
+    const workDays = userSettings?.work_days || ["Lun", "Mar", "Mer", "Jeu", "Ven"];
+    const DAY_CODES = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+
+    const nextWorkDay = new Date(startOfToday);
+    nextWorkDay.setDate(nextWorkDay.getDate() + 1);
+    while (!workDays.includes(DAY_CODES[nextWorkDay.getDay()])) {
+      nextWorkDay.setDate(nextWorkDay.getDate() + 1);
+    }
+    nextWorkDay.setHours(8, 0, 0, 0);
+    const tomorrow8h = nextWorkDay;
 
     for (const t of overdue) {
       await supabase.from("tasks").update({ missed: true, done: true }).eq("id", t.id);

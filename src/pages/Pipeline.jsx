@@ -1149,7 +1149,7 @@ function NoteAnalyzer({ prospect, history, session, onLogActivity, onUpdate, set
           date: "",
           time: settings?.default_task_time || "17:00",
         });
-      } else {
+      } else if ((settings?.ai_initiative || "Équilibré") !== "Discret") {
         setFollowUpPrompt(true);
       }
       setNote("");
@@ -1881,7 +1881,9 @@ function EmailGenerator({ prospect, history, session, settings }) {
     setLoading(true);
     setError("");
     try {
-      const prompt = `Tu es un assistant commercial. Rédige un email de relance court (5 à 6 phrases maximum), professionnel mais chaleureux, en français. Ne mets pas d'objet, uniquement le corps de l'email, termine par une formule de politesse simple (ex : "Bonne journée,"), sans nom ni signature — la signature sera ajoutée automatiquement après. Appuie-toi sur les points forts identifiés dans l'historique pour renforcer l'argumentaire, et adresse discrètement les points faibles ou objections potentielles. Ne répète pas ce qui a déjà été dit dans les échanges précédents.
+      const tone = (settings?.ai_default_tone || "Professionnel").toLowerCase();
+      const lengthGuide = { Court: "3-4 phrases maximum", Équilibré: "5 à 6 phrases maximum", Détaillé: "8 à 10 phrases" }[settings?.ai_detail_level] || "5 à 6 phrases maximum";
+      const prompt = `Tu es un assistant commercial. Rédige un email de relance en français, ton ${tone}, ${lengthGuide}. Ne mets pas d'objet, uniquement le corps de l'email, termine par une formule de politesse simple (ex : "Bonne journée,"), sans nom ni signature — la signature sera ajoutée automatiquement après. Appuie-toi sur les points forts identifiés dans l'historique pour renforcer l'argumentaire, et adresse discrètement les points faibles ou objections potentielles. Ne répète pas ce qui a déjà été dit dans les échanges précédents.
 ${keywords.trim() ? `\nÉléments à intégrer absolument, donnés par le commercial : ${keywords.trim()}\n` : ""}
 Nom du contact : ${prospect.name}
 Entreprise : ${prospect.company}

@@ -3,6 +3,13 @@ import { supabase } from "../lib/supabaseClient";
 import { formatEuros, buildSignatureBlock, GearIcon, PlugIcon, PageTitle } from "../lib/ui.jsx";
 
 const TONES = ["Professionnel", "Chaleureux", "Direct"];
+const DETAIL_LEVELS = ["Court", "Équilibré", "Détaillé"];
+const INITIATIVE_LEVELS = [
+  { value: "Discret", desc: "Closia recommande uniquement les actions importantes." },
+  { value: "Équilibré", desc: "Closia signale les opportunités et problèmes importants." },
+  { value: "Proactif", desc: "Closia cherche activement les actions à effectuer." },
+];
+const WEEKDAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
 function toCSV(prospects) {
   const headers = ["Civilité", "Nom", "Entreprise", "Poste", "Email", "Téléphone", "Étape", "Statut", "Priorité", "Montant"];
@@ -50,17 +57,31 @@ export default function Settings({ session, prospects, settings, reloadSettings,
 
   if (!local) return <div style={{ padding: "28px 32px" }}>Chargement...</div>;
 
+  const isAdmin = !team || team.role === "admin";
+  const workDays = local.work_days || WEEKDAYS.slice(0, 5);
+
+  function toggleWorkDay(day) {
+    const next = workDays.includes(day) ? workDays.filter((d) => d !== day) : WEEKDAYS.filter((d) => d === day || workDays.includes(d));
+    set({ work_days: next });
+  }
+
   return (
     <div style={{ padding: "28px 32px 60px", maxWidth: "620px" }}>
       <PageTitle icon={GearIcon} color="#0369a1" style={{ marginBottom: "20px" }}>Paramètres</PageTitle>
 
-      <Section title="Profil">
+      <Section title="Mon profil">
         <div style={{ fontSize: "14px", marginBottom: "2px" }}>
           {local.first_name || local.last_name ? `${local.first_name || ""} ${local.last_name || ""}`.trim() + " · " : ""}{session.user.email}
         </div>
         <div style={{ color: "var(--text-dim)", fontSize: "12px", marginBottom: "12px" }}>
           {local.company_name ? `${local.company_name}${local.industry ? ` · ${local.industry}` : ""}${local.team_size ? ` · ${local.team_size}` : ""}` : "Connecté via Supabase"}
         </div>
+        {team && (
+          <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "12px" }}>
+            Rôle : <span style={{ fontWeight: 600, color: "var(--text)" }}>{ROLE_LABELS[team.role] || team.role}</span>
+            {!isAdmin && <span style={{ color: "var(--text-faint)" }}> — défini par l'administrateur de votre espace.</span>}
+          </div>
+        )}
         <button
           className="focusable"
           onClick={async () => {
@@ -92,19 +113,53 @@ export default function Settings({ session, prospects, settings, reloadSettings,
       </Section>
 
       <Section title="Organisation quotidienne">
-        <Field label="Créneau pour les tâches sans horaire" last>
+        <Field label="Créneau pour les tâches sans horaire">
           <input type="time" value={local.default_task_time || "17:00"} onChange={(e) => set({ default_task_time: e.target.value })} style={inputSm} />
         </Field>
-        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>Les tâches et relances créées sans horaire précis seront placées à ce créneau dans l'Agenda.</div>
+        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "14px" }}>Les tâches et relances créées sans horaire précis seront placées à ce créneau dans l'Agenda.</div>
+
+        <div style={{ fontSize: "13px", color: "var(--text)", marginBottom: "8px" }}>Jours travaillés</div>
+        <div style={{ display: "flex", gap: "4px", marginBottom: "10px" }}>
+          {WEEKDAYS.map((d) => {
+            const on = workDays.includes(d);
+            return (
+              <button key={d} className="focusable" onClick={() => toggleWorkDay(d)} style={{ width: "36px", padding: "6px 0", borderRadius: "6px", fontSize: "11.5px", fontWeight: 600, background: on ? "var(--blue-dim)" : "var(--panel2)", color: on ? "var(--blue)" : "var(--text-faint)", border: on ? "0.5px solid #2a3ed655" : "0.5px solid var(--hairline)" }}>
+                {d}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>
+          Une tâche non terminée en fin de journée est reportée automatiquement au prochain jour travaillé (pas au samedi si vous ne travaillez pas le week-end).
+        </div>
       </Section>
 
       <Section title="Assistant IA">
-        <Field label="Ton par défaut des emails générés" last>
+        <Field label="Ton par défaut des emails générés">
           <select value={local.ai_default_tone} onChange={(e) => set({ ai_default_tone: e.target.value })} style={inputSm}>
             {TONES.map((t) => <option key={t}>{t}</option>)}
           </select>
         </Field>
-        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>S'applique aux prochains emails générés par l'IA (Assistant &amp; fiches prospect).</div>
+        <Field label="Niveau de détail">
+          <select value={local.ai_detail_level || "Équilibré"} onChange={(e) => set({ ai_detail_level: e.target.value })} style={inputSm}>
+            {DETAIL_LEVELS.map((l) => <option key={l}>{l}</option>)}
+          </select>
+        </Field>
+        <div style={{ fontSize: "13px", color: "var(--text)", marginTop: "14px", marginBottom: "8px" }}>Initiative de Closia</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {INITIATIVE_LEVELS.map((lvl) => (
+            <button
+              key={lvl.value}
+              className="focusable"
+              onClick={() => set({ ai_initiative: lvl.value })}
+              style={{ textAlign: "left", padding: "8px 10px", borderRadius: "8px", background: (local.ai_initiative || "Équilibré") === lvl.value ? "var(--blue-dim)" : "var(--panel2)", border: (local.ai_initiative || "Équilibré") === lvl.value ? "0.5px solid #2a3ed655" : "0.5px solid var(--hairline)" }}
+            >
+              <div style={{ fontSize: "12.5px", fontWeight: 600, color: (local.ai_initiative || "Équilibré") === lvl.value ? "var(--blue)" : "var(--text)" }}>{lvl.value}</div>
+              <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>{lvl.desc}</div>
+            </button>
+          ))}
+        </div>
+        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>Le ton et le niveau de détail s'appliquent aux emails générés par l'IA. L'initiative détermine si Closia propose spontanément une tâche de suivi après une note.</div>
       </Section>
 
       <Section title="Signature email">
@@ -136,13 +191,17 @@ export default function Settings({ session, prospects, settings, reloadSettings,
         {saved && <span style={{ color: "var(--green, #16a34a)", fontSize: "12px" }}>Enregistré ✓</span>}
       </div>
 
-      <Section title="Équipe">
-        <TeamPanel session={session} team={team} reloadTeam={reloadTeam} />
-      </Section>
+      {isAdmin && (
+        <Section title="Équipe">
+          <TeamPanel session={session} team={team} reloadTeam={reloadTeam} />
+        </Section>
+      )}
 
-      <Section title="Facturation">
-        <BillingPanel local={local} session={session} team={team} />
-      </Section>
+      {isAdmin && (
+        <Section title="Abonnement & facturation">
+          <BillingPanel local={local} session={session} team={team} />
+        </Section>
+      )}
 
       <Section title="Intégrations">
         <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "12px" }}>Connectez vos outils commerciaux (agenda, CRM, email) à Closia.</div>
