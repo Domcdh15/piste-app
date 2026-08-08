@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { Avatar, formatDate, formatShortDate, formatEuros, periodRange, callAI, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, TargetIcon, ListIcon, UsersIcon, LinkedinIcon, TableIcon, PageTitle } from "../lib/ui.jsx";
+import { Avatar, formatShortDate, formatEuros, callAI, parseJsonLoose, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, ListIcon, UsersIcon, LinkedinIcon, AlertIcon, PageTitle } from "../lib/ui.jsx";
 
-const PERIODS = [
-  ["day", "Jour"],
-  ["week", "Semaine"],
-  ["month", "Mois"],
-];
+const PERIOD_DAYS = { "7": 7, "30": 30, "90": 90 };
+const PERIODS = [["7", "7 jours"], ["30", "30 jours"], ["90", "90 jours"]];
 
 const FILTERS = [
   ["Tous", "Tous"],
@@ -34,22 +31,40 @@ const ICONS = {
   "Réattribution": <UsersIcon size={13} color="var(--gold-deep)" />,
 };
 
-const MIX_CATEGORIES = [
-  { key: "appels", label: "Appels", color: "#2a3ed6" },
-  { key: "rdv", label: "RDV & Visio", color: "#eb6834" },
-  { key: "emails", label: "Emails", color: "#1baf7a" },
-  { key: "notes", label: "Notes", color: "#eda100" },
-  { key: "deals", label: "Deals conclus", color: "#e87ba4" },
-  { key: "autres", label: "Autres", color: "#94a3b8" },
-];
+const ACTIVITY_LABEL = {
+  appel_abouti: "Appel abouti", appel_manque: "Appel manqué",
+  rdv_physique: "RDV physique", appel_visio: "Visio", message_linkedin: "Message LinkedIn",
+  deal_gagne: "Deal gagné", deal_perdu: "Deal perdu", note: "Note", reassignation: "Réattribution",
+};
+const ACTIVITY_FILTER = {
+  appel_abouti: "Appels", appel_manque: "Appels",
+  rdv_physique: "Rendez-vous", appel_visio: "Rendez-vous", message_linkedin: "LinkedIn",
+  note: "Notes", deal_gagne: "Tous", deal_perdu: "Tous", reassignation: "Tous",
+};
+
+function daysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function dayLabel(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  const startOfDay = (x) => { const y = new Date(x); y.setHours(0, 0, 0, 0); return y; };
+  const diff = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
+  if (diff === 0) return "Aujourd'hui";
+  if (diff === 1) return "Hier";
+  return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+}
 
 export default function Activities({ prospects, onOpenProspect, session, team }) {
-  const [period, setPeriod] = useState("week");
+  const [tab, setTab] = useState("activite");
   const [filter, setFilter] = useState("Tous");
-  const [activities, setActivities] = useState([]);
   const [feedItems, setFeedItems] = useState([]);
+  const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [expandedTile, setExpandedTile] = useState(null);
   const [teamStats, setTeamStats] = useState(null);
 
   useEffect(() => {
@@ -71,17 +86,6 @@ export default function Activities({ prospects, onOpenProspect, session, team })
       ]);
       const byId = Object.fromEntries(prospects.map((p) => [p.id, p]));
 
-      const ACTIVITY_LABEL = {
-        appel_abouti: "Appel abouti", appel_manque: "Appel manqué",
-        rdv_physique: "RDV physique", appel_visio: "Visio", message_linkedin: "Message LinkedIn",
-        deal_gagne: "Deal gagné", deal_perdu: "Deal perdu", note: "Note", reassignation: "Réattribution",
-      };
-      const ACTIVITY_FILTER = {
-        appel_abouti: "Appels", appel_manque: "Appels",
-        rdv_physique: "Rendez-vous", appel_visio: "Rendez-vous", message_linkedin: "LinkedIn",
-        note: "Notes", deal_gagne: "Tous", deal_perdu: "Tous", reassignation: "Tous",
-      };
-
       const feed = [
         ...(emails.data || []).map((x) => ({ ...x, kind: x.type === "devis" ? "Devis" : "Email de relance", filterKey: "Emails" })),
         ...(scripts.data || []).map((x) => ({ ...x, kind: "Rendez-vous", filterKey: "Rendez-vous" })),
@@ -95,73 +99,56 @@ export default function Activities({ prospects, onOpenProspect, session, team })
       setActivities((acts.data || []).map((a) => ({ ...a, prospect: byId[a.prospect_id] })));
       setLoading(false);
     }
-    if (prospects.length >= 0) load();
+    load();
   }, [prospects]);
 
-  const { start } = periodRange(period);
-  const inRange = activities.filter((a) => new Date(a.created_at) >= start);
+  return (
+    <div style={{ padding: "28px 32px 60px", maxWidth: "900px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px", flexWrap: "wrap", gap: "10px" }}>
+        <PageTitle icon={ListIcon} color="#0284c7">Activité & Données</PageTitle>
+      </div>
+      <div style={{ display: "flex", gap: "4px", background: "var(--panel2)", borderRadius: "8px", padding: "3px", marginBottom: "22px", width: "fit-content" }}>
+        {[["activite", "Activité"], ["performance", "Performance"]].map(([key, label]) => (
+          <button key={key} className="focusable" onClick={() => setTab(key)} style={{ padding: "7px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 500, background: tab === key ? "var(--bg)" : "transparent", color: tab === key ? "var(--blue)" : "var(--text-dim)", boxShadow: tab === key ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
+            {label}
+          </button>
+        ))}
+      </div>
 
-  const appelsList = inRange.filter((a) => a.type === "appel_abouti" || a.type === "appel_manque");
-  const nbAppelAbouti = inRange.filter((a) => a.type === "appel_abouti").length;
-  const nbAppelManque = inRange.filter((a) => a.type === "appel_manque").length;
-  const totalAppels = nbAppelAbouti + nbAppelManque;
-  const tauxReussite = totalAppels > 0 ? Math.round((nbAppelAbouti / totalAppels) * 100) : null;
+      {tab === "activite" ? (
+        <ActivityTab
+          prospects={prospects}
+          feedItems={feedItems}
+          activities={activities}
+          loading={loading}
+          filter={filter}
+          setFilter={setFilter}
+          onOpenProspect={onOpenProspect}
+          teamStats={teamStats}
+        />
+      ) : (
+        <PerformanceTab prospects={prospects} activities={activities} feedItems={feedItems} session={session} teamStats={teamStats} />
+      )}
+    </div>
+  );
+}
 
-  const rdvList = feedItems.filter((i) => i.filterKey === "Rendez-vous" && new Date(i.created_at) >= start);
-  const opportunitesList = prospects.filter((p) => p.created_at && new Date(p.created_at) >= start);
-  const gagnesList = prospects.filter((p) => p.stage === "Gagné" && p.closed_at && new Date(p.closed_at) >= start);
-  const perdusList = prospects.filter((p) => p.stage === "Perdu" && p.closed_at && new Date(p.closed_at) >= start);
-  const nbDealGagne = gagnesList.length;
-  const nbDealPerdu = perdusList.length;
-  const tauxConversion = nbDealGagne + nbDealPerdu > 0 ? Math.round((nbDealGagne / (nbDealGagne + nbDealPerdu)) * 100) : null;
-  const caGenere = gagnesList.reduce((sum, p) => sum + (p.deal_value || 0), 0);
+function ActivityTab({ prospects, feedItems, activities, loading, filter, setFilter, onOpenProspect, teamStats }) {
+  const now = new Date();
+  const startToday = daysAgo(0);
+  const todayActs = activities.filter((a) => new Date(a.created_at) >= startToday);
+  const todayEmails = feedItems.filter((i) => i.filterKey === "Emails" && new Date(i.created_at) >= startToday);
+  const nbAppels = todayActs.filter((a) => a.type === "appel_abouti" || a.type === "appel_manque").length;
+  const nbRdv = todayActs.filter((a) => a.type === "rdv_physique" || a.type === "appel_visio").length;
 
-  const emailsInRange = feedItems.filter((i) => i.filterKey === "Emails" && new Date(i.created_at) >= start).length;
-  const nbNotes = inRange.filter((a) => a.type === "note").length;
-  const nbDealsClos = inRange.filter((a) => a.type === "deal_gagne" || a.type === "deal_perdu").length;
-  const nbAutres = inRange.filter((a) => a.type === "message_linkedin" || a.type === "reassignation").length;
-  const mixData = [
-    { ...MIX_CATEGORIES[0], value: totalAppels },
-    { ...MIX_CATEGORIES[1], value: rdvList.length },
-    { ...MIX_CATEGORIES[2], value: emailsInRange },
-    { ...MIX_CATEGORIES[3], value: nbNotes },
-    { ...MIX_CATEGORIES[4], value: nbDealsClos },
-    { ...MIX_CATEGORIES[5], value: nbAutres },
-  ].filter((c) => c.value > 0);
-
-  const TILES = {
-    appels: { label: "Nombre d'appels", items: appelsList, kind: "activities" },
-    rdv: { label: "Nombre de rendez-vous", items: rdvList, kind: "feed" },
-    opportunites: { label: "Opportunités créées", items: opportunitesList, kind: "prospects", dateField: "created_at" },
-    gagnes: { label: "Deals gagnés", items: gagnesList, kind: "prospects", dateField: "closed_at" },
-    perdus: { label: "Deals perdus", items: perdusList, kind: "prospects", dateField: "closed_at" },
-    conversion: { label: "Taux de conversion", items: [...gagnesList, ...perdusList], kind: "prospects", dateField: "closed_at" },
-    ca: { label: "CA généré", items: [...gagnesList].sort((a, b) => (b.deal_value || 0) - (a.deal_value || 0)), kind: "revenue", dateField: "closed_at" },
-  };
+  const stale = prospects.filter((p) => p.stage !== "Gagné" && p.stage !== "Perdu" && (!p.last_contact_at || (now - new Date(p.last_contact_at)) / 86400000 >= 7));
 
   const visibleFeed = filter === "Tous" ? feedItems : feedItems.filter((item) => item.filterKey === filter);
 
   return (
-    <div style={{ padding: "28px 32px 48px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px", flexWrap: "wrap", gap: "10px" }}>
-        <PageTitle icon={ListIcon} color="#0284c7">Activités</PageTitle>
-        <div style={{ display: "flex", gap: "4px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
-          {PERIODS.map(([key, label]) => (
-            <button
-              key={key}
-              className="focusable"
-              onClick={() => setPeriod(key)}
-              style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: period === key ? "var(--hairline)" : "transparent", color: period === key ? "var(--text)" : "var(--text-dim)" }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "20px" }}>Mémoire commerciale chronologique, tous prospects confondus.</div>
-
+    <>
       {teamStats && (
-        <div style={{ display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px 16px", marginBottom: "20px", maxWidth: "820px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px 16px", marginBottom: "18px" }}>
           <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, letterSpacing: "0.03em" }}>ÉQUIPE</div>
           <StatChip label="Prospects" value={teamStats.prospect_count ?? 0} />
           <StatChip label="Deals gagnés" value={teamStats.deals_won ?? 0} />
@@ -170,33 +157,20 @@ export default function Activities({ prospects, onOpenProspect, session, team })
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: expandedTile ? "0" : "24px", maxWidth: "820px" }}>
-        <ReportTile tileKey="appels" expanded={expandedTile === "appels"} onClick={setExpandedTile} icon={<PhoneIcon size={14} color="#0ea968" />} accent="#0ea968" label="Nombre d'appels" value={totalAppels} />
-        <ReportTile tileKey="rdv" expanded={expandedTile === "rdv"} onClick={setExpandedTile} icon={<CalendarIcon size={14} color="var(--blue)" />} accent="var(--blue)" label="Nombre de rendez-vous" value={rdvList.length} />
-        <ReportTile tileKey="opportunites" expanded={expandedTile === "opportunites"} onClick={setExpandedTile} icon={<TargetIcon size={14} color="#7c3aed" />} accent="#7c3aed" label="Opportunités créées" value={opportunitesList.length} />
-        <ReportTile tileKey="gagnes" expanded={expandedTile === "gagnes"} onClick={setExpandedTile} icon={<TrophyIcon size={14} color="#0ea968" />} accent="#0ea968" label="Deals gagnés" value={nbDealGagne} />
-        <ReportTile tileKey="perdus" expanded={expandedTile === "perdus"} onClick={setExpandedTile} icon={<XIcon size={14} color="var(--text-dim)" />} accent="var(--text-dim)" label="Deals perdus" value={nbDealPerdu} />
-        <ReportTile tileKey="conversion" expanded={expandedTile === "conversion"} onClick={setExpandedTile} icon={<TrophyIcon size={14} color="var(--amber)" />} accent="var(--amber)" label="Taux de conversion" value={tauxConversion !== null ? `${tauxConversion}%` : "—"} />
-        <ReportTile tileKey="ca" expanded={expandedTile === "ca"} onClick={setExpandedTile} icon={<TargetIcon size={14} color="#0ea968" />} accent="#0ea968" label="CA généré" value={formatEuros(caGenere)} />
+      <div style={{ display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap", marginBottom: "10px" }}>
+        <span style={{ fontSize: "13px", fontWeight: 600 }}>Aujourd'hui · {todayActs.length + todayEmails.length} activités</span>
+        <StatChip label="appels" value={nbAppels} />
+        <StatChip label="emails" value={todayEmails.length} />
+        <StatChip label="rendez-vous" value={nbRdv} />
       </div>
 
-      {expandedTile && (
-        <ExpandedTilePanel
-          tileKey={expandedTile}
-          config={TILES[expandedTile]}
-          onOpenProspect={onOpenProspect}
-          onClose={() => setExpandedTile(null)}
-          session={session}
-        />
-      )}
-
-      {tauxReussite !== null && (
-        <div style={{ color: "var(--text-dim)", fontSize: "12px", marginBottom: "20px" }}>
-          Taux de décroché : <span className="mono" style={{ color: "var(--text)", fontWeight: 700 }}>{tauxReussite}%</span> ({totalAppels} appel{totalAppels > 1 ? "s" : ""} sur la période)
+      {stale.length > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", background: "var(--red-dim)", border: "0.5px solid var(--red)33", borderRadius: "8px", padding: "9px 14px", marginBottom: "20px" }}>
+          <span style={{ fontSize: "12.5px", color: "var(--red)", fontWeight: 600 }}>⚠ {stale.length} opportunité{stale.length > 1 ? "s" : ""} sans activité depuis plus de 7 jours</span>
         </div>
       )}
 
-      <ActivityMixChart data={mixData} />
+      <SignalsRow prospects={prospects} activities={activities} onOpenProspect={onOpenProspect} />
 
       <div style={{ display: "flex", gap: "6px", marginBottom: "16px", flexWrap: "wrap" }}>
         {FILTERS.map(([key, label]) => (
@@ -211,44 +185,86 @@ export default function Activities({ prospects, onOpenProspect, session, team })
         ))}
       </div>
 
+      <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.03em", marginBottom: "10px" }}>ACTIVITÉ RÉCENTE</div>
+
       {loading ? (
         <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Chargement...</div>
       ) : visibleFeed.length === 0 ? (
         <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Aucune activité pour ce filtre.</div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxWidth: "760px" }}>
-          {visibleFeed.map((item) => (
-            <div key={`${item.kind}-${item.id}`} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  {item.prospect && <Avatar name={item.prospect.name} stage={item.prospect.stage} size={24} />}
-                  <span className="display" style={{ fontSize: "13px", fontWeight: 600 }}>
-                    {item.prospect ? item.prospect.name : "Prospect supprimé"}
-                  </span>
-                  <span className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "var(--blue)" }}>
-                    {ICONS[item.kind]} {item.kind}
-                  </span>
-                </div>
-                <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>{formatDate(item.created_at)}</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+          {visibleFeed.slice(0, 60).map((item) => (
+            <div key={`${item.kind}-${item.id}`} style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "10px 6px", borderBottom: "0.5px solid var(--hairline)" }}>
+              <div style={{ width: "58px", flexShrink: 0, fontSize: "11px", color: "var(--text-faint)", paddingTop: "2px" }}>{dayLabel(item.created_at)}</div>
+              <div style={{ paddingTop: "1px" }}>{ICONS[item.kind] || <ClockIcon size={13} color="var(--text-dim)" />}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <button className="focusable" onClick={() => item.prospect && onOpenProspect?.(item.prospect.id)} style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: item.prospect ? "pointer" : "default" }}>
+                  <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{item.kind}</span>
+                  {item.prospect && <span style={{ fontSize: "12.5px", color: "var(--blue)" }}> · {item.prospect.name} — {item.prospect.company}</span>}
+                </button>
+                {item.prospect?.deal_value > 0 && (
+                  <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginTop: "1px" }}>{formatEuros(item.prospect.deal_value)} · {item.prospect.stage}</div>
+                )}
+                {item.content && <div style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.content}</div>}
               </div>
-              {item.content && <div style={{ fontSize: "12px", color: "var(--text-dim)", whiteSpace: "pre-wrap", lineHeight: 1.5, marginBottom: "10px" }}>{item.content}</div>}
-              {item.prospect && (
-                <div style={{ display: "flex", gap: "6px", borderTop: "0.5px solid var(--hairline)", paddingTop: "8px" }}>
-                  <button className="focusable" onClick={() => onOpenProspect?.(item.prospect.id)} style={{ fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
-                    Ajouter une note
-                  </button>
-                  <button className="focusable" onClick={() => onOpenProspect?.(item.prospect.id, "taches")} style={{ fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
-                    Créer une tâche
-                  </button>
-                  <button className="focusable" onClick={() => onOpenProspect?.(item.prospect.id)} style={{ fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655" }}>
-                    Ouvrir l'opportunité
-                  </button>
-                </div>
-              )}
             </div>
           ))}
         </div>
       )}
+    </>
+  );
+}
+
+function SignalsRow({ prospects, activities, onOpenProspect }) {
+  const now = new Date();
+  const startToday = daysAgo(0);
+  const startWeek = daysAgo(7);
+  const open = prospects.filter((p) => p.stage !== "Gagné" && p.stage !== "Perdu");
+
+  const countsByProspect = {};
+  activities.forEach((a) => {
+    if (!a.prospect_id) return;
+    countsByProspect[a.prospect_id] = countsByProspect[a.prospect_id] || { today: 0, week: 0 };
+    if (new Date(a.created_at) >= startToday) countsByProspect[a.prospect_id].today += 1;
+    if (new Date(a.created_at) >= startWeek) countsByProspect[a.prospect_id].week += 1;
+  });
+
+  const hotToday = open
+    .filter((p) => countsByProspect[p.id]?.today >= 2)
+    .sort((a, b) => (countsByProspect[b.id]?.today || 0) - (countsByProspect[a.id]?.today || 0))[0];
+
+  const cooling = open
+    .filter((p) => !p.last_contact_at || (now - new Date(p.last_contact_at)) / 86400000 >= 9)
+    .sort((a, b) => (b.deal_value || 0) - (a.deal_value || 0))[0];
+
+  const active = open
+    .filter((p) => (countsByProspect[p.id]?.week || 0) >= 3)
+    .sort((a, b) => (countsByProspect[b.id]?.week || 0) - (countsByProspect[a.id]?.week || 0))[0];
+
+  const signals = [
+    hotToday && { emoji: "🔥", label: "Forte activité", prospect: hotToday, text: `${countsByProspect[hotToday.id].today} interactions aujourd'hui.` },
+    cooling && { emoji: "⚠", label: "Deal qui ralentit", prospect: cooling, text: `Aucune activité depuis ${Math.floor((now - new Date(cooling.last_contact_at || 0)) / 86400000)} jours.` },
+    active && { emoji: "🟢", label: "Opportunité active", prospect: active, text: `${countsByProspect[active.id].week} interactions cette semaine.` },
+  ].filter(Boolean);
+
+  if (signals.length === 0) return null;
+
+  return (
+    <div style={{ marginBottom: "22px" }}>
+      <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.03em", marginBottom: "10px" }}>✨ SIGNAUX DÉTECTÉS PAR CLOSIA</div>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${signals.length}, 1fr)`, gap: "10px" }}>
+        {signals.map((s, i) => (
+          <div key={i} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px" }}>
+            <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "8px" }}>{s.emoji} {s.label}</div>
+            <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{s.prospect.company}</div>
+            <div style={{ fontSize: "11.5px", color: "var(--text-dim)", marginBottom: "6px" }}>{s.text}</div>
+            <div className="mono" style={{ fontSize: "11.5px", fontWeight: 700, color: "var(--gold-deep)", marginBottom: "10px" }}>{formatEuros(s.prospect.deal_value || 0)}</div>
+            <button className="focusable" onClick={() => onOpenProspect?.(s.prospect.id)} style={{ fontSize: "11.5px", fontWeight: 600, background: "var(--blue-dim)", color: "var(--blue)", border: "none", borderRadius: "6px", padding: "6px 10px" }}>
+              Voir le deal
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -262,272 +278,220 @@ function StatChip({ label, value }) {
   );
 }
 
-function ReportTile({ tileKey, expanded, onClick, icon, accent, label, value }) {
-  return (
-    <button
-      className="focusable"
-      onClick={() => onClick((k) => (k === tileKey ? null : tileKey))}
-      style={{
-        textAlign: "left", cursor: "pointer", background: expanded ? "var(--panel2)" : "var(--panel)",
-        border: expanded ? `0.5px solid ${accent}88` : "0.5px solid var(--hairline)",
-        borderTop: `2.5px solid ${accent}`, borderRadius: expanded ? "10px 10px 0 0" : "10px", padding: "14px 16px", boxShadow: "var(--shadow-sm)",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--text-dim)", fontSize: "11px", marginBottom: "8px" }}>
-        {icon}
-        {label}
-        <span style={{ marginLeft: "auto", fontSize: "10px", color: "var(--text-faint)" }}>{expanded ? "▲" : "▼"}</span>
-      </div>
-      <div className="mono" style={{ fontWeight: 700, fontSize: "22px", color: accent }}>{value}</div>
-    </button>
-  );
-}
+function PerformanceTab({ prospects, activities, feedItems, session, teamStats }) {
+  const [period, setPeriod] = useState("30");
+  const [chartFilter, setChartFilter] = useState("Toutes");
+  const [insight, setInsight] = useState(null);
+  const [loadingInsight, setLoadingInsight] = useState(false);
 
-function detailDate(item, config) {
-  if (config.kind === "activities" || config.kind === "feed") return item.created_at;
-  return item[config.dateField] || item.created_at;
-}
+  const days = PERIOD_DAYS[period];
+  const start = daysAgo(days);
+  const prevStart = daysAgo(days * 2);
 
-function ExpandedTilePanel({ tileKey, config, onOpenProspect, onClose, session }) {
-  const [summary, setSummary] = useState("");
-  const [loadingSummary, setLoadingSummary] = useState(false);
-  const [error, setError] = useState("");
-  const { items, label, kind } = config;
+  const inRange = activities.filter((a) => new Date(a.created_at) >= start);
+  const emailsInRange = feedItems.filter((i) => i.filterKey === "Emails" && new Date(i.created_at) >= start);
+  const nbAppels = inRange.filter((a) => a.type === "appel_abouti" || a.type === "appel_manque").length;
+  const nbRdv = inRange.filter((a) => a.type === "rdv_physique" || a.type === "appel_visio").length;
+  const opportunitesCreees = prospects.filter((p) => p.created_at && new Date(p.created_at) >= start).length;
+  const totalActivites = inRange.length + emailsInRange.length;
 
-  useEffect(() => {
-    setSummary("");
-    setError("");
-  }, [tileKey]);
+  const prevActs = activities.filter((a) => new Date(a.created_at) >= prevStart && new Date(a.created_at) < start);
+  const prevEmails = feedItems.filter((i) => i.filterKey === "Emails" && new Date(i.created_at) >= prevStart && new Date(i.created_at) < start);
+  const prevTotal = prevActs.length + prevEmails.length;
+  const activityDelta = prevTotal > 0 ? Math.round(((totalActivites - prevTotal) / prevTotal) * 100) : null;
 
-  async function generateSummary() {
-    setLoadingSummary(true);
-    setError("");
+  const gagnes = prospects.filter((p) => p.stage === "Gagné" && p.closed_at && new Date(p.closed_at) >= start);
+  const perdus = prospects.filter((p) => p.stage === "Perdu" && p.closed_at && new Date(p.closed_at) >= start);
+  const caGenere = gagnes.reduce((sum, p) => sum + (p.deal_value || 0), 0);
+  const tauxConversion = gagnes.length + perdus.length > 0 ? Math.round((gagnes.length / (gagnes.length + perdus.length)) * 100) : null;
+  const tauxRdv = totalActivites > 0 ? Math.round((nbRdv / totalActivites) * 100) : null;
+  const cycles = gagnes.filter((p) => p.created_at).map((p) => Math.round((new Date(p.closed_at) - new Date(p.created_at)) / 86400000));
+  const avgCycle = cycles.length > 0 ? Math.round(cycles.reduce((s, c) => s + c, 0) / cycles.length) : null;
+  const avgDealValue = gagnes.length > 0 ? Math.round(caGenere / gagnes.length) : null;
+
+  async function generateInsight() {
+    setLoadingInsight(true);
     try {
-      const context = items.slice(0, 30).map((item) => {
-        if (kind === "activities") return `${item.type} — ${item.prospect?.name || "prospect supprimé"} (${item.prospect?.company || ""}) le ${formatShortDate(item.created_at)}`;
-        if (kind === "feed") return `${item.kind} — ${item.prospect?.name || ""} le ${formatShortDate(item.created_at)}`;
-        return `${item.name} (${item.company}) — ${item.stage}, ${formatEuros(item.deal_value)}, ${formatShortDate(detailDate(item, config))}`;
-      }).join("\n");
-      const prompt = `Tu es un coach commercial. Voici les données de la catégorie "${label}" sur la période sélectionnée (${items.length} élément(s)). Rédige un résumé en français, 2-3 phrases maximum, avec une observation utile ou une tendance à noter. Réponds uniquement avec le résumé, sans préambule.
+      const prompt = `Tu es un coach commercial. Voici les données d'activité d'un commercial sur les ${days} derniers jours, comparées à la période précédente équivalente. Rédige UNE observation concrète (2-3 phrases max) avec une suggestion actionnable. Réponds uniquement avec le texte, sans préambule, en français.
 
-${context || "Aucune donnée sur cette période."}`;
+Activités cette période : ${totalActivites} (dont ${nbAppels} appels, ${emailsInRange.length} emails, ${nbRdv} rendez-vous)
+Activités période précédente : ${prevTotal}
+Opportunités créées : ${opportunitesCreees}
+Taux de conversion : ${tauxConversion !== null ? tauxConversion + "%" : "non disponible"}
+Durée moyenne du cycle de vente : ${avgCycle !== null ? avgCycle + " jours" : "non disponible"}`;
       const text = await callAI(prompt, session.access_token);
-      setSummary(text.trim());
+      setInsight(text.trim());
     } catch (e) {
-      setError(e.message || "Le résumé a échoué. Réessaie.");
+      setInsight("L'analyse a échoué. Réessaie.");
     } finally {
-      setLoadingSummary(false);
+      setLoadingInsight(false);
     }
   }
 
   return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "0 0 10px 10px", padding: "16px", marginBottom: "24px", maxWidth: "820px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-        <span className="display" style={{ fontWeight: 700, fontSize: "13px" }}>{label} · {items.length}</span>
-        <button className="focusable" onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "13px" }}>✕</button>
-      </div>
-
-      <button className="focusable" onClick={generateSummary} disabled={loadingSummary || items.length === 0} style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "7px 12px", fontSize: "12px", marginBottom: "12px", opacity: items.length === 0 ? 0.5 : 1 }}>
-        <SparklesIcon size={12} color="var(--blue)" /> {loadingSummary ? "Analyse..." : "Générer un résumé IA"}
-      </button>
-      {error && <div style={{ color: "var(--red)", fontSize: "12px", marginBottom: "10px" }}>{error}</div>}
-      {summary && <div style={{ background: "var(--blue-dim)", color: "var(--blue)", borderRadius: "8px", padding: "10px 12px", fontSize: "12px", marginBottom: "14px", lineHeight: 1.5 }}>{summary}</div>}
-
-      {items.length === 0 ? (
-        <div style={{ color: "var(--text-faint)", fontSize: "12px" }}>Aucun élément sur cette période.</div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "320px", overflowY: "auto" }}>
-          {items.map((item) => {
-            if (kind === "activities" || kind === "feed") {
-              const prospect = item.prospect;
-              return (
-                <button key={item.id} className="focusable" onClick={() => prospect && onOpenProspect?.(prospect.id)} style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", textAlign: "left", cursor: prospect ? "pointer" : "default" }}>
-                  {prospect && <Avatar name={prospect.name} stage={prospect.stage} size={20} />}
-                  <span style={{ fontSize: "12px", fontWeight: 500, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{prospect ? prospect.name : "Prospect supprimé"}</span>
-                  <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>{formatShortDate(item.created_at)}</span>
-                </button>
-              );
-            }
-            const isRevenue = kind === "revenue";
-            return (
-              <button key={item.id} className="focusable" onClick={() => onOpenProspect?.(item.id)} style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", textAlign: "left" }}>
-                <Avatar name={item.name} stage={item.stage} size={20} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "12px", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
-                  <div style={{ fontSize: "10px", color: "var(--text-faint)" }}>{item.company}</div>
-                </div>
-                {isRevenue && <span className="mono" style={{ fontSize: "12px", fontWeight: 700, color: "#0ea968" }}>{formatEuros(item.deal_value)}</span>}
-                <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>{formatShortDate(detailDate(item, config))}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-const CHART_TYPES = [
-  ["bar", "Barres"],
-  ["pie", "Camembert"],
-  ["table", "Tableau"],
-];
-
-function ActivityMixChart({ data }) {
-  const [chartType, setChartType] = useState("bar");
-  const [hovered, setHovered] = useState(null);
-  const total = data.reduce((sum, d) => sum + d.value, 0);
-
-  return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "18px", marginBottom: "20px", maxWidth: "820px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "10px" }}>
-        <span className="display" style={{ fontWeight: 700, fontSize: "13px" }}>Répartition de l'activité</span>
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px", flexWrap: "wrap", gap: "10px" }}>
+        <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Comprenez votre activité commerciale.</div>
         <div style={{ display: "flex", gap: "4px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
-          {CHART_TYPES.map(([key, label]) => (
-            <button
-              key={key}
-              className="focusable"
-              onClick={() => setChartType(key)}
-              style={{ padding: "5px 10px", borderRadius: "6px", fontSize: "11.5px", fontWeight: 500, background: chartType === key ? "var(--bg)" : "transparent", color: chartType === key ? "var(--text)" : "var(--text-dim)", boxShadow: chartType === key ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}
-            >
+          {PERIODS.map(([key, label]) => (
+            <button key={key} className="focusable" onClick={() => setPeriod(key)} style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: period === key ? "var(--bg)" : "transparent", color: period === key ? "var(--blue)" : "var(--text-dim)", boxShadow: period === key ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
               {label}
             </button>
           ))}
         </div>
       </div>
 
-      {total === 0 ? (
-        <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Aucune activité sur cette période.</div>
-      ) : chartType === "bar" ? (
-        <MixBarChart data={data} total={total} hovered={hovered} setHovered={setHovered} />
-      ) : chartType === "pie" ? (
-        <MixPieChart data={data} total={total} hovered={hovered} setHovered={setHovered} />
-      ) : (
-        <MixTable data={data} total={total} />
-      )}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "12px", marginBottom: "24px" }}>
+        <KpiTile value={totalActivites} label="Activités" />
+        <KpiTile value={nbAppels} label="Appels" />
+        <KpiTile value={emailsInRange.length} label="Emails" />
+        <KpiTile value={nbRdv} label="Rendez-vous" />
+        <KpiTile value={opportunitesCreees} label="Opportunités créées" />
+      </div>
+
+      <div style={{ marginBottom: "26px" }}>
+        <div className="display" style={{ fontWeight: 700, fontSize: "13px", marginBottom: "12px" }}>Votre activité génère-t-elle des opportunités ?</div>
+        <FunnelChart steps={[
+          { label: "Activités", value: totalActivites },
+          { label: "Rendez-vous", value: nbRdv },
+          { label: "Opportunités créées", value: opportunitesCreees },
+          { label: "Deals gagnés", value: gagnes.length },
+        ]} finalValue={formatEuros(caGenere)} finalLabel="de CA généré" />
+      </div>
+
+      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px", marginBottom: "24px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
+          <span className="display" style={{ fontWeight: 700, fontSize: "13px" }}>Activité commerciale</span>
+          <div style={{ display: "flex", gap: "4px" }}>
+            {["Toutes", "Appels", "Emails", "RDV"].map((f) => (
+              <button key={f} className="focusable" onClick={() => setChartFilter(f)} style={{ padding: "5px 10px", borderRadius: "6px", fontSize: "11px", fontWeight: 500, background: chartFilter === f ? "var(--blue-dim)" : "var(--panel2)", color: chartFilter === f ? "var(--blue)" : "var(--text-dim)" }}>
+                {f}
+              </button>
+            ))}
+          </div>
+        </div>
+        <ActivityTrendChart activities={activities} feedItems={feedItems} days={days} filter={chartFilter} />
+      </div>
+
+      <div style={{ marginBottom: "26px" }}>
+        <div className="display" style={{ fontWeight: 700, fontSize: "13px", marginBottom: "12px" }}>Qualité de l'activité</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px" }}>
+          <QualityTile value={tauxConversion !== null ? `${tauxConversion}%` : "—"} label="Opportunités gagnées" />
+          <QualityTile value={tauxRdv !== null ? `${tauxRdv}%` : "—"} label="Part de rendez-vous dans l'activité" />
+          <QualityTile value={avgCycle !== null ? `${avgCycle} j` : "—"} label="Durée moyenne du cycle" />
+          <QualityTile value={avgDealValue !== null ? formatEuros(avgDealValue) : "—"} label="Montant moyen par deal gagné" />
+        </div>
+      </div>
+
+      <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2a3ed655", borderRadius: "12px", padding: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+          <span className="display" style={{ fontWeight: 700, fontSize: "13px", color: "var(--blue)" }}>✨ Ce que Closia remarque</span>
+          {!insight && (
+            <button className="focusable" onClick={generateInsight} disabled={loadingInsight} style={{ fontSize: "11px", padding: "5px 10px", borderRadius: "6px", background: "var(--panel)", color: "var(--blue)", border: "0.5px solid #2a3ed640" }}>
+              {loadingInsight ? "Analyse..." : "Générer"}
+            </button>
+          )}
+        </div>
+        {insight ? (
+          <div style={{ fontSize: "13px", color: "var(--text)", lineHeight: 1.6 }}>{insight}</div>
+        ) : activityDelta !== null ? (
+          <div style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>
+            Votre activité a {activityDelta >= 0 ? "augmenté" : "baissé"} de {Math.abs(activityDelta)}% sur cette période. Génère une analyse pour une recommandation détaillée.
+          </div>
+        ) : (
+          <div style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>Génère une analyse pour voir ce que Closia remarque dans votre activité.</div>
+        )}
+      </div>
+    </>
+  );
+}
+
+function KpiTile({ value, label }) {
+  return (
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px" }}>
+      <div className="mono" style={{ fontSize: "22px", fontWeight: 700, color: "var(--text)" }}>{value}</div>
+      <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "2px" }}>{label}</div>
     </div>
   );
 }
 
-function MixBarChart({ data, total, hovered, setHovered }) {
-  const max = Math.max(...data.map((d) => d.value));
+function QualityTile({ value, label }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-      {data.map((d) => {
-        const pct = Math.round((d.value / total) * 100);
-        const widthPct = (d.value / max) * 100;
-        const isHovered = hovered === d.key;
-        return (
-          <div
-            key={d.key}
-            onMouseEnter={() => setHovered(d.key)}
-            onMouseLeave={() => setHovered(null)}
-            style={{ display: "flex", alignItems: "center", gap: "10px" }}
-          >
-            <div style={{ width: "108px", flexShrink: 0, fontSize: "12px", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.label}</div>
-            <div style={{ flex: 1, background: "var(--panel2)", borderRadius: "4px", height: "22px", position: "relative" }} title={`${d.label} : ${d.value} (${pct}%)`}>
-              <div
-                style={{
-                  width: `${Math.max(widthPct, 3)}%`, height: "100%", background: d.color, borderRadius: "4px",
-                  opacity: isHovered ? 1 : 0.9, transition: "opacity 0.15s",
-                  display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: "8px", boxSizing: "border-box",
-                }}
-              >
-                {widthPct > 22 && <span className="mono" style={{ fontSize: "11px", fontWeight: 700, color: "#fff" }}>{d.value}</span>}
-              </div>
-              {widthPct <= 22 && (
-                <span className="mono" style={{ position: "absolute", left: `calc(${Math.max(widthPct, 3)}% + 6px)`, top: "50%", transform: "translateY(-50%)", fontSize: "11px", fontWeight: 700, color: "var(--text)" }}>
-                  {d.value}
-                </span>
-              )}
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px" }}>
+      <div className="mono" style={{ fontSize: "18px", fontWeight: 700, color: "var(--blue)" }}>{value}</div>
+      <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "2px" }}>{label}</div>
+    </div>
+  );
+}
+
+function FunnelChart({ steps, finalValue, finalLabel }) {
+  const max = Math.max(...steps.map((s) => s.value), 1);
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: "4px", flexWrap: "wrap" }}>
+      {steps.map((s, i) => (
+        <div key={s.label} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <div style={{ textAlign: "center" }}>
+            <div className="mono" style={{ fontSize: "18px", fontWeight: 700, color: "var(--blue)" }}>{s.value}</div>
+            <div style={{ fontSize: "10.5px", color: "var(--text-faint)", width: "100px" }}>{s.label}</div>
+            <div style={{ height: "5px", width: "100px", background: "var(--panel2)", borderRadius: "3px", marginTop: "4px", overflow: "hidden" }}>
+              <div style={{ width: `${Math.max((s.value / max) * 100, 3)}%`, height: "100%", background: "var(--blue)", borderRadius: "3px" }} />
             </div>
-            <div className="mono" style={{ width: "36px", flexShrink: 0, fontSize: "11px", color: "var(--text-faint)", textAlign: "right" }}>{pct}%</div>
           </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function MixPieChart({ data, total, hovered, setHovered }) {
-  const radius = 58;
-  const strokeWidth = 26;
-  const circumference = 2 * Math.PI * radius;
-  let cumulative = 0;
-  const segments = data.map((d) => {
-    const frac = d.value / total;
-    const dash = frac * circumference;
-    const seg = { ...d, dash, offset: cumulative, pct: Math.round(frac * 100) };
-    cumulative += dash;
-    return seg;
-  });
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: "28px", flexWrap: "wrap" }}>
-      <svg width="150" height="150" viewBox="0 0 150 150" style={{ flexShrink: 0 }}>
-        <g transform="rotate(-90 75 75)">
-          <circle cx="75" cy="75" r={radius} fill="none" stroke="var(--panel2)" strokeWidth={strokeWidth} />
-          {segments.map((seg) => (
-            <circle
-              key={seg.key}
-              cx="75" cy="75" r={radius} fill="none"
-              stroke={seg.color}
-              strokeWidth={hovered === seg.key ? strokeWidth + 4 : strokeWidth}
-              strokeDasharray={`${seg.dash} ${circumference - seg.dash}`}
-              strokeDashoffset={-seg.offset}
-              strokeLinecap="butt"
-              onMouseEnter={() => setHovered(seg.key)}
-              onMouseLeave={() => setHovered(null)}
-              style={{ cursor: "pointer", transition: "stroke-width 0.12s" }}
-            >
-              <title>{`${seg.label} : ${seg.value} (${seg.pct}%)`}</title>
-            </circle>
-          ))}
-        </g>
-        <text x="75" y="71" textAnchor="middle" className="display" style={{ fontSize: "22px", fontWeight: 700, fill: "var(--text)" }}>{total}</text>
-        <text x="75" y="88" textAnchor="middle" style={{ fontSize: "10px", fill: "var(--text-faint)" }}>activités</text>
-      </svg>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: 1, minWidth: "160px" }}>
-        {segments.map((seg) => (
-          <div
-            key={seg.key}
-            onMouseEnter={() => setHovered(seg.key)}
-            onMouseLeave={() => setHovered(null)}
-            style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", opacity: hovered && hovered !== seg.key ? 0.5 : 1, transition: "opacity 0.12s" }}
-          >
-            <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: seg.color, flexShrink: 0 }} />
-            <span style={{ color: "var(--text)", flex: 1 }}>{seg.label}</span>
-            <span className="mono" style={{ color: "var(--text-faint)" }}>{seg.value} · {seg.pct}%</span>
-          </div>
-        ))}
+          {i < steps.length - 1 && <span style={{ color: "var(--text-faint)", fontSize: "14px", marginBottom: "20px" }}>→</span>}
+        </div>
+      ))}
+      <span style={{ color: "var(--text-faint)", fontSize: "14px", marginBottom: "20px" }}>→</span>
+      <div style={{ textAlign: "center" }}>
+        <div className="mono" style={{ fontSize: "18px", fontWeight: 700, color: "#0ea968" }}>{finalValue}</div>
+        <div style={{ fontSize: "10.5px", color: "var(--text-faint)", width: "110px" }}>{finalLabel}</div>
       </div>
     </div>
   );
 }
 
-function MixTable({ data, total }) {
+function ActivityTrendChart({ activities, feedItems, days, filter }) {
+  const buckets = [];
+  const bucketCount = Math.min(days, 30);
+  const step = days / bucketCount;
+  for (let i = bucketCount - 1; i >= 0; i--) {
+    const end = daysAgo(Math.round(i * step));
+    const start = daysAgo(Math.round((i + 1) * step));
+    buckets.push({ start, end, count: 0, label: end.toLocaleDateString("fr-FR", { day: "numeric", month: step > 3 ? "short" : undefined }) });
+  }
+
+  function inFilter(kindFilter) {
+    if (filter === "Toutes") return true;
+    if (filter === "Appels") return kindFilter === "appel_abouti" || kindFilter === "appel_manque";
+    if (filter === "RDV") return kindFilter === "rdv_physique" || kindFilter === "appel_visio";
+    return false;
+  }
+
+  activities.forEach((a) => {
+    if (filter !== "Toutes" && filter !== "Emails" && !inFilter(a.type)) return;
+    if (filter === "Emails") return;
+    const t = new Date(a.created_at);
+    const b = buckets.find((b) => t >= b.start && t < b.end) || buckets[buckets.length - 1];
+    if (t >= buckets[0].start) b.count += 1;
+  });
+  if (filter === "Toutes" || filter === "Emails") {
+    feedItems.filter((i) => i.filterKey === "Emails").forEach((e) => {
+      const t = new Date(e.created_at);
+      const b = buckets.find((b) => t >= b.start && t < b.end) || buckets[buckets.length - 1];
+      if (t >= buckets[0].start) b.count += 1;
+    });
+  }
+
+  const max = Math.max(...buckets.map((b) => b.count), 1);
+  const showLabels = bucketCount <= 14;
+
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
-      <thead>
-        <tr style={{ borderBottom: "0.5px solid var(--hairline)" }}>
-          <th style={{ textAlign: "left", padding: "6px 8px", color: "var(--text-faint)", fontWeight: 600, fontSize: "11px" }}>Type</th>
-          <th style={{ textAlign: "right", padding: "6px 8px", color: "var(--text-faint)", fontWeight: 600, fontSize: "11px" }}>Nombre</th>
-          <th style={{ textAlign: "right", padding: "6px 8px", color: "var(--text-faint)", fontWeight: 600, fontSize: "11px" }}>Part</th>
-        </tr>
-      </thead>
-      <tbody>
-        {data.map((d) => (
-          <tr key={d.key} style={{ borderBottom: "0.5px solid var(--hairline)" }}>
-            <td style={{ padding: "7px 8px", display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: d.color, flexShrink: 0 }} />
-              {d.label}
-            </td>
-            <td className="mono" style={{ padding: "7px 8px", textAlign: "right", fontWeight: 700 }}>{d.value}</td>
-            <td className="mono" style={{ padding: "7px 8px", textAlign: "right", color: "var(--text-faint)" }}>{Math.round((d.value / total) * 100)}%</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div style={{ display: "flex", alignItems: "flex-end", gap: "3px", height: "140px" }}>
+      {buckets.map((b, i) => (
+        <div key={i} title={`${b.label} · ${b.count}`} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
+          <div style={{ width: "100%", maxWidth: "22px", height: `${Math.max((b.count / max) * 100, b.count > 0 ? 4 : 1)}%`, background: b.count > 0 ? "var(--blue)" : "var(--panel2)", borderRadius: "3px 3px 0 0" }} />
+          {showLabels && <div style={{ fontSize: "9px", color: "var(--text-faint)", marginTop: "4px", transform: "rotate(-40deg)", whiteSpace: "nowrap" }}>{b.label}</div>}
+        </div>
+      ))}
+    </div>
   );
 }
