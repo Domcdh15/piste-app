@@ -5,22 +5,33 @@ import {
   parseJsonLoose,
   isOverdue,
   formatShortDate,
+  formatEuros,
   Avatar,
   SparklesIcon,
   PhoneIcon,
   MailIcon,
   VideoIcon,
   PinIcon,
-  TargetIcon,
+  AlertIcon,
+  CalendarIcon,
   appendSignature,
-  PageTitle,
 } from "../lib/ui.jsx";
 
+const BG = "#F8FAFC";
+const CARD = "#FFFFFF";
+const TEXT = "#0F172A";
+const TEXT2 = "#64748B";
+const ACCENT = "#2563EB";
+const ACCENT_DIM = "#EFF6FF";
+const BORDER = "#E2E8F0";
+const RED = "#dc2626";
+const RED_DIM = "#fef2f2";
+
 const TASK_TYPE_META = {
-  appel_telephone: { label: "Appel téléphonique", color: "var(--amber)", dim: "var(--amber-dim)", Icon: PhoneIcon },
-  appel_visio: { label: "Appel visio", color: "#7c3aed", dim: "#f1e9fe", Icon: VideoIcon },
-  rdv_physique: { label: "RDV physique", color: "#0ea968", dim: "#e2f7ec", Icon: PinIcon },
-  relance_email: { label: "Relance mail", color: "var(--blue)", dim: "var(--blue-dim)", Icon: MailIcon },
+  appel_telephone: { label: "Appel téléphonique", Icon: PhoneIcon },
+  appel_visio: { label: "Appel visio", Icon: VideoIcon },
+  rdv_physique: { label: "RDV physique", Icon: PinIcon },
+  relance_email: { label: "Relance mail", Icon: MailIcon },
 };
 
 const ACTIVITY_LABEL = {
@@ -32,57 +43,390 @@ const ACTIVITY_LABEL = {
   note: "Note",
 };
 
-const TONES = ["Professionnel", "Chaleureux", "Direct"];
-const LENGTHS = ["Court", "Moyen", "Détaillé"];
-const OBJECTIVES = ["Relancer", "Présenter l'offre", "Répondre à une objection", "Closer"];
+const TONES = ["Professionnel", "Direct", "Chaleureux"];
 
 async function fetchProspectContext(prospectId) {
-  const [emails, scripts, analyses, activities] = await Promise.all([
+  const [emails, analyses, activities] = await Promise.all([
     supabase.from("emails_generes").select("*").eq("prospect_id", prospectId).order("created_at", { ascending: false }).limit(1),
-    supabase.from("scripts_appel").select("*").eq("prospect_id", prospectId).order("created_at", { ascending: false }).limit(1),
     supabase.from("analyses_ia").select("*").eq("prospect_id", prospectId).order("created_at", { ascending: false }).limit(1),
     supabase.from("activities").select("*").eq("prospect_id", prospectId).order("created_at", { ascending: false }),
   ]);
+  const lastActivity = activities.data?.[0];
   const callsAbouti = (activities.data || []).filter((a) => a.type === "appel_abouti").length;
   const callsManque = (activities.data || []).filter((a) => a.type === "appel_manque").length;
   const parts = [`Appels précédents : ${callsAbouti} abouti(s), ${callsManque} manqué(s).`];
-  if (emails.data?.[0]) parts.push(`Dernier email : "${emails.data[0].content.slice(0, 300)}"`);
-  if (scripts.data?.[0]) parts.push(`Dernier script (${scripts.data[0].section}) : "${scripts.data[0].content.slice(0, 200)}"`);
+  if (lastActivity) parts.push(`Dernier échange : ${ACTIVITY_LABEL[lastActivity.type] || lastActivity.type} le ${formatShortDate(lastActivity.created_at)}${lastActivity.note ? ` — "${lastActivity.note}"` : ""}.`);
+  if (emails.data?.[0]) parts.push(`Dernier email envoyé : "${emails.data[0].content.slice(0, 300)}"`);
   if (analyses.data?.[0]) parts.push(`Dernière analyse : ${analyses.data[0].content}`);
-  return parts.join("\n");
+  return { text: parts.join("\n"), lastActivity };
+}
+
+function daysSince(iso) {
+  if (!iso) return null;
+  return Math.floor((Date.now() - new Date(iso)) / 86400000);
 }
 
 export default function Assistant({ session, prospects, onOpenProspect, settings }) {
+  const [view, setView] = useState({ type: "home" });
   const openProspects = prospects.filter((p) => p.stage !== "Gagné" && p.stage !== "Perdu");
 
-  return (
-    <div style={{ padding: "28px 32px 48px", maxWidth: "900px" }}>
-      <PageTitle icon={SparklesIcon} color="#3b82f6" style={{ marginBottom: "4px" }}>Assistant IA</PageTitle>
-      <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "22px" }}>Pas juste discuter — agir sur ton pipeline.</div>
+  function openFlow(type, prospectId) {
+    setView({ type, prospectId: prospectId || null });
+  }
 
-      <QuickCommands prospects={openProspects} onOpenProspect={onOpenProspect} session={session} />
-      <InsightCards prospects={openProspects} onOpenProspect={onOpenProspect} />
-      <EmailGeneratorPanel prospects={openProspects} session={session} settings={settings} />
-      <CallPrepPanel prospects={openProspects} session={session} />
+  return (
+    <div style={{ background: BG, minHeight: "100%", padding: "28px 32px 60px" }}>
+      <div style={{ maxWidth: "920px" }}>
+        <Header />
+
+        {view.type === "home" ? (
+          <>
+            <AnalyzedTodayBar prospects={openProspects} />
+            <AttentionCards prospects={openProspects} onOpenProspect={onOpenProspect} onOpenFlow={openFlow} />
+            <QuickActionCards onOpenFlow={openFlow} />
+            <ChatPanel session={session} prospects={openProspects} onOpenProspect={onOpenProspect} />
+          </>
+        ) : view.type === "relance" ? (
+          <RelanceFlow prospectId={view.prospectId} prospects={openProspects} session={session} settings={settings} onBack={() => setView({ type: "home" })} />
+        ) : view.type === "analyse" ? (
+          <AnalyseFlow prospectId={view.prospectId} prospects={openProspects} session={session} onBack={() => setView({ type: "home" })} />
+        ) : view.type === "rdv" ? (
+          <RdvFlow prospectId={view.prospectId} prospects={openProspects} session={session} onBack={() => setView({ type: "home" })} />
+        ) : (
+          <ResumeFlow prospectId={view.prospectId} prospects={openProspects} session={session} onBack={() => setView({ type: "home" })} />
+        )}
+      </div>
     </div>
   );
 }
 
-function Section({ title, children }) {
+function Header() {
   return (
-    <div style={{ marginBottom: "26px" }}>
-      <div className="display" style={{ fontWeight: 700, fontSize: "14px", marginBottom: "10px" }}>{title}</div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px", marginBottom: "24px" }}>
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <SparklesIcon size={18} color={ACCENT} />
+          <span className="display" style={{ fontWeight: 700, fontSize: "20px", color: TEXT }}>Assistant IA</span>
+        </div>
+        <div style={{ fontSize: "13px", color: TEXT2, marginTop: "4px" }}>Votre copilote commercial pour analyser vos opportunités et passer à l'action.</div>
+      </div>
+      <div style={{ textAlign: "right" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: TEXT2, justifyContent: "flex-end" }}>
+          <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: "#16a34a" }} />
+          Contexte synchronisé
+        </div>
+        <div style={{ fontSize: "11px", color: TEXT2, opacity: 0.8, marginTop: "2px" }}>Pipeline · Activité · Agenda</div>
+      </div>
+    </div>
+  );
+}
+
+function AnalyzedTodayBar({ prospects }) {
+  const [counts, setCounts] = useState(null);
+
+  useEffect(() => {
+    async function load() {
+      const [activities, emails, rdvTasks] = await Promise.all([
+        supabase.from("activities").select("*", { count: "exact", head: true }),
+        supabase.from("emails_generes").select("*", { count: "exact", head: true }),
+        supabase.from("tasks").select("*", { count: "exact", head: true }).in("type", ["rdv_physique", "appel_visio"]),
+      ]);
+      setCounts({
+        activites: (activities.count || 0) + (emails.count || 0),
+        rdv: rdvTasks.count || 0,
+      });
+    }
+    load();
+  }, []);
+
+  const now = new Date();
+  const attention = prospects.filter((p) => {
+    const stale = !p.last_contact_at || (now - new Date(p.last_contact_at)) / 86400000 > 7;
+    const overdue = p.next_contact_at && isOverdue(p.next_contact_at);
+    return stale || overdue;
+  }).length;
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "22px", flexWrap: "wrap", background: CARD, border: `0.5px solid ${BORDER}`, borderRadius: "10px", padding: "12px 18px", marginBottom: "24px" }}>
+      <span style={{ fontSize: "12px", color: TEXT2, fontWeight: 600 }}>Closia a analysé aujourd'hui</span>
+      <TodayStat value={prospects.length} label="opportunités" />
+      <TodayStat value={counts ? counts.activites : "…"} label="activités" />
+      <TodayStat value={counts ? counts.rdv : "…"} label="rendez-vous" />
+      <TodayStat value={attention} label="deals nécessitent votre attention" accent={attention > 0} />
+    </div>
+  );
+}
+
+function TodayStat({ value, label, accent }) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+      <span className="mono" style={{ fontSize: "15px", fontWeight: 700, color: accent ? RED : TEXT }}>{value}</span>
+      <span style={{ fontSize: "12px", color: TEXT2 }}>{label}</span>
+    </div>
+  );
+}
+
+function AttentionCards({ prospects, onOpenProspect, onOpenFlow }) {
+  const now = new Date();
+
+  const riskList = prospects
+    .filter((p) => !p.last_contact_at || (now - new Date(p.last_contact_at)) / 86400000 >= 7)
+    .sort((a, b) => (b.deal_value || 0) - (a.deal_value || 0));
+  const risk = riskList[0];
+
+  const relanceList = prospects
+    .filter((p) => p.stage === "Proposition envoyée" && (!p.last_contact_at || (now - new Date(p.last_contact_at)) / 86400000 >= 3))
+    .sort((a, b) => (b.deal_value || 0) - (a.deal_value || 0));
+  const relance = relanceList[0];
+
+  const [rdvTask, setRdvTask] = useState(null);
+  useEffect(() => {
+    supabase
+      .from("tasks")
+      .select("*")
+      .in("type", ["rdv_physique", "appel_visio"])
+      .eq("done", false)
+      .gte("due_at", now.toISOString())
+      .order("due_at", { ascending: true })
+      .limit(1)
+      .then(({ data }) => setRdvTask(data?.[0] || null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const rdvProspect = rdvTask ? prospects.find((p) => p.id === rdvTask.prospect_id) : null;
+
+  const cards = [
+    risk && {
+      key: "risk",
+      icon: "🔥",
+      title: "Opportunité à risque",
+      prospect: risk,
+      lines: [
+        `${formatEuros(risk.deal_value || 0)}`,
+        `Aucune activité depuis ${daysSince(risk.last_contact_at) ?? "longtemps"} jour${daysSince(risk.last_contact_at) > 1 ? "s" : ""}.`,
+      ],
+      recommendation: "Closia recommande : relancer aujourd'hui.",
+      actions: [
+        { label: "Analyser", onClick: () => onOpenFlow("analyse", risk.id) },
+        { label: "Relancer", onClick: () => onOpenFlow("relance", risk.id) },
+      ],
+    },
+    relance && {
+      key: "relance",
+      icon: "✉️",
+      title: "Relance à préparer",
+      prospect: relance,
+      lines: [
+        `${formatEuros(relance.deal_value || 0)}`,
+        `La proposition a été envoyée il y a ${daysSince(relance.last_contact_at) ?? "quelques"} jour${daysSince(relance.last_contact_at) > 1 ? "s" : ""}.`,
+      ],
+      recommendation: "Closia recommande : envoyer une relance courte.",
+      actions: [{ label: "Générer", onClick: () => onOpenFlow("relance", relance.id) }],
+    },
+    rdvProspect && {
+      key: "rdv",
+      icon: "📅",
+      title: "Rendez-vous à préparer",
+      prospect: rdvProspect,
+      lines: [
+        `${formatEuros(rdvProspect.deal_value || 0)}`,
+        formatShortDate(rdvTask.due_at),
+      ],
+      recommendation: "Closia a préparé le contexte pour ce rendez-vous.",
+      actions: [{ label: "Préparer le RDV", onClick: () => onOpenFlow("rdv", rdvProspect.id) }],
+    },
+  ].filter(Boolean);
+
+  return (
+    <div style={{ marginBottom: "28px" }}>
+      <div style={{ fontSize: "11px", fontWeight: 700, color: TEXT2, letterSpacing: "0.04em", marginBottom: "12px" }}>CE QUI MÉRITE VOTRE ATTENTION</div>
+      {cards.length === 0 ? (
+        <div style={{ background: CARD, border: `0.5px solid ${BORDER}`, borderRadius: "10px", padding: "16px", fontSize: "13px", color: TEXT2 }}>
+          Rien ne nécessite votre attention immédiate — le pipeline est à jour.
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${cards.length}, 1fr)`, gap: "12px" }}>
+          {cards.map((c) => (
+            <div key={c.key} style={{ background: CARD, border: `0.5px solid ${BORDER}`, borderRadius: "10px", padding: "16px", display: "flex", flexDirection: "column" }}>
+              <div style={{ fontSize: "12px", fontWeight: 600, color: TEXT, marginBottom: "10px" }}>{c.icon} {c.title}</div>
+              <button className="focusable" onClick={() => onOpenProspect?.(c.prospect.id)} style={{ background: "none", border: "none", padding: 0, textAlign: "left", marginBottom: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <Avatar name={c.prospect.name} stage={c.prospect.stage} size={18} />
+                  <span style={{ fontSize: "13px", fontWeight: 600, color: TEXT }}>{c.prospect.company}</span>
+                </div>
+              </button>
+              {c.lines.map((l, i) => (
+                <div key={i} style={{ fontSize: "12px", color: TEXT2, marginBottom: "2px" }}>{l}</div>
+              ))}
+              <div style={{ fontSize: "12px", color: ACCENT, marginTop: "8px", marginBottom: "12px" }}>{c.recommendation}</div>
+              <div style={{ display: "flex", gap: "6px", marginTop: "auto" }}>
+                {c.actions.map((a) => (
+                  <button key={a.label} className="focusable" onClick={a.onClick} style={{ flex: 1, background: ACCENT_DIM, color: ACCENT, border: "none", borderRadius: "6px", padding: "7px 10px", fontSize: "12px", fontWeight: 600 }}>
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const QUICK_ACTIONS = [
+  { type: "relance", emoji: "✨", title: "Générer une relance", sub: "Créez un email adapté au contexte du prospect." },
+  { type: "rdv", emoji: "📅", title: "Préparer un rendez-vous", sub: "Résumé, enjeux, objections et questions à poser." },
+  { type: "analyse", emoji: "🔎", title: "Analyser une opportunité", sub: "Identifiez les risques et la prochaine meilleure action." },
+  { type: "resume", emoji: "📝", title: "Résumer les échanges", sub: "Transformez l'historique en synthèse exploitable." },
+];
+
+function QuickActionCards({ onOpenFlow }) {
+  return (
+    <div style={{ marginBottom: "28px" }}>
+      <div style={{ fontSize: "11px", fontWeight: 700, color: TEXT2, letterSpacing: "0.04em", marginBottom: "12px" }}>ACTIONS RAPIDES</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+        {QUICK_ACTIONS.map((a) => (
+          <button
+            key={a.type}
+            className="focusable"
+            onClick={() => onOpenFlow(a.type, null)}
+            style={{ display: "flex", alignItems: "center", gap: "12px", background: CARD, border: `0.5px solid ${BORDER}`, borderRadius: "10px", padding: "16px", textAlign: "left" }}
+          >
+            <span style={{ fontSize: "20px" }}>{a.emoji}</span>
+            <div>
+              <div style={{ fontSize: "13px", fontWeight: 600, color: TEXT }}>{a.title}</div>
+              <div style={{ fontSize: "11.5px", color: TEXT2, marginTop: "2px" }}>{a.sub}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const EXAMPLE_PROMPTS = [
+  "Quels deals dois-je relancer aujourd'hui ?",
+  "Quels prospects sont en train de refroidir ?",
+  "Combien de rendez-vous cette semaine ?",
+  "Quels sont mes 5 deals les plus à risque ?",
+];
+
+function ChatPanel({ session, prospects, onOpenProspect }) {
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  async function send(text) {
+    const question = (text ?? input).trim();
+    if (!question || loading) return;
+    setInput("");
+    setMessages((prev) => [...prev, { role: "user", text: question }]);
+    setLoading(true);
+    try {
+      const now = new Date();
+      const atRisk = prospects
+        .filter((p) => !p.last_contact_at || (now - new Date(p.last_contact_at)) / 86400000 >= 5)
+        .sort((a, b) => (b.deal_value || 0) - (a.deal_value || 0))
+        .slice(0, 8);
+      const pipelineSummary = prospects
+        .slice(0, 40)
+        .map((p) => `- ${p.name} (${p.company}) · ${p.stage} · ${formatEuros(p.deal_value || 0)} · dernier contact ${p.last_contact_at ? `${daysSince(p.last_contact_at)}j` : "jamais"}${p.next_contact_at ? ` · prochain contact ${formatShortDate(p.next_contact_at)}` : ""}`)
+        .join("\n");
+      const prompt = `Tu es Closia, l'assistant commercial d'un CRM. Réponds en français, de façon concise et actionnable (pas plus de 6-8 lignes), à la question du commercial en t'appuyant UNIQUEMENT sur les données de pipeline ci-dessous. Si tu cites des prospects, utilise leur nom exact. Ne dis jamais que tu n'as pas accès aux données du CRM — elles sont ci-dessous.
+
+Pipeline actuel (${prospects.length} opportunités ouvertes) :
+${pipelineSummary}
+
+Opportunités les plus à risque (sans contact depuis 5+ jours) :
+${atRisk.map((p) => `- ${p.name} (${p.company}), ${formatEuros(p.deal_value || 0)}`).join("\n") || "Aucune."}
+
+Question du commercial : "${question}"`;
+      const text2 = await callAI(prompt, session.access_token);
+      setMessages((prev) => [...prev, { role: "assistant", text: text2.trim() }]);
+    } catch (e) {
+      setMessages((prev) => [...prev, { role: "assistant", text: "La réponse a échoué. Réessaie.", error: true }]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: "11px", fontWeight: 700, color: TEXT2, letterSpacing: "0.04em", marginBottom: "4px" }}>PARLEZ À CLOSIA</div>
+      <div style={{ fontSize: "12.5px", color: TEXT2, marginBottom: "12px" }}>Posez une question sur votre activité commerciale ou demandez une action.</div>
+
+      {messages.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "12px", maxHeight: "360px", overflowY: "auto" }}>
+          {messages.map((m, i) => (
+            <div
+              key={i}
+              style={{
+                alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                maxWidth: "80%",
+                background: m.role === "user" ? ACCENT : CARD,
+                color: m.role === "user" ? "#fff" : m.error ? RED : TEXT,
+                border: m.role === "user" ? "none" : `0.5px solid ${BORDER}`,
+                borderRadius: "10px",
+                padding: "10px 12px",
+                fontSize: "13px",
+                lineHeight: 1.5,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {m.text}
+            </div>
+          ))}
+          {loading && <div style={{ alignSelf: "flex-start", fontSize: "12px", color: TEXT2 }}>Closia réfléchit...</div>}
+        </div>
+      )}
+
+      <div style={{ background: CARD, border: `0.5px solid ${BORDER}`, borderRadius: "10px", padding: "14px" }}>
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+          placeholder='Que voulez-vous savoir ou faire ? Ex : "Quels sont mes 5 deals les plus à risque ?"'
+          style={{ width: "100%", boxSizing: "border-box", background: "none", border: "none", outline: "none", resize: "none", fontSize: "13.5px", color: TEXT, minHeight: "56px", fontFamily: "Inter, sans-serif" }}
+        />
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button className="focusable" onClick={() => send()} disabled={!input.trim() || loading} style={{ display: "flex", alignItems: "center", gap: "6px", background: ACCENT, color: "#fff", border: "none", borderRadius: "8px", padding: "8px 16px", fontSize: "13px", fontWeight: 600, opacity: !input.trim() || loading ? 0.5 : 1 }}>
+            <SparklesIcon size={12} color="#fff" /> Envoyer
+          </button>
+        </div>
+      </div>
+
+      <div style={{ marginTop: "12px" }}>
+        <div style={{ fontSize: "11.5px", color: TEXT2, marginBottom: "8px" }}>Essayez par exemple</div>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          {EXAMPLE_PROMPTS.map((p) => (
+            <button key={p} className="focusable" onClick={() => send(p)} style={{ background: ACCENT_DIM, color: ACCENT, border: "none", borderRadius: "999px", padding: "7px 12px", fontSize: "12px" }}>
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FlowShell({ title, onBack, children }) {
+  return (
+    <div>
+      <button className="focusable" onClick={onBack} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: "4px 0", marginBottom: "16px", color: TEXT2, fontSize: "13px" }}>
+        ← Retour
+      </button>
+      <div className="display" style={{ fontWeight: 700, fontSize: "17px", color: TEXT, marginBottom: "16px" }}>{title}</div>
       {children}
     </div>
   );
 }
 
-function ProspectPicker({ prospects, value, onChange }) {
+function FlowProspectPicker({ prospects, value, onChange }) {
   return (
     <select
-      value={value}
+      value={value || ""}
       onChange={(e) => onChange(e.target.value)}
-      style={{ background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", padding: "8px 10px" }}
+      style={{ background: CARD, border: `0.5px solid ${BORDER}`, borderRadius: "8px", color: TEXT, fontSize: "13px", padding: "9px 12px", width: "100%", boxSizing: "border-box", marginBottom: "16px" }}
     >
       <option value="">Choisir un prospect...</option>
       {prospects.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.company}</option>)}
@@ -90,322 +434,57 @@ function ProspectPicker({ prospects, value, onChange }) {
   );
 }
 
-function QuickCommands({ prospects, onOpenProspect }) {
-  const [pending, setPending] = useState(null);
-  const [selected, setSelected] = useState("");
-  const [prioritizing, setPrioritizing] = useState(false);
-
-  const COMMANDS = [
-    { key: "call", label: "Préparer un appel", icon: <PhoneIcon size={14} color="var(--blue)" />, tab: "script" },
-    { key: "email", label: "Générer une relance", icon: <MailIcon size={14} color="var(--blue)" />, tab: "email" },
-    { key: "summary", label: "Résumer un échange", icon: <SparklesIcon size={14} color="var(--blue)" />, tab: "analyse" },
-    { key: "priorities", label: "Prioriser les opportunités", icon: <TargetIcon size={14} color="var(--blue)" /> },
-  ];
-
-  function trigger(cmd) {
-    if (cmd.key === "priorities") {
-      setPrioritizing(true);
-      document.getElementById("priorities-anchor")?.scrollIntoView({ behavior: "smooth" });
-      setTimeout(() => setPrioritizing(false), 300);
-      return;
-    }
-    setPending(cmd);
-    setSelected("");
-  }
-
-  function confirm() {
-    if (!selected) return;
-    onOpenProspect?.(selected, pending.tab);
-  }
-
+function ProspectSummaryCard({ prospect, extra }) {
   return (
-    <Section title="Zone de commande rapide">
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "8px" }}>
-        {COMMANDS.map((cmd) => (
-          <button
-            key={cmd.key}
-            className="focusable"
-            onClick={() => trigger(cmd)}
-            style={{ display: "flex", alignItems: "center", gap: "8px", background: pending?.key === cmd.key ? "var(--blue-dim)" : "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px 14px", fontSize: "13px", fontWeight: 500, textAlign: "left" }}
-          >
-            {cmd.icon} {cmd.label}
-          </button>
-        ))}
+    <div style={{ background: CARD, border: `0.5px solid ${BORDER}`, borderRadius: "10px", padding: "14px", marginBottom: "16px" }}>
+      <div style={{ fontSize: "14px", fontWeight: 600, color: TEXT }}>{prospect.company} <span style={{ color: TEXT2, fontWeight: 400 }}>· {prospect.name}</span></div>
+      <div style={{ fontSize: "12.5px", color: TEXT2, marginTop: "2px" }}>
+        {formatEuros(prospect.deal_value || 0)} · {prospect.stage}{extra ? ` · ${extra}` : ""}
       </div>
-
-      {pending && (
-        <div style={{ display: "flex", gap: "8px", marginTop: "10px", alignItems: "center" }}>
-          <ProspectPicker prospects={prospects} value={selected} onChange={setSelected} />
-          <button className="focusable" onClick={confirm} disabled={!selected} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", opacity: selected ? 1 : 0.5 }}>
-            Ouvrir
-          </button>
-        </div>
-      )}
-
-      <div id="priorities-anchor" />
-    </Section>
+    </div>
   );
 }
 
-function InsightCards({ prospects, onOpenProspect }) {
-  const now = new Date();
-
-  const atRisk = prospects.filter((p) => {
-    const stale = !p.last_contact_at || (now - new Date(p.last_contact_at)) / 86400000 > 14;
-    const overdue = p.next_contact_at && isOverdue(p.next_contact_at);
-    return stale || overdue;
-  }).slice(0, 5);
-
-  const hot = prospects
-    .filter((p) => p.priority >= 75 && (p.stage === "Proposition envoyée" || p.stage === "Négociation"))
-    .slice(0, 5);
-
-  const urgentFollowups = prospects
-    .filter((p) => p.status === "relancer")
-    .sort((a, b) => new Date(a.last_contact_at || 0) - new Date(b.last_contact_at || 0))
-    .slice(0, 5);
-
-  const toPrep = prospects
-    .filter((p) => p.next_contact_at && !isOverdue(p.next_contact_at) && (new Date(p.next_contact_at) - now) / 86400000 <= 3)
-    .sort((a, b) => new Date(a.next_contact_at) - new Date(b.next_contact_at))
-    .slice(0, 5);
-
-  const CARDS = [
-    { title: "Opportunités à risque", accent: "var(--red)", items: atRisk, empty: "Rien à signaler." },
-    { title: "Prospects chauds", accent: "#0ea968", items: hot, empty: "Aucun deal chaud identifié." },
-    { title: "Relances urgentes", accent: "var(--amber)", items: urgentFollowups, empty: "Aucune relance en attente." },
-    { title: "Rendez-vous à préparer", accent: "var(--blue)", items: toPrep, empty: "Rien de prévu sous 3 jours." },
-  ];
-
-  return (
-    <Section title="Cartes IA">
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "12px" }}>
-        {CARDS.map((card) => (
-          <div key={card.title} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderTop: `2.5px solid ${card.accent}`, borderRadius: "10px", padding: "14px" }}>
-            <div className="display" style={{ fontWeight: 600, fontSize: "13px", marginBottom: "10px" }}>{card.title}</div>
-            {card.items.length === 0 ? (
-              <div style={{ color: "var(--text-faint)", fontSize: "12px" }}>{card.empty}</div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {card.items.map((p) => (
-                  <button key={p.id} className="focusable" onClick={() => onOpenProspect?.(p.id)} style={{ display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", padding: 0, textAlign: "left" }}>
-                    <Avatar name={p.name} stage={p.stage} size={20} />
-                    <span style={{ fontSize: "12px", color: "var(--blue)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name} <span style={{ color: "var(--text-faint)" }}>· {p.company}</span></span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </Section>
-  );
-}
-
-const STATUS_FILTERS = [
-  { value: "tous", label: "Tous les statuts" },
-  { value: "appeler", label: "À appeler" },
-  { value: "relancer", label: "À relancer" },
-  { value: "attente", label: "En attente" },
-  { value: "retard", label: "En retard" },
-];
-
-const TASK_FILTERS = [
-  { value: "tous", label: "Toutes les tâches" },
-  { value: "relance", label: "Avec tâche de relance mail" },
-  { value: "retard", label: "Avec tâche en retard" },
-  { value: "sans_tache", label: "Sans tâche en cours" },
-];
-
-function EmailGeneratorPanel({ prospects, session, settings }) {
-  const [statusFilter, setStatusFilter] = useState("relancer");
-  const [taskFilter, setTaskFilter] = useState("tous");
-  const [selectedIds, setSelectedIds] = useState(() => new Set());
-  const [tone, setTone] = useState(settings?.ai_default_tone || TONES[0]);
-  const [length, setLength] = useState(LENGTHS[0]);
-  const [objective, setObjective] = useState(OBJECTIVES[0]);
-  const [results, setResults] = useState([]);
+function RelanceFlow({ prospectId, prospects, session, settings, onBack }) {
+  const [selectedId, setSelectedId] = useState(prospectId || "");
+  const [tone, setTone] = useState(TONES[0]);
+  const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
-  const [openTasks, setOpenTasks] = useState([]);
-  const [lastActivities, setLastActivities] = useState({});
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [context, setContext] = useState(null);
+  const prospect = prospects.find((p) => p.id === selectedId);
 
   useEffect(() => {
-    supabase.from("tasks").select("*").eq("done", false).order("due_at", { ascending: true, nullsFirst: false }).then(({ data }) => setOpenTasks(data || []));
-  }, []);
-
-  const taskByProspect = {};
-  openTasks.forEach((t) => {
-    if (!taskByProspect[t.prospect_id]) taskByProspect[t.prospect_id] = t;
-  });
-
-  const statusFiltered = statusFilter === "tous" ? prospects : prospects.filter((p) => p.status === statusFilter);
-  const filtered = statusFiltered.filter((p) => {
-    const task = taskByProspect[p.id];
-    if (taskFilter === "relance") return task?.type === "relance_email";
-    if (taskFilter === "retard") return task?.due_at && isOverdue(task.due_at);
-    if (taskFilter === "sans_tache") return !task;
-    return true;
-  });
-
-  useEffect(() => {
-    const ids = filtered.map((p) => p.id);
-    if (ids.length === 0) {
-      setLastActivities({});
-      return;
-    }
-    supabase
-      .from("activities")
-      .select("prospect_id, type, created_at")
-      .in("prospect_id", ids)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        const byProspect = {};
-        (data || []).forEach((a) => {
-          if (!byProspect[a.prospect_id]) byProspect[a.prospect_id] = a;
-        });
-        setLastActivities(byProspect);
-      });
+    setContent("");
+    setContext(null);
+    if (prospect) fetchProspectContext(prospect.id).then(setContext);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, taskFilter, openTasks.length, prospects.length]);
-
-  function toggle(id) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
-
-  function selectAll() {
-    setSelectedIds(new Set(filtered.map((p) => p.id)));
-  }
-
-  function selectNone() {
-    setSelectedIds(new Set());
-  }
+  }, [selectedId]);
 
   async function generate() {
-    const targets = prospects.filter((p) => selectedIds.has(p.id));
-    if (targets.length === 0) return;
+    if (!prospect) return;
     setLoading(true);
-    setResults(targets.map((p) => ({ prospect: p, content: "", error: "", loading: true })));
-    const lengthGuide = { Court: "3-4 phrases", Moyen: "5-7 phrases", Détaillé: "8-10 phrases" }[length];
-
-    for (const prospect of targets) {
-      try {
-        const context = await fetchProspectContext(prospect.id);
-        const task = taskByProspect[prospect.id];
-        const lastActivity = lastActivities[prospect.id];
-        const actionLines = [
-          lastActivity ? `Dernière action enregistrée : ${ACTIVITY_LABEL[lastActivity.type] || lastActivity.type} le ${formatShortDate(lastActivity.created_at)}.` : null,
-          task ? `Tâche en cours sur ce prospect : ${TASK_TYPE_META[task.type]?.label || task.type} — "${task.note}"${task.due_at ? ` (échéance ${formatShortDate(task.due_at)})` : ""}.` : null,
-        ].filter(Boolean).join("\n");
-        const prompt = `Tu es un assistant commercial. Rédige un email en français, ton ${tone.toLowerCase()}, longueur ${lengthGuide}, avec pour objectif : ${objective.toLowerCase()}. Si une dernière action ou une tâche en cours est indiquée ci-dessous, appuie-toi dessus pour rendre l'email concret et contextualisé (par exemple en faisant référence naturellement à l'appel ou au sujet en cours), sans le mentionner de façon mécanique. Uniquement le corps de l'email, termine par une formule de politesse simple (ex : "Bonne journée,"), sans nom ni signature — la signature sera ajoutée automatiquement après.
+    setError("");
+    try {
+      const ctx = context || (await fetchProspectContext(prospect.id));
+      const prompt = `Tu es un assistant commercial. Rédige un email de relance en français, ton ${tone.toLowerCase()}, court (5-6 phrases), pour obtenir une réponse. Uniquement le corps de l'email, termine par une formule de politesse simple, sans nom ni signature.
 
 Nom du contact : ${prospect.name}
 Entreprise : ${prospect.company}
 Étape du pipeline : ${prospect.stage}
-${actionLines ? `\n${actionLines}\n` : ""}
-Contexte des échanges précédents :
-${context}`;
-        const text = await callAI(prompt, session.access_token);
-        const content = appendSignature(text, settings);
-        setResults((prev) => prev.map((r) => (r.prospect.id === prospect.id ? { ...r, content, loading: false } : r)));
-      } catch (e) {
-        setResults((prev) => prev.map((r) => (r.prospect.id === prospect.id ? { ...r, error: e.message || "La génération a échoué.", loading: false } : r)));
-      }
+Montant : ${formatEuros(prospect.deal_value || 0)}
+
+Contexte :
+${ctx.text}`;
+      const text = await callAI(prompt, session.access_token);
+      setContent(appendSignature(text, settings));
+    } catch (e) {
+      setError(e.message || "La génération a échoué. Réessaie.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
-
-  return (
-    <Section title="Générateur d'email">
-      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px" }}>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "10px" }}>
-          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setSelectedIds(new Set()); }} style={selectSm}>
-            {STATUS_FILTERS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-          <select value={taskFilter} onChange={(e) => { setTaskFilter(e.target.value); setSelectedIds(new Set()); }} style={selectSm}>
-            {TASK_FILTERS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
-          <select value={tone} onChange={(e) => setTone(e.target.value)} style={selectSm}>
-            {TONES.map((t) => <option key={t}>{t}</option>)}
-          </select>
-          <select value={length} onChange={(e) => setLength(e.target.value)} style={selectSm}>
-            {LENGTHS.map((l) => <option key={l}>{l}</option>)}
-          </select>
-          <select value={objective} onChange={(e) => setObjective(e.target.value)} style={selectSm}>
-            {OBJECTIVES.map((o) => <option key={o}>{o}</option>)}
-          </select>
-        </div>
-
-        <div style={{ background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px", marginBottom: "10px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
-            <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>{selectedIds.size} sélectionné{selectedIds.size !== 1 ? "s" : ""} sur {filtered.length}</span>
-            <div style={{ display: "flex", gap: "10px" }}>
-              <button className="focusable" onClick={selectAll} style={{ background: "none", border: "none", color: "var(--blue)", fontSize: "11px", padding: 0, cursor: "pointer" }}>Tout sélectionner</button>
-              <button className="focusable" onClick={selectNone} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: "11px", padding: 0, cursor: "pointer" }}>Aucun</button>
-            </div>
-          </div>
-          {filtered.length === 0 ? (
-            <div style={{ color: "var(--text-faint)", fontSize: "12px", padding: "6px 2px" }}>Aucun prospect ne correspond à ces filtres.</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "2px", maxHeight: "220px", overflowY: "auto" }}>
-              {filtered.map((p) => {
-                const task = taskByProspect[p.id];
-                const activity = lastActivities[p.id];
-                const taskMeta = task ? TASK_TYPE_META[task.type] : null;
-                const taskOverdue = task?.due_at && isOverdue(task.due_at);
-                return (
-                  <label key={p.id} style={{ display: "flex", alignItems: "flex-start", gap: "8px", padding: "5px 6px", borderRadius: "6px", cursor: "pointer", fontSize: "12.5px" }}>
-                    <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggle(p.id)} style={{ marginTop: "2px" }} />
-                    <div style={{ minWidth: 0 }}>
-                      <div>
-                        <span style={{ color: "var(--text)" }}>{p.name}</span>
-                        <span style={{ color: "var(--text-faint)" }}> · {p.company}</span>
-                      </div>
-                      {(task || activity) && (
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "2px" }}>
-                          {task && taskMeta && (
-                            <span style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "10px", fontWeight: 600, color: taskOverdue ? "var(--red)" : taskMeta.color, background: taskOverdue ? "var(--red-dim)" : taskMeta.dim, borderRadius: "5px", padding: "1px 6px" }}>
-                              <taskMeta.Icon size={9} color={taskOverdue ? "var(--red)" : taskMeta.color} />
-                              {taskMeta.label}{task.due_at ? ` · ${formatShortDate(task.due_at)}` : ""}
-                            </span>
-                          )}
-                          {activity && (
-                            <span style={{ fontSize: "10px", color: "var(--text-faint)" }}>
-                              Dernière action : {ACTIVITY_LABEL[activity.type] || activity.type} ({formatShortDate(activity.created_at)})
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <button className="focusable" onClick={generate} disabled={selectedIds.size === 0 || loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: selectedIds.size === 0 || loading ? 0.6 : 1, marginBottom: results.length ? "14px" : 0 }}>
-          <SparklesIcon size={13} color="var(--blue)" /> {loading ? "Génération..." : `Générer ${selectedIds.size > 1 ? `${selectedIds.size} emails` : "l'email"}`}
-        </button>
-
-        {results.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {results.map((r) => (
-              <EmailResultCard key={r.prospect.id} result={r} onChange={(content) => setResults((prev) => prev.map((x) => (x.prospect.id === r.prospect.id ? { ...x, content } : x)))} />
-            ))}
-          </div>
-        )}
-      </div>
-    </Section>
-  );
-}
-
-function EmailResultCard({ result, onChange }) {
-  const [copied, setCopied] = useState(false);
-  const { prospect, content, error, loading } = result;
 
   async function copy() {
     await navigator.clipboard.writeText(content);
@@ -414,51 +493,201 @@ function EmailResultCard({ result, onChange }) {
   }
 
   return (
-    <div style={{ background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px" }}>
-      <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "6px" }}>{prospect.name} <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>· {prospect.company}</span></div>
-      {loading ? (
-        <div style={{ color: "var(--text-faint)", fontSize: "12px" }}>Génération...</div>
-      ) : error ? (
-        <div style={{ color: "var(--red)", fontSize: "12px" }}>{error}</div>
-      ) : (
+    <FlowShell title="Générer une relance" onBack={onBack}>
+      {!prospectId && <FlowProspectPicker prospects={prospects} value={selectedId} onChange={setSelectedId} />}
+      {prospect && (
         <>
-          <textarea
-            value={content}
-            onChange={(e) => onChange(e.target.value)}
-            style={{ width: "100%", boxSizing: "border-box", background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", lineHeight: 1.6, padding: "10px", minHeight: "110px", resize: "vertical", fontFamily: "Inter, sans-serif" }}
-          />
-          <button className="focusable" onClick={copy} style={{ marginTop: "8px", background: "transparent", color: "var(--text)", border: "0.5px solid var(--hairline)", borderRadius: "6px", padding: "6px 12px", fontSize: "12px" }}>
-            {copied ? "Copié" : "Copier"}
+          <ProspectSummaryCard prospect={prospect} extra={prospect.last_contact_at ? `dernier contact il y a ${daysSince(prospect.last_contact_at)}j` : "jamais contacté"} />
+
+          {context && (
+            <div style={{ background: CARD, border: `0.5px solid ${BORDER}`, borderRadius: "10px", padding: "14px", marginBottom: "16px" }}>
+              <div style={{ fontSize: "11px", fontWeight: 700, color: TEXT2, marginBottom: "6px" }}>CONTEXTE UTILISÉ PAR CLOSIA</div>
+              <div style={{ fontSize: "12.5px", color: TEXT, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{context.text}</div>
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: "6px", marginBottom: "16px" }}>
+            {TONES.map((t) => (
+              <button key={t} className="focusable" onClick={() => setTone(t)} style={{ background: tone === t ? ACCENT : CARD, color: tone === t ? "#fff" : TEXT2, border: `0.5px solid ${tone === t ? ACCENT : BORDER}`, borderRadius: "999px", padding: "6px 12px", fontSize: "12px", fontWeight: 500 }}>
+                {t}
+              </button>
+            ))}
+          </div>
+
+          <button className="focusable" onClick={generate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: ACCENT, color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: loading ? 0.6 : 1, marginBottom: "12px" }}>
+            <SparklesIcon size={13} color="#fff" /> {loading ? "Génération..." : content ? "Régénérer" : "Générer avec l'IA"}
           </button>
+          {error && <div style={{ color: RED, fontSize: "12px", marginBottom: "10px" }}>{error}</div>}
+
+          {content && (
+            <>
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                style={{ width: "100%", boxSizing: "border-box", background: CARD, border: `0.5px solid ${BORDER}`, borderRadius: "10px", color: TEXT, fontSize: "13px", lineHeight: 1.6, padding: "12px", minHeight: "160px", resize: "vertical", fontFamily: "Inter, sans-serif", marginBottom: "10px" }}
+              />
+              <button className="focusable" onClick={copy} style={{ background: ACCENT_DIM, color: ACCENT, border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600 }}>
+                {copied ? "Copié ✓" : "Copier l'email"}
+              </button>
+            </>
+          )}
         </>
       )}
-    </div>
+    </FlowShell>
   );
 }
 
-function CallPrepPanel({ prospects, session }) {
-  const [prospectId, setProspectId] = useState("");
+function AnalyseFlow({ prospectId, prospects, session, onBack }) {
+  const [selectedId, setSelectedId] = useState(prospectId || "");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [taskCreated, setTaskCreated] = useState(false);
+  const prospect = prospects.find((p) => p.id === selectedId);
+
+  useEffect(() => {
+    setResult(null);
+    setTaskCreated(false);
+  }, [selectedId]);
 
   async function generate() {
-    const prospect = prospects.find((p) => p.id === prospectId);
     if (!prospect) return;
     setLoading(true);
     setError("");
-    setResult(null);
     try {
-      const context = await fetchProspectContext(prospect.id);
-      const prompt = `Tu es un coach commercial. Prépare cet appel de vente. Réponds UNIQUEMENT en JSON valide, format : {"context": "résumé en 1-2 phrases de la situation", "objections": ["...", "..."], "questions": ["...", "..."], "next_objective": "..."}. Maximum 3 éléments par liste, en français.
+      const ctx = await fetchProspectContext(prospect.id);
+      const prompt = `Tu es un coach commercial. Analyse cette opportunité et réponds UNIQUEMENT en JSON valide, sans texte avant ni après, exactement dans ce format :
+{"probability": 72, "positive_signals": ["...", "..."], "watch_points": ["...", "..."], "next_action": "phrase courte décrivant la prochaine action concrète, avec un délai", "next_action_why": "pourquoi cette action maintenant, en une phrase"}
+
+"probability" est un entier 0-100 représentant la probabilité de closer ce deal. Maximum 4 éléments par liste, puces courtes, en français.
 
 Nom du contact : ${prospect.name}
 Entreprise : ${prospect.company}
 Étape du pipeline : ${prospect.stage}
-Statut : ${prospect.status}
+Montant : ${formatEuros(prospect.deal_value || 0)}
+Dernier contact : ${prospect.last_contact_at ? `il y a ${daysSince(prospect.last_contact_at)} jours` : "jamais"}
 
 Contexte :
-${context}`;
+${ctx.text}`;
+      const raw = await callAI(prompt, session.access_token);
+      const parsed = parseJsonLoose(raw);
+      if (!parsed) throw new Error("parse_failed");
+      setResult(parsed);
+      await supabase.from("analyses_ia").insert({
+        user_id: session.user.id,
+        prospect_id: prospect.id,
+        type: "opportunite",
+        content: `Probabilité : ${parsed.probability}%\n\nProchaine action : ${parsed.next_action}\n\nSignaux positifs :\n${(parsed.positive_signals || []).map((s) => `+ ${s}`).join("\n")}\n\nPoints de vigilance :\n${(parsed.watch_points || []).map((s) => `- ${s}`).join("\n")}`,
+      });
+      await supabase.from("prospects").update({
+        last_analysis: {
+          recommendation: parsed.next_action,
+          positive_signals: parsed.positive_signals,
+          watch_points: parsed.watch_points,
+          probability: parsed.probability,
+          next_action: parsed.next_action,
+          next_action_why: parsed.next_action_why,
+          analyzed_at: new Date().toISOString(),
+        },
+      }).eq("id", prospect.id);
+    } catch (e) {
+      setError(e.message && e.message !== "parse_failed" ? e.message : "L'analyse a échoué. Réessaie.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function planCall() {
+    if (!prospect || taskCreated) return;
+    const due = new Date();
+    due.setDate(due.getDate() + 1);
+    due.setHours(11, 0, 0, 0);
+    await supabase.from("tasks").insert({
+      user_id: session.user.id,
+      prospect_id: prospect.id,
+      type: "appel_telephone",
+      note: result?.next_action || `Appeler ${prospect.name}`,
+      due_at: due.toISOString(),
+    });
+    setTaskCreated(true);
+  }
+
+  const potentialLabel = result ? (result.probability >= 65 ? "🔥 Potentiel élevé" : result.probability >= 35 ? "🟠 Potentiel moyen" : "🔵 Potentiel faible") : null;
+
+  return (
+    <FlowShell title="Analyser une opportunité" onBack={onBack}>
+      {!prospectId && <FlowProspectPicker prospects={prospects} value={selectedId} onChange={setSelectedId} />}
+      {prospect && (
+        <>
+          <ProspectSummaryCard prospect={prospect} />
+
+          <button className="focusable" onClick={generate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: ACCENT, color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: loading ? 0.6 : 1, marginBottom: "16px" }}>
+            <SparklesIcon size={13} color="#fff" /> {loading ? "Analyse..." : result ? "Réanalyser" : "Analyser avec l'IA"}
+          </button>
+          {error && <div style={{ color: RED, fontSize: "12px", marginBottom: "10px" }}>{error}</div>}
+
+          {result && (
+            <div style={{ background: CARD, border: `0.5px solid ${BORDER}`, borderRadius: "10px", padding: "16px" }}>
+              <div style={{ fontSize: "13px", fontWeight: 600, color: TEXT, marginBottom: "14px" }}>{potentialLabel}</div>
+
+              <div style={{ fontSize: "11px", fontWeight: 700, color: "#16a34a", marginBottom: "6px" }}>SIGNAUX POSITIFS</div>
+              <ul style={{ margin: "0 0 14px", paddingLeft: "18px", fontSize: "13px", color: TEXT, lineHeight: 1.7 }}>
+                {(result.positive_signals || []).map((s, i) => <li key={i}>{s}</li>)}
+              </ul>
+
+              <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--amber)", marginBottom: "6px" }}>POINTS DE VIGILANCE</div>
+              <ul style={{ margin: "0 0 16px", paddingLeft: "18px", fontSize: "13px", color: TEXT, lineHeight: 1.7 }}>
+                {(result.watch_points || []).map((s, i) => <li key={i}>{s}</li>)}
+              </ul>
+
+              <div style={{ fontSize: "11px", fontWeight: 700, color: TEXT2, marginBottom: "4px" }}>PROBABILITÉ ESTIMÉE</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+                <div style={{ flex: 1, height: "6px", background: ACCENT_DIM, borderRadius: "3px", overflow: "hidden" }}>
+                  <div style={{ width: `${result.probability}%`, height: "100%", background: ACCENT, borderRadius: "3px" }} />
+                </div>
+                <span className="mono" style={{ fontSize: "14px", fontWeight: 700, color: TEXT }}>{result.probability}%</span>
+              </div>
+
+              <div style={{ borderTop: `0.5px solid ${BORDER}`, paddingTop: "14px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: TEXT2, marginBottom: "4px" }}>PROCHAINE MEILLEURE ACTION</div>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: TEXT, marginBottom: "6px" }}>{result.next_action}</div>
+                <div style={{ fontSize: "12px", color: TEXT2, marginBottom: "12px" }}>Pourquoi ? {result.next_action_why}</div>
+                <button className="focusable" onClick={planCall} disabled={taskCreated} style={{ background: taskCreated ? "#e2f7ec" : ACCENT_DIM, color: taskCreated ? "#0ea968" : ACCENT, border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600 }}>
+                  {taskCreated ? "Tâche créée ✓" : "Planifier l'appel"}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </FlowShell>
+  );
+}
+
+function RdvFlow({ prospectId, prospects, session, onBack }) {
+  const [selectedId, setSelectedId] = useState(prospectId || "");
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const prospect = prospects.find((p) => p.id === selectedId);
+
+  useEffect(() => { setResult(null); }, [selectedId]);
+
+  async function generate() {
+    if (!prospect) return;
+    setLoading(true);
+    setError("");
+    try {
+      const ctx = await fetchProspectContext(prospect.id);
+      const prompt = `Tu es un coach commercial. Prépare ce rendez-vous. Réponds UNIQUEMENT en JSON valide, format : {"context": "résumé en 1-2 phrases de la situation", "objections": ["...", "..."], "questions": ["...", "..."], "next_objective": "..."}. Maximum 4 éléments par liste, en français.
+
+Nom du contact : ${prospect.name}
+Entreprise : ${prospect.company}
+Étape du pipeline : ${prospect.stage}
+Montant : ${formatEuros(prospect.deal_value || 0)}
+
+Contexte :
+${ctx.text}`;
       const raw = await callAI(prompt, session.access_token);
       const parsed = parseJsonLoose(raw);
       if (!parsed) throw new Error("parse_failed");
@@ -471,48 +700,103 @@ ${context}`;
   }
 
   return (
-    <Section title="Préparation d'appel">
-      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px" }}>
-        <div style={{ display: "flex", gap: "8px", marginBottom: "10px" }}>
-          <ProspectPicker prospects={prospects} value={prospectId} onChange={setProspectId} />
-          <button className="focusable" onClick={generate} disabled={!prospectId || loading} style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2a3ed655", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", opacity: !prospectId || loading ? 0.6 : 1 }}>
-            <SparklesIcon size={13} color="var(--blue)" /> {loading ? "Préparation..." : "Préparer"}
+    <FlowShell title="Préparer un rendez-vous" onBack={onBack}>
+      {!prospectId && <FlowProspectPicker prospects={prospects} value={selectedId} onChange={setSelectedId} />}
+      {prospect && (
+        <>
+          <ProspectSummaryCard prospect={prospect} />
+          <button className="focusable" onClick={generate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: ACCENT, color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: loading ? 0.6 : 1, marginBottom: "16px" }}>
+            <SparklesIcon size={13} color="#fff" /> {loading ? "Préparation..." : "Préparer avec l'IA"}
           </button>
-        </div>
-        {error && <div style={{ color: "var(--red)", fontSize: "12px", marginBottom: "8px" }}>{error}</div>}
-        {result && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            <PrepBlock label="Contexte">{result.context}</PrepBlock>
-            <PrepBlock label="Objections probables" list={result.objections} />
-            <PrepBlock label="Questions à poser" list={result.questions} />
-            <PrepBlock label="Prochain objectif">{result.next_objective}</PrepBlock>
-          </div>
-        )}
-      </div>
-    </Section>
+          {error && <div style={{ color: RED, fontSize: "12px", marginBottom: "10px" }}>{error}</div>}
+          {result && (
+            <div style={{ background: CARD, border: `0.5px solid ${BORDER}`, borderRadius: "10px", padding: "16px", display: "flex", flexDirection: "column", gap: "14px" }}>
+              <PrepBlock label="Contexte">{result.context}</PrepBlock>
+              <PrepBlock label="Objections probables" list={result.objections} />
+              <PrepBlock label="Questions à poser" list={result.questions} />
+              <PrepBlock label="Prochain objectif">{result.next_objective}</PrepBlock>
+            </div>
+          )}
+        </>
+      )}
+    </FlowShell>
+  );
+}
+
+function ResumeFlow({ prospectId, prospects, session, onBack }) {
+  const [selectedId, setSelectedId] = useState(prospectId || "");
+  const [summary, setSummary] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const prospect = prospects.find((p) => p.id === selectedId);
+
+  useEffect(() => { setSummary(""); }, [selectedId]);
+
+  async function generate() {
+    if (!prospect) return;
+    setLoading(true);
+    setError("");
+    try {
+      const ctx = await fetchProspectContext(prospect.id);
+      const prompt = `Tu es un assistant commercial. Résume l'historique de la relation avec ce prospect en français, sous forme de synthèse exploitable (5-6 phrases) : où en est la relation, ce qui a été fait, ce qui reste à faire. Réponds uniquement avec la synthèse, sans préambule.
+
+Nom du contact : ${prospect.name}
+Entreprise : ${prospect.company}
+Étape du pipeline : ${prospect.stage}
+
+Historique :
+${ctx.text}`;
+      const text = await callAI(prompt, session.access_token);
+      setSummary(text.trim());
+    } catch (e) {
+      setError(e.message || "Le résumé a échoué. Réessaie.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function copy() {
+    await navigator.clipboard.writeText(summary);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <FlowShell title="Résumer les échanges" onBack={onBack}>
+      {!prospectId && <FlowProspectPicker prospects={prospects} value={selectedId} onChange={setSelectedId} />}
+      {prospect && (
+        <>
+          <ProspectSummaryCard prospect={prospect} />
+          <button className="focusable" onClick={generate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: ACCENT, color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: loading ? 0.6 : 1, marginBottom: "16px" }}>
+            <SparklesIcon size={13} color="#fff" /> {loading ? "Résumé..." : "Résumer avec l'IA"}
+          </button>
+          {error && <div style={{ color: RED, fontSize: "12px", marginBottom: "10px" }}>{error}</div>}
+          {summary && (
+            <div style={{ background: CARD, border: `0.5px solid ${BORDER}`, borderRadius: "10px", padding: "16px" }}>
+              <div style={{ fontSize: "13px", color: TEXT, lineHeight: 1.6, marginBottom: "12px" }}>{summary}</div>
+              <button className="focusable" onClick={copy} style={{ background: ACCENT_DIM, color: ACCENT, border: "none", borderRadius: "8px", padding: "8px 14px", fontSize: "12.5px", fontWeight: 600 }}>
+                {copied ? "Copié ✓" : "Copier"}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </FlowShell>
   );
 }
 
 function PrepBlock({ label, children, list }) {
   return (
     <div>
-      <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "4px" }}>{label.toUpperCase()}</div>
+      <div style={{ fontSize: "10px", color: TEXT2, fontWeight: 700, marginBottom: "4px" }}>{label.toUpperCase()}</div>
       {list ? (
-        <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "13px", color: "var(--text)", lineHeight: 1.6 }}>
+        <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "13px", color: TEXT, lineHeight: 1.6 }}>
           {(list || []).map((item, i) => <li key={i}>{item}</li>)}
         </ul>
       ) : (
-        <div style={{ fontSize: "13px", color: "var(--text)" }}>{children}</div>
+        <div style={{ fontSize: "13px", color: TEXT }}>{children}</div>
       )}
     </div>
   );
 }
-
-const selectSm = {
-  background: "var(--panel2)",
-  border: "0.5px solid var(--hairline)",
-  borderRadius: "8px",
-  color: "var(--text)",
-  fontSize: "13px",
-  padding: "8px 10px",
-};
