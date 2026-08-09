@@ -149,7 +149,7 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
 
   async function toggleTaskDone(task) {
     setTasks((prev) => prev.filter((t) => t.id !== task.id));
-    await supabase.from("tasks").update({ done: true }).eq("id", task.id);
+    await supabase.from("tasks").update({ done: true, completed_at: new Date().toISOString() }).eq("id", task.id);
   }
 
   const prospectById = Object.fromEntries(prospects.map((p) => [p.id, p]));

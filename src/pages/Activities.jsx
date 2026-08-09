@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { Avatar, formatShortDate, formatEuros, callAI, parseJsonLoose, STATUS_META, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, ListIcon, UsersIcon, LinkedinIcon, AlertIcon, PageTitle } from "../lib/ui.jsx";
+import { Avatar, formatShortDate, formatEuros, callAI, parseJsonLoose, STATUS_META, computeDealScore, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, ListIcon, UsersIcon, LinkedinIcon, AlertIcon, PageTitle } from "../lib/ui.jsx";
 
 const PERIOD_DAYS = { "7": 7, "30": 30, "90": 90 };
-const PERIODS = [["7", "7 jours"], ["30", "30 jours"], ["90", "90 jours"]];
+const PERIODS = [["7", "7 jours"], ["30", "30 jours"], ["90", "Trimestre"]];
 
 const FILTERS = [
   ["Tous", "Tous"],
@@ -59,7 +59,7 @@ function dayLabel(iso) {
   return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 }
 
-export default function Activities({ prospects, onOpenProspect, session, team }) {
+export default function Activities({ prospects, onOpenProspect, session, team, settings }) {
   const [tab, setTab] = useState("activite");
   const [filter, setFilter] = useState("Tous");
   const [feedItems, setFeedItems] = useState([]);
@@ -127,7 +127,7 @@ export default function Activities({ prospects, onOpenProspect, session, team })
           teamStats={teamStats}
         />
       ) : (
-        <PerformanceTab prospects={prospects} activities={activities} feedItems={feedItems} session={session} teamStats={teamStats} />
+        <PerformanceTab prospects={prospects} activities={activities} feedItems={feedItems} session={session} teamStats={teamStats} settings={settings} />
       )}
     </div>
   );
@@ -278,36 +278,121 @@ function StatChip({ label, value }) {
   );
 }
 
-function PerformanceTab({ prospects, activities, feedItems, session, teamStats }) {
+function pctDelta(current, previous) {
+  if (!previous) return null;
+  return Math.round(((current - previous) / previous) * 100);
+}
+
+function DeltaLine({ delta }) {
+  if (delta === null) return <div style={{ fontSize: "10.5px", color: "var(--text-faint)" }}>vs période précédente : —</div>;
+  return (
+    <div style={{ fontSize: "10.5px", color: delta >= 0 ? "#16a34a" : "var(--red)" }}>
+      {delta >= 0 ? "+" : ""}{delta}% vs période précédente
+    </div>
+  );
+}
+
+function PerformanceTab({ prospects, activities, feedItems, session, teamStats, settings }) {
   const [period, setPeriod] = useState("30");
-  const [chartFilter, setChartFilter] = useState("Toutes");
   const [insight, setInsight] = useState(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
+  const [openTasks, setOpenTasks] = useState([]);
+
+  useEffect(() => {
+    supabase.from("tasks").select("*").then(({ data }) => setOpenTasks(data || []));
+  }, []);
 
   const days = PERIOD_DAYS[period];
   const start = daysAgo(days);
   const prevStart = daysAgo(days * 2);
 
   const inRange = activities.filter((a) => new Date(a.created_at) >= start);
+  const prevActs = activities.filter((a) => new Date(a.created_at) >= prevStart && new Date(a.created_at) < start);
   const emailsInRange = feedItems.filter((i) => i.filterKey === "Emails" && new Date(i.created_at) >= start);
+  const prevEmails = feedItems.filter((i) => i.filterKey === "Emails" && new Date(i.created_at) >= prevStart && new Date(i.created_at) < start);
+
   const nbAppels = inRange.filter((a) => a.type === "appel_abouti" || a.type === "appel_manque").length;
+  const prevAppels = prevActs.filter((a) => a.type === "appel_abouti" || a.type === "appel_manque").length;
   const nbRdv = inRange.filter((a) => a.type === "rdv_physique" || a.type === "appel_visio").length;
+  const prevRdv = prevActs.filter((a) => a.type === "rdv_physique" || a.type === "appel_visio").length;
+  const tachesTerminees = openTasks.filter((t) => t.completed_at && new Date(t.completed_at) >= start).length;
+  const prevTachesTerminees = openTasks.filter((t) => t.completed_at && new Date(t.completed_at) >= prevStart && new Date(t.completed_at) < start).length;
+
   const opportunitesCreees = prospects.filter((p) => p.created_at && new Date(p.created_at) >= start).length;
   const totalActivites = inRange.length + emailsInRange.length;
-
-  const prevActs = activities.filter((a) => new Date(a.created_at) >= prevStart && new Date(a.created_at) < start);
-  const prevEmails = feedItems.filter((i) => i.filterKey === "Emails" && new Date(i.created_at) >= prevStart && new Date(i.created_at) < start);
   const prevTotal = prevActs.length + prevEmails.length;
-  const activityDelta = prevTotal > 0 ? Math.round(((totalActivites - prevTotal) / prevTotal) * 100) : null;
+  const activityDelta = pctDelta(totalActivites, prevTotal);
 
   const gagnes = prospects.filter((p) => p.stage === "Gagné" && p.closed_at && new Date(p.closed_at) >= start);
   const perdus = prospects.filter((p) => p.stage === "Perdu" && p.closed_at && new Date(p.closed_at) >= start);
   const caGenere = gagnes.reduce((sum, p) => sum + (p.deal_value || 0), 0);
   const tauxConversion = gagnes.length + perdus.length > 0 ? Math.round((gagnes.length / (gagnes.length + perdus.length)) * 100) : null;
-  const tauxRdv = totalActivites > 0 ? Math.round((nbRdv / totalActivites) * 100) : null;
+  const tauxRdvOpp = nbRdv > 0 ? Math.round((opportunitesCreees / nbRdv) * 100) : null;
   const cycles = gagnes.filter((p) => p.created_at).map((p) => Math.round((new Date(p.closed_at) - new Date(p.created_at)) / 86400000));
   const avgCycle = cycles.length > 0 ? Math.round(cycles.reduce((s, c) => s + c, 0) / cycles.length) : null;
-  const avgDealValue = gagnes.length > 0 ? Math.round(caGenere / gagnes.length) : null;
+
+  // Réactivité — calculs réels basés sur les timestamps existants (pas de tracking d'ouverture/réponse email disponible)
+  const now = new Date();
+  const open = prospects.filter((p) => p.stage !== "Gagné" && p.stage !== "Perdu");
+  const activitiesByProspect = {};
+  activities.forEach((a) => {
+    if (!a.prospect_id) return;
+    (activitiesByProspect[a.prospect_id] = activitiesByProspect[a.prospect_id] || []).push(a);
+  });
+  Object.values(activitiesByProspect).forEach((list) => list.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)));
+
+  const firstResponseTimes = prospects
+    .filter((p) => p.created_at && new Date(p.created_at) >= start && activitiesByProspect[p.id]?.length)
+    .map((p) => (new Date(activitiesByProspect[p.id][0].created_at) - new Date(p.created_at)) / 3600000)
+    .filter((h) => h >= 0);
+  const avgFirstResponseH = firstResponseTimes.length > 0 ? firstResponseTimes.reduce((s, h) => s + h, 0) / firstResponseTimes.length : null;
+
+  const gaps = [];
+  Object.values(activitiesByProspect).forEach((list) => {
+    for (let i = 1; i < list.length; i++) {
+      const gap = (new Date(list[i].created_at) - new Date(list[i - 1].created_at)) / 86400000;
+      if (new Date(list[i].created_at) >= start) gaps.push(gap);
+    }
+  });
+  const avgGapDays = gaps.length > 0 ? gaps.reduce((s, g) => s + g, 0) / gaps.length : null;
+
+  const tasksCompletedWithDue = openTasks.filter((t) => t.completed_at && t.due_at && new Date(t.completed_at) >= start);
+  const onTimeCount = tasksCompletedWithDue.filter((t) => new Date(t.completed_at) <= new Date(t.due_at)).length;
+  const onTimePct = tasksCompletedWithDue.length > 0 ? Math.round((onTimeCount / tasksCompletedWithDue.length) * 100) : null;
+
+  // Pipeline
+  const openTasksByProspect = {};
+  openTasks.filter((t) => !t.done).forEach((t) => { if (!openTasksByProspect[t.prospect_id]) openTasksByProspect[t.prospect_id] = t; });
+  const pipelineTotal = open.reduce((s, p) => s + (p.deal_value || 0), 0);
+  const withNextAction = open.filter((p) => openTasksByProspect[p.id] || p.next_contact_at);
+  const pipelineCreatedThisPeriod = prospects.filter((p) => p.created_at && new Date(p.created_at) >= start).reduce((s, p) => s + (p.deal_value || 0), 0);
+  const pipelineCreatedPrevPeriod = prospects.filter((p) => p.created_at && new Date(p.created_at) >= prevStart && new Date(p.created_at) < start).reduce((s, p) => s + (p.deal_value || 0), 0);
+  const pipelineDelta = pctDelta(pipelineCreatedThisPeriod, pipelineCreatedPrevPeriod);
+
+  const monthlyPipeline = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - i);
+    const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
+    const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+    const value = prospects.filter((p) => p.created_at && new Date(p.created_at) >= monthStart && new Date(p.created_at) < monthEnd).reduce((s, p) => s + (p.deal_value || 0), 0);
+    monthlyPipeline.push({ label: monthStart.toLocaleDateString("fr-FR", { month: "short" }), value });
+  }
+
+  // Santé du portefeuille
+  const atRisk = open.filter((p) => !p.last_contact_at || (now - new Date(p.last_contact_at)) / 86400000 >= 7);
+  const sansAction = open.filter((p) => !openTasksByProspect[p.id] && !p.next_contact_at);
+  const stagnant = open.filter((p) => !p.last_contact_at || (now - new Date(p.last_contact_at)) / 86400000 >= 14);
+  const stagnantValue = stagnant.reduce((s, p) => s + (p.deal_value || 0), 0);
+  const chauds = open.filter((p) => {
+    const recentlyContacted = p.last_contact_at && (now - new Date(p.last_contact_at)) / 86400000 <= 3;
+    return recentlyContacted && computeDealScore(p) >= 70;
+  });
+
+  const pctWithNextAction = open.length > 0 ? Math.round((withNextAction.length / open.length) * 100) : null;
+  const momentumIndex = activityDelta !== null ? Math.max(0, Math.min(100, Math.round(50 + activityDelta))) : null;
+  const coverageRatio = settings?.objective_monthly_revenue ? (pipelineTotal / settings.objective_monthly_revenue) : null;
 
   async function generateInsight() {
     setLoadingInsight(true);
@@ -318,7 +403,9 @@ Activités cette période : ${totalActivites} (dont ${nbAppels} appels, ${emails
 Activités période précédente : ${prevTotal}
 Opportunités créées : ${opportunitesCreees}
 Taux de conversion : ${tauxConversion !== null ? tauxConversion + "%" : "non disponible"}
-Durée moyenne du cycle de vente : ${avgCycle !== null ? avgCycle + " jours" : "non disponible"}`;
+Durée moyenne du cycle de vente : ${avgCycle !== null ? avgCycle + " jours" : "non disponible"}
+Opportunités sans prochaine action : ${sansAction.length}
+Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
       const text = await callAI(prompt, session.access_token);
       setInsight(text.trim());
     } catch (e) {
@@ -331,7 +418,7 @@ Durée moyenne du cycle de vente : ${avgCycle !== null ? avgCycle + " jours" : "
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px", flexWrap: "wrap", gap: "10px" }}>
-        <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Comprenez votre activité commerciale.</div>
+        <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Ce qui fait avancer vos deals — pas juste ce que vous avez fait.</div>
         <div style={{ display: "flex", gap: "4px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
           {PERIODS.map(([key, label]) => (
             <button key={key} className="focusable" onClick={() => setPeriod(key)} style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: period === key ? "var(--bg)" : "transparent", color: period === key ? "var(--blue)" : "var(--text-dim)", boxShadow: period === key ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
@@ -341,16 +428,49 @@ Durée moyenne du cycle de vente : ${avgCycle !== null ? avgCycle + " jours" : "
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "12px", marginBottom: "24px" }}>
-        <KpiTile value={totalActivites} label="Activités" />
-        <KpiTile value={nbAppels} label="Appels" />
-        <KpiTile value={emailsInRange.length} label="Emails" />
-        <KpiTile value={nbRdv} label="Rendez-vous" />
-        <KpiTile value={opportunitesCreees} label="Opportunités créées" />
+      {/* Métrique phare */}
+      <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2563eb55", borderRadius: "12px", padding: "18px", marginBottom: "22px", textAlign: "center" }}>
+        <div style={{ fontSize: "11px", color: "var(--blue)", fontWeight: 700, letterSpacing: "0.02em", marginBottom: "6px" }}>LA MÉTRIQUE LA PLUS IMPORTANTE</div>
+        <div className="mono" style={{ fontSize: "32px", fontWeight: 700, color: "var(--text)" }}>{pctWithNextAction !== null ? `${pctWithNextAction}%` : "—"}</div>
+        <div style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>des opportunités ont une prochaine action planifiée — aucun deal ne devrait tomber dans l'oubli.</div>
       </div>
 
-      <div style={{ marginBottom: "26px" }}>
-        <div className="display" style={{ fontWeight: 700, fontSize: "13px", marginBottom: "12px" }}>Votre activité génère-t-elle des opportunités ?</div>
+      {/* 1. Activité */}
+      <SectionLabel>Activité — ce que vous avez fait</SectionLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "12px", marginBottom: "24px" }}>
+        <DeltaKpiTile value={nbAppels} label="Appels" delta={pctDelta(nbAppels, prevAppels)} />
+        <DeltaKpiTile value={emailsInRange.length} label="Emails" delta={pctDelta(emailsInRange.length, prevEmails.length)} />
+        <DeltaKpiTile value={nbRdv} label="Rendez-vous" delta={pctDelta(nbRdv, prevRdv)} />
+        <DeltaKpiTile value={tachesTerminees} label="Tâches terminées" delta={pctDelta(tachesTerminees, prevTachesTerminees)} />
+      </div>
+
+      {/* 2. Réactivité */}
+      <SectionLabel>Réactivité — à quelle vitesse vous traitez vos opportunités</SectionLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "24px" }}>
+        <QualityTile value={avgFirstResponseH !== null ? (avgFirstResponseH < 24 ? `${Math.round(avgFirstResponseH)}h` : `${Math.round(avgFirstResponseH / 24)} j`) : "—"} label="Temps de première réponse (nouveaux prospects)" />
+        <QualityTile value={avgGapDays !== null ? `${avgGapDays.toFixed(1)} j` : "—"} label="Délai moyen entre deux suivis" />
+        <QualityTile value={onTimePct !== null ? `${onTimePct}%` : "—"} label="Tâches terminées avant échéance" />
+      </div>
+
+      {/* 3. Pipeline */}
+      <SectionLabel>Pipeline — qualité et avancement des deals</SectionLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px", marginBottom: "14px" }}>
+        <KpiTile value={formatEuros(pipelineTotal)} label="Pipeline total ouvert" />
+        <KpiTile value={open.length} label={`Opportunités actives (${withNextAction.length} avec action)`} />
+        <KpiTile value={open.length > 0 ? formatEuros(Math.round(pipelineTotal / open.length)) : "—"} label="Valeur moyenne" />
+      </div>
+      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px", marginBottom: "26px" }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "10px", flexWrap: "wrap", gap: "6px" }}>
+          <span className="display" style={{ fontWeight: 700, fontSize: "13px" }}>Pipeline créé par mois</span>
+          <DeltaLine delta={pipelineDelta} />
+        </div>
+        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "10px" }}>Valeur des opportunités créées chaque mois (pas un instantané du pipeline total à date — non disponible sans historique).</div>
+        <MetricChart data={monthlyPipeline} chartType="bar" measure="value" timeSeries />
+      </div>
+
+      {/* 4. Conversion */}
+      <SectionLabel>Conversion — ce qui transforme l'activité en résultats</SectionLabel>
+      <div style={{ marginBottom: "14px" }}>
         <FunnelChart steps={[
           { label: "Activités", value: totalActivites },
           { label: "Rendez-vous", value: nbRdv },
@@ -358,32 +478,37 @@ Durée moyenne du cycle de vente : ${avgCycle !== null ? avgCycle + " jours" : "
           { label: "Deals gagnés", value: gagnes.length },
         ]} finalValue={formatEuros(caGenere)} finalLabel="de CA généré" />
       </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "26px" }}>
+        <QualityTile value={tauxRdvOpp !== null ? `${tauxRdvOpp}%` : "—"} label="RDV → Opportunité" />
+        <QualityTile value={tauxConversion !== null ? `${tauxConversion}%` : "—"} label="Opportunité → Gagné" />
+        <QualityTile value={avgCycle !== null ? `${avgCycle} j` : "—"} label="Cycle moyen de vente" />
+      </div>
 
-      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px", marginBottom: "24px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px", flexWrap: "wrap", gap: "8px" }}>
-          <span className="display" style={{ fontWeight: 700, fontSize: "13px" }}>Activité commerciale</span>
-          <div style={{ display: "flex", gap: "4px" }}>
-            {["Toutes", "Appels", "Emails", "RDV"].map((f) => (
-              <button key={f} className="focusable" onClick={() => setChartFilter(f)} style={{ padding: "5px 10px", borderRadius: "6px", fontSize: "11px", fontWeight: 500, background: chartFilter === f ? "var(--blue-dim)" : "var(--panel2)", color: chartFilter === f ? "var(--blue)" : "var(--text-dim)" }}>
-                {f}
-              </button>
-            ))}
+      {/* 5. Santé du portefeuille */}
+      <SectionLabel>Santé du portefeuille — ce qui est à risque ou bloqué</SectionLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px", marginBottom: "26px" }}>
+        <HealthTile value={atRisk.length} label="Deals à risque" sub="Sans activité depuis 7j+" accent="var(--red)" />
+        <HealthTile value={sansAction.length} label="Sans prochaine action" sub="Aucune tâche ni relance planifiée" accent="var(--amber, #b45309)" />
+        <HealthTile value={formatEuros(stagnantValue)} label="Pipeline stagnant" sub="Deals sans activité depuis 14j+" accent="var(--text-dim)" />
+        <HealthTile value={chauds.length} label="Opportunités chaudes" sub="Interactions récentes, fort engagement" accent="#0ea968" />
+      </div>
+
+      {/* KPI intelligents */}
+      <SectionLabel>Indices Closia</SectionLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px", marginBottom: "12px" }}>
+        <SmartKpiTile value={pctWithNextAction} label="Indice de suivi" desc="% d'opportunités avec une prochaine action planifiée." />
+        <SmartKpiTile value={onTimePct} label="Indice de réactivité" desc="% de tâches terminées avant leur échéance." />
+        <SmartKpiTile value={momentumIndex} label="Indice de momentum" desc="Basé sur la variation d'activité vs période précédente." />
+        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px" }}>
+          <div className="mono" style={{ fontSize: "20px", fontWeight: 700, color: "var(--text)" }}>{coverageRatio !== null ? `${coverageRatio.toFixed(1)}x` : "—"}</div>
+          <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "2px" }}>Couverture pipeline</div>
+          <div style={{ fontSize: "10px", color: "var(--text-faint)", marginTop: "4px" }}>
+            {settings?.objective_monthly_revenue ? "Pipeline ÷ objectif mensuel (Paramètres)." : "Défini un objectif de CA mensuel dans Paramètres pour l'activer."}
           </div>
         </div>
-        <ActivityTrendChart activities={activities} feedItems={feedItems} days={days} filter={chartFilter} />
       </div>
 
-      <div style={{ marginBottom: "26px" }}>
-        <div className="display" style={{ fontWeight: 700, fontSize: "13px", marginBottom: "12px" }}>Qualité de l'activité</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px" }}>
-          <QualityTile value={tauxConversion !== null ? `${tauxConversion}%` : "—"} label="Opportunités gagnées" />
-          <QualityTile value={tauxRdv !== null ? `${tauxRdv}%` : "—"} label="Part de rendez-vous dans l'activité" />
-          <QualityTile value={avgCycle !== null ? `${avgCycle} j` : "—"} label="Durée moyenne du cycle" />
-          <QualityTile value={avgDealValue !== null ? formatEuros(avgDealValue) : "—"} label="Montant moyen par deal gagné" />
-        </div>
-      </div>
-
-      <CustomMetricsSection prospects={prospects} activities={activities} session={session} />
+      <CustomMetricsSection prospects={prospects} activities={activities} session={session} days={days} />
 
       <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2563eb55", borderRadius: "12px", padding: "16px", marginBottom: "26px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
@@ -405,6 +530,40 @@ Durée moyenne du cycle de vente : ${avgCycle !== null ? avgCycle + " jours" : "
         )}
       </div>
     </>
+  );
+}
+
+function SectionLabel({ children }) {
+  return <div className="display" style={{ fontWeight: 700, fontSize: "12.5px", color: "var(--text-dim)", letterSpacing: "0.02em", marginBottom: "10px", marginTop: "4px" }}>{children.toUpperCase()}</div>;
+}
+
+function DeltaKpiTile({ value, label, delta }) {
+  return (
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px" }}>
+      <div className="mono" style={{ fontSize: "22px", fontWeight: 700, color: "var(--text)" }}>{value}</div>
+      <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "2px", marginBottom: "4px" }}>{label}</div>
+      <DeltaLine delta={delta} />
+    </div>
+  );
+}
+
+function HealthTile({ value, label, sub, accent }) {
+  return (
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderTop: `2.5px solid ${accent}`, borderRadius: "10px", padding: "14px" }}>
+      <div className="mono" style={{ fontSize: "22px", fontWeight: 700, color: "var(--text)" }}>{value}</div>
+      <div style={{ fontSize: "11.5px", fontWeight: 600, color: "var(--text)", marginTop: "2px" }}>{label}</div>
+      <div style={{ fontSize: "10.5px", color: "var(--text-faint)", marginTop: "2px" }}>{sub}</div>
+    </div>
+  );
+}
+
+function SmartKpiTile({ value, label, desc }) {
+  return (
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px" }}>
+      <div className="mono" style={{ fontSize: "20px", fontWeight: 700, color: "var(--text)" }}>{value !== null ? value : "—"}</div>
+      <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "2px" }}>{label}</div>
+      <div style={{ fontSize: "10px", color: "var(--text-faint)", marginTop: "4px" }}>{desc}</div>
+    </div>
   );
 }
 
@@ -451,54 +610,8 @@ function FunnelChart({ steps, finalValue, finalLabel }) {
   );
 }
 
-function ActivityTrendChart({ activities, feedItems, days, filter }) {
-  const buckets = [];
-  const bucketCount = Math.min(days, 30);
-  const step = days / bucketCount;
-  for (let i = bucketCount - 1; i >= 0; i--) {
-    const end = daysAgo(Math.round(i * step));
-    const start = daysAgo(Math.round((i + 1) * step));
-    buckets.push({ start, end, count: 0, label: end.toLocaleDateString("fr-FR", { day: "numeric", month: step > 3 ? "short" : undefined }) });
-  }
-
-  function inFilter(kindFilter) {
-    if (filter === "Toutes") return true;
-    if (filter === "Appels") return kindFilter === "appel_abouti" || kindFilter === "appel_manque";
-    if (filter === "RDV") return kindFilter === "rdv_physique" || kindFilter === "appel_visio";
-    return false;
-  }
-
-  activities.forEach((a) => {
-    if (filter !== "Toutes" && filter !== "Emails" && !inFilter(a.type)) return;
-    if (filter === "Emails") return;
-    const t = new Date(a.created_at);
-    const b = buckets.find((b) => t >= b.start && t < b.end) || buckets[buckets.length - 1];
-    if (t >= buckets[0].start) b.count += 1;
-  });
-  if (filter === "Toutes" || filter === "Emails") {
-    feedItems.filter((i) => i.filterKey === "Emails").forEach((e) => {
-      const t = new Date(e.created_at);
-      const b = buckets.find((b) => t >= b.start && t < b.end) || buckets[buckets.length - 1];
-      if (t >= buckets[0].start) b.count += 1;
-    });
-  }
-
-  const max = Math.max(...buckets.map((b) => b.count), 1);
-  const showLabels = bucketCount <= 14;
-
-  return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: "3px", height: "140px" }}>
-      {buckets.map((b, i) => (
-        <div key={i} title={`${b.label} · ${b.count}`} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
-          <div style={{ width: "100%", maxWidth: "22px", height: `${Math.max((b.count / max) * 100, b.count > 0 ? 4 : 1)}%`, background: b.count > 0 ? "var(--blue)" : "var(--panel2)", borderRadius: "3px 3px 0 0" }} />
-          {showLabels && <div style={{ fontSize: "9px", color: "var(--text-faint)", marginTop: "4px", transform: "rotate(-40deg)", whiteSpace: "nowrap" }}>{b.label}</div>}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 const METRIC_DIMENSIONS = [
+  { key: "day", label: "Jour (tendance)", source: "activities", timeSeries: true },
   { key: "stage", label: "Étape du pipeline", source: "prospects" },
   { key: "status", label: "Statut", source: "prospects" },
   { key: "activity_type", label: "Type d'activité", source: "activities" },
@@ -519,11 +632,29 @@ const CHART_TYPES = [
 const WEEKDAY_LABELS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const METRIC_PALETTE = ["#2563eb", "#b8862e", "#16a34a", "#dc2626", "#7c3aed", "#64748b", "#0ea5e9", "#ea580c"];
 
-function computeMetricData(prospects, activities, dimensionKey, measureKey) {
+function computeMetricData(prospects, activities, dimensionKey, measureKey, periodDays) {
   const dim = METRIC_DIMENSIONS.find((d) => d.key === dimensionKey);
   if (!dim) return [];
-  const groups = {};
 
+  if (dimensionKey === "day") {
+    const bucketCount = Math.min(periodDays || 30, 30);
+    const step = (periodDays || 30) / bucketCount;
+    const buckets = [];
+    for (let i = bucketCount - 1; i >= 0; i--) {
+      const end = daysAgo(Math.round(i * step));
+      const start = daysAgo(Math.round((i + 1) * step));
+      buckets.push({ start, end, value: 0, label: end.toLocaleDateString("fr-FR", { day: "numeric", month: step > 3 ? "short" : undefined }) });
+    }
+    activities.forEach((a) => {
+      const t = new Date(a.created_at);
+      if (t < buckets[0].start) return;
+      const b = buckets.find((b) => t >= b.start && t < b.end) || buckets[buckets.length - 1];
+      b.value += 1;
+    });
+    return buckets.map((b) => ({ label: b.label, value: b.value }));
+  }
+
+  const groups = {};
   if (dim.source === "prospects") {
     prospects.forEach((p) => {
       const key = dimensionKey === "stage" ? (p.stage || "—") : (STATUS_META[p.status]?.label || p.status || "—");
@@ -544,12 +675,12 @@ function computeMetricData(prospects, activities, dimensionKey, measureKey) {
     .sort((a, b) => b.value - a.value);
 }
 
-function CustomMetricsSection({ prospects, activities, session }) {
+function CustomMetricsSection({ prospects, activities, session, days }) {
   const [saved, setSaved] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showBuilder, setShowBuilder] = useState(false);
   const [name, setName] = useState("");
-  const [dimension, setDimension] = useState("stage");
+  const [dimension, setDimension] = useState("day");
   const [measure, setMeasure] = useState("count");
   const [chartType, setChartType] = useState("bar");
   const [saving, setSaving] = useState(false);
@@ -586,18 +717,18 @@ function CustomMetricsSection({ prospects, activities, session }) {
     setSaved((prev) => prev.filter((m) => m.id !== id));
   }
 
-  const previewData = computeMetricData(prospects, activities, dimension, measure);
+  const previewData = computeMetricData(prospects, activities, dimension, measure, days);
 
   return (
     <div style={{ marginBottom: "26px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
         <div className="display" style={{ fontWeight: 700, fontSize: "13px" }}>Vos métriques personnalisées</div>
         <button className="focusable" onClick={() => setShowBuilder((s) => !s)} style={{ fontSize: "11.5px", fontWeight: 600, padding: "6px 12px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55" }}>
-          {showBuilder ? "Annuler" : "+ Créer une métrique"}
+          {showBuilder ? "Fermer" : "+ Créer une métrique"}
         </button>
       </div>
 
-      {showBuilder && (
+      {showBuilder ? (
         <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px", marginBottom: "14px" }}>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
             <select value={dimension} onChange={(e) => setDimension(e.target.value)} style={selectSm}>
@@ -613,7 +744,7 @@ function CustomMetricsSection({ prospects, activities, session }) {
             </select>
           </div>
 
-          <MetricChart data={previewData} chartType={chartType} measure={measure} />
+          <MetricChart data={previewData} chartType={chartType} measure={measure} timeSeries={dimMeta?.timeSeries} />
 
           <div style={{ display: "flex", gap: "8px", marginTop: "14px", alignItems: "center" }}>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom de la métrique (ex : Deals par étape)" style={{ ...selectSm, flex: 1 }} />
@@ -621,6 +752,11 @@ function CustomMetricsSection({ prospects, activities, session }) {
               {saving ? "Enregistrement..." : "Enregistrer"}
             </button>
           </div>
+        </div>
+      ) : !loading && saved.length === 0 && (
+        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px", marginBottom: "14px" }}>
+          <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginBottom: "10px" }}>Aperçu — activité par jour. Clique sur "Créer une métrique" pour choisir tes propres dimensions et graphique.</div>
+          <MetricChart data={previewData} chartType={chartType} measure={measure} timeSeries={dimMeta?.timeSeries} />
         </div>
       )}
 
@@ -632,7 +768,7 @@ function CustomMetricsSection({ prospects, activities, session }) {
                 <span className="display" style={{ fontWeight: 600, fontSize: "12.5px" }}>{m.name}</span>
                 <button className="focusable" onClick={() => removeMetric(m.id)} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "12px" }}>✕</button>
               </div>
-              <MetricChart data={computeMetricData(prospects, activities, m.dimension, m.measure)} chartType={m.chart_type} measure={m.measure} compact />
+              <MetricChart data={computeMetricData(prospects, activities, m.dimension, m.measure, days)} chartType={m.chart_type} measure={m.measure} timeSeries={METRIC_DIMENSIONS.find((d) => d.key === m.dimension)?.timeSeries} compact />
             </div>
           ))}
         </div>
@@ -641,9 +777,24 @@ function CustomMetricsSection({ prospects, activities, session }) {
   );
 }
 
-function MetricChart({ data, chartType, measure, compact }) {
+function MetricChart({ data, chartType, measure, compact, timeSeries }) {
   if (data.length === 0) return <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Pas de données pour ce croisement.</div>;
   const fmt = (v) => (measure === "value" ? formatEuros(v) : v);
+
+  if (chartType === "bar" && timeSeries) {
+    const max = Math.max(...data.map((d) => d.value), 1);
+    const showLabels = data.length <= 14;
+    return (
+      <div style={{ display: "flex", alignItems: "flex-end", gap: "3px", height: compact ? "80px" : "140px" }}>
+        {data.map((d, i) => (
+          <div key={i} title={`${d.label} · ${fmt(d.value)}`} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
+            <div style={{ width: "100%", maxWidth: "22px", height: `${Math.max((d.value / max) * 100, d.value > 0 ? 4 : 1)}%`, background: d.value > 0 ? "var(--blue)" : "var(--panel2)", borderRadius: "3px 3px 0 0" }} />
+            {showLabels && !compact && <div style={{ fontSize: "9px", color: "var(--text-faint)", marginTop: "4px", transform: "rotate(-40deg)", whiteSpace: "nowrap" }}>{d.label}</div>}
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (chartType === "table") {
     return (

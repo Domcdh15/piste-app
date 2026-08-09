@@ -1052,7 +1052,7 @@ function NextActionCard({ prospect, refreshKey, onOpenTab }) {
 
   async function markDone() {
     if (!task) return;
-    await supabase.from("tasks").update({ done: true }).eq("id", task.id);
+    await supabase.from("tasks").update({ done: true, completed_at: new Date().toISOString() }).eq("id", task.id);
     load();
   }
 
@@ -1902,7 +1902,7 @@ function TasksTab({ prospect, session, settings, onChange }) {
   }
 
   async function toggleDone(task) {
-    await supabase.from("tasks").update({ done: !task.done }).eq("id", task.id);
+    await supabase.from("tasks").update({ done: !task.done, completed_at: !task.done ? new Date().toISOString() : null }).eq("id", task.id);
     load();
   }
 
