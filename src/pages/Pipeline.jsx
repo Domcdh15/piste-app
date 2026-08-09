@@ -1965,6 +1965,39 @@ function EmailGenerator({ prospect, history, session, settings }) {
   const [showModal, setShowModal] = useState(false);
   const [keywords, setKeywords] = useState("");
   const [templateIndex, setTemplateIndex] = useState(0);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
+  const [sent, setSent] = useState(false);
+
+  async function sendViaEmail() {
+    if (!content || sending) return;
+    setSending(true);
+    setSendError("");
+    setSent(false);
+    try {
+      const statusRes = await fetch("/api/calendar/status", { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const status = await statusRes.json();
+      const provider = status.google ? "google" : status.microsoft ? "microsoft" : null;
+      if (!provider) {
+        setSendError("Aucune boîte mail connectée — connecte Google ou Outlook dans Intégrations pour envoyer directement.");
+        return;
+      }
+      const res = await fetch("/api/calendar/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "send_email", provider, to: prospect.email, subject: `${prospect.company} — suivi`, body: content }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "L'envoi a échoué.");
+      await save();
+      setSent(true);
+      setTimeout(() => setSent(false), 2000);
+    } catch (e) {
+      setSendError(e.message || "L'envoi a échoué.");
+    } finally {
+      setSending(false);
+    }
+  }
 
   function useTemplate() {
     setContent(appendSignature(EMAIL_TEMPLATES[templateIndex].build(prospect), settings));
@@ -2004,7 +2037,19 @@ ${buildHistoryContext(history)}`;
 
   return (
     <>
-      <GeneratorBlock label="Générer un email de relance" loading={false} error={error} content={content} setContent={setContent} onGenerate={() => setShowModal(true)} onSave={save} />
+      <GeneratorBlock
+        label="Générer un email de relance"
+        loading={false}
+        error={error}
+        content={content}
+        setContent={setContent}
+        onGenerate={() => setShowModal(true)}
+        onSave={save}
+        onSend={prospect.email ? sendViaEmail : undefined}
+        sending={sending}
+        sendError={sent ? "" : sendError}
+      />
+      {sent && <div style={{ color: "#0ea968", fontSize: "12px", marginTop: "-4px" }}>Email envoyé à {prospect.email}.</div>}
 
       {showModal && (
         <Modal onClose={() => setShowModal(false)}>
@@ -2178,7 +2223,7 @@ ${buildHistoryContext(history)}`;
   );
 }
 
-function GeneratorBlock({ label, loading, error, content, setContent, onGenerate, onSave }) {
+function GeneratorBlock({ label, loading, error, content, setContent, onGenerate, onSave, onSend, sending, sendError }) {
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -2202,6 +2247,7 @@ function GeneratorBlock({ label, loading, error, content, setContent, onGenerate
       </button>
 
       {error && <div style={{ color: "var(--red)", fontSize: "12px" }}>{error}</div>}
+      {sendError && <div style={{ color: "var(--red)", fontSize: "12px" }}>{sendError}</div>}
 
       <textarea
         value={content}
@@ -2210,7 +2256,7 @@ function GeneratorBlock({ label, loading, error, content, setContent, onGenerate
         style={{ background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", lineHeight: 1.6, padding: "12px", minHeight: "160px", resize: "vertical", fontFamily: "Inter, sans-serif" }}
       />
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
         <div style={{ color: "var(--text-faint)", fontSize: "11px" }}>Généré par Claude — à relire avant envoi</div>
         <div style={{ display: "flex", gap: "6px" }}>
           <button className="focusable" onClick={handleCopy} disabled={!content} style={{ background: "transparent", color: content ? "var(--text)" : "var(--text-faint)", border: "0.5px solid var(--hairline)", borderRadius: "6px", padding: "6px 10px", fontSize: "12px" }}>
@@ -2219,6 +2265,11 @@ function GeneratorBlock({ label, loading, error, content, setContent, onGenerate
           <button className="focusable" onClick={handleSave} disabled={!content} style={{ background: "transparent", color: content ? "var(--text)" : "var(--text-faint)", border: "0.5px solid var(--hairline)", borderRadius: "6px", padding: "6px 10px", fontSize: "12px" }}>
             {saved ? "Enregistré" : "Enregistrer"}
           </button>
+          {onSend && (
+            <button className="focusable" onClick={onSend} disabled={!content || sending} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "6px", padding: "6px 12px", fontSize: "12px", fontWeight: 600, opacity: !content || sending ? 0.6 : 1 }}>
+              {sending ? "Envoi..." : "Envoyer"}
+            </button>
+          )}
         </div>
       </div>
     </div>

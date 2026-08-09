@@ -2,7 +2,7 @@ const PROVIDERS = {
   google: {
     authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
     tokenUrl: "https://oauth2.googleapis.com/token",
-    scope: "https://www.googleapis.com/auth/calendar.readonly",
+    scope: "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.send",
     extraAuthParams: { access_type: "offline", prompt: "consent" },
     clientIdEnv: "GOOGLE_CLIENT_ID",
     clientSecretEnv: "GOOGLE_CLIENT_SECRET",
@@ -10,7 +10,7 @@ const PROVIDERS = {
   microsoft: {
     authUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
     tokenUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-    scope: "offline_access Calendars.Read",
+    scope: "offline_access Calendars.Read Mail.Send",
     extraAuthParams: {},
     clientIdEnv: "MICROSOFT_CLIENT_ID",
     clientSecretEnv: "MICROSOFT_CLIENT_SECRET",
@@ -92,4 +92,77 @@ export async function fetchEventsInRange(provider, accessToken, startISO, endISO
 
 export async function fetchTodayEvents(provider, accessToken) {
   return fetchEventsInRange(provider, accessToken, startOfDayISO(), endOfDayISO());
+}
+
+// Fonction partagée par tous les endpoints qui utilisent une connexion calendar_connections,
+// pour éviter de dupliquer la logique de refresh de token à chaque fois.
+export async function ensureFreshToken(admin, conn) {
+  if (new Date(conn.expires_at) > new Date(Date.now() + 60000)) return conn.access_token;
+
+  const cfg = providerConfig(conn.provider);
+  const body = {
+    client_id: cfg.clientId,
+    client_secret: cfg.clientSecret,
+    refresh_token: conn.refresh_token,
+    grant_type: "refresh_token",
+  };
+  if (conn.provider === "microsoft") body.scope = cfg.scope;
+
+  const res = await fetch(cfg.tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(body),
+  });
+  const tokens = await res.json();
+  if (!res.ok) throw new Error("refresh_failed");
+
+  const expires_at = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
+  await admin.from("calendar_connections").update({ access_token: tokens.access_token, expires_at }).eq("id", conn.id);
+
+  return tokens.access_token;
+}
+
+export async function sendEmail(provider, accessToken, { to, subject, body, fromName }) {
+  if (provider === "google") {
+    const headers = [
+      `To: ${to}`,
+      `Subject: =?utf-8?B?${Buffer.from(subject || "", "utf-8").toString("base64")}?=`,
+      "Content-Type: text/plain; charset=utf-8",
+      "MIME-Version: 1.0",
+    ];
+    const message = `${headers.join("\r\n")}\r\n\r\n${body}`;
+    const raw = Buffer.from(message, "utf-8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ raw }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || "gmail_send_failed");
+    }
+    return;
+  }
+
+  if (provider === "microsoft") {
+    const res = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: {
+          subject: subject || "",
+          body: { contentType: "Text", content: body || "" },
+          toRecipients: [{ emailAddress: { address: to } }],
+        },
+        saveToSentItems: true,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || "outlook_send_failed");
+    }
+    return;
+  }
+
+  throw new Error("Fournisseur d'envoi inconnu");
 }
