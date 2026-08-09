@@ -1,17 +1,18 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { CLOSED_STAGES } from "../lib/ui.jsx";
+import { CLOSED_STAGES, HomeIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIcon, GearIcon } from "../lib/ui.jsx";
 
 const NAV_ITEMS = [
-  { key: "today", label: "Aujourd'hui" },
-  { key: "pipeline", label: "Pipeline" },
-  { key: "planning", label: "Agenda" },
-  { key: "assistant", label: "Assistant IA" },
-  { key: "activities", label: "Activités" },
+  { key: "today", label: "Aujourd'hui", Icon: HomeIcon },
+  { key: "pipeline", label: "Pipeline", Icon: TargetIcon },
+  { key: "planning", label: "Agenda", Icon: CalendarIcon },
+  { key: "assistant", label: "Assistant IA", Icon: SparklesIcon },
+  { key: "activities", label: "Activités", Icon: ListIcon },
 ];
 
 export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
   const [todayCount, setTodayCount] = useState(null);
+  const [hovered, setHovered] = useState(null);
 
   useEffect(() => {
     const endOfToday = new Date();
@@ -31,8 +32,8 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
   return (
     <div
       style={{
-        width: "212px",
-        minWidth: "212px",
+        width: "224px",
+        minWidth: "224px",
         height: "100vh",
         position: "sticky",
         top: 0,
@@ -42,41 +43,56 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
         borderRight: "0.5px solid var(--hairline)",
         display: "flex",
         flexDirection: "column",
-        padding: "28px 16px",
+        padding: "24px 14px",
       }}
     >
-      <div style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.08em", color: "var(--text-faint)", padding: "0 10px", marginBottom: "28px" }}>
-        CLOSIA
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "0 8px", marginBottom: "26px" }}>
+        <span style={{ width: "9px", height: "9px", borderRadius: "3px", background: "var(--blue)", flexShrink: 0 }} />
+        <span style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.08em", color: "var(--text)" }}>CLOSIA</span>
       </div>
 
-      <nav style={{ display: "flex", flexDirection: "column", gap: "1px", flex: 1 }}>
+      <nav style={{ display: "flex", flexDirection: "column", gap: "3px", flex: 1 }}>
         {NAV_ITEMS.map((item) => {
           const active = activeTab === item.key;
+          const isHovered = hovered === item.key;
           const count = counts[item.key];
+          const Icon = item.Icon;
           return (
             <button
               key={item.key}
               className="focusable"
               onClick={() => setActiveTab(item.key)}
+              onMouseEnter={() => setHovered(item.key)}
+              onMouseLeave={() => setHovered(null)}
               style={{
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "space-between",
-                gap: "8px",
-                padding: "8px 10px",
-                borderRadius: "6px",
+                gap: "10px",
+                padding: "9px 12px",
+                borderRadius: "9px",
                 fontSize: "13.5px",
-                fontWeight: active ? 600 : 400,
-                background: active ? "var(--panel2)" : "transparent",
-                color: active ? "var(--text)" : "var(--text-dim)",
+                fontWeight: active ? 600 : 500,
+                background: active ? "var(--blue)" : isHovered ? "var(--blue-dim)" : "transparent",
+                color: active ? "#fff" : "var(--text-dim)",
                 textAlign: "left",
-                borderLeft: active ? "2px solid var(--blue)" : "2px solid transparent",
-                transition: "background 150ms ease, color 150ms ease",
+                boxShadow: active ? "0 1px 3px rgba(49,92,138,0.35)" : "none",
+                transition: "background 150ms ease, color 150ms ease, box-shadow 150ms ease",
               }}
             >
-              <span>{item.label}</span>
+              <Icon size={15} color={active ? "#fff" : "var(--blue)"} />
+              <span style={{ flex: 1 }}>{item.label}</span>
               {count != null && count > 0 && (
-                <span className="mono" style={{ fontSize: "11px", color: active ? "var(--text-dim)" : "var(--text-faint)" }}>
+                <span
+                  className="mono"
+                  style={{
+                    fontSize: "10.5px",
+                    fontWeight: 600,
+                    color: active ? "#fff" : "var(--text-faint)",
+                    background: active ? "rgba(255,255,255,0.22)" : "var(--panel2)",
+                    borderRadius: "var(--radius-pill)",
+                    padding: "1px 6px",
+                  }}
+                >
                   {count}
                 </span>
               )}
@@ -85,24 +101,28 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
         })}
       </nav>
 
-      <div style={{ height: "0.5px", background: "var(--hairline)", margin: "16px 10px" }} />
+      <div style={{ height: "0.5px", background: "var(--hairline)", margin: "14px 12px" }} />
 
       <button
         className="focusable"
         onClick={() => setActiveTab("settings")}
+        onMouseEnter={() => setHovered("settings")}
+        onMouseLeave={() => setHovered(null)}
         style={{
           display: "flex",
           alignItems: "center",
-          padding: "8px 10px",
-          borderRadius: "6px",
+          gap: "10px",
+          padding: "9px 12px",
+          borderRadius: "9px",
           fontSize: "13.5px",
-          fontWeight: activeTab === "settings" ? 600 : 400,
-          background: activeTab === "settings" ? "var(--panel2)" : "transparent",
-          color: activeTab === "settings" ? "var(--text)" : "var(--text-dim)",
+          fontWeight: activeTab === "settings" ? 600 : 500,
+          background: activeTab === "settings" ? "var(--blue)" : hovered === "settings" ? "var(--blue-dim)" : "transparent",
+          color: activeTab === "settings" ? "#fff" : "var(--text-dim)",
           textAlign: "left",
-          borderLeft: activeTab === "settings" ? "2px solid var(--blue)" : "2px solid transparent",
+          boxShadow: activeTab === "settings" ? "0 1px 3px rgba(49,92,138,0.35)" : "none",
         }}
       >
+        <GearIcon size={15} color={activeTab === "settings" ? "#fff" : "var(--blue)"} />
         Paramètres
       </button>
     </div>

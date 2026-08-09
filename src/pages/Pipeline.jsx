@@ -278,8 +278,8 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
                 borderRadius: "var(--radius-pill)",
                 fontSize: "12.5px",
                 fontWeight: 500,
-                background: quickFilter === f.key ? "var(--text)" : "transparent",
-                color: quickFilter === f.key ? "var(--bg)" : "var(--text-dim)",
+                background: quickFilter === f.key ? "var(--blue)" : "transparent",
+                color: quickFilter === f.key ? "#fff" : "var(--text-dim)",
                 border: quickFilter === f.key ? "none" : "0.5px solid var(--hairline)",
               }}
             >

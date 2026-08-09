@@ -200,20 +200,20 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
 
   return (
     <div>
-      <div style={{ padding: "40px 40px 0" }}>
+      <div style={{ background: "var(--blue)", color: "#fff", padding: "36px 40px 30px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: "16px" }}>
           <div>
-            <div className="editorial" style={{ fontSize: "27px", color: "var(--text)" }}>
+            <div className="editorial" style={{ fontSize: "27px", color: "#fff" }}>
               Bonjour{firstName ? ` ${firstName}` : ""}
             </div>
-            <div style={{ color: "var(--text-faint)", fontSize: "13px", marginTop: "4px" }}>{todayLabel()}</div>
+            <div style={{ color: "rgba(255,255,255,0.72)", fontSize: "13px", marginTop: "4px" }}>{todayLabel()}</div>
           </div>
-          <button className="focusable" onClick={openOrganize} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", color: "var(--blue)", fontSize: "13px", fontWeight: 500, padding: 0 }}>
-            <SparklesIcon size={13} color="var(--blue)" /> Organiser ma journée
+          <button className="focusable" onClick={openOrganize} style={{ display: "flex", alignItems: "center", gap: "7px", background: "rgba(255,255,255,0.14)", border: "0.5px solid rgba(255,255,255,0.28)", borderRadius: "8px", padding: "8px 14px", color: "#fff", fontSize: "13px", fontWeight: 500 }}>
+            <SparklesIcon size={13} color="#fff" /> Organiser ma journée
           </button>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap", marginTop: "20px", fontSize: "12.5px", color: "var(--text-dim)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap", marginTop: "20px", fontSize: "12.5px", color: "rgba(255,255,255,0.82)" }}>
           <span>{totalWithDone} action{totalWithDone > 1 ? "s" : ""}</span>
           <span>·</span>
           <span>{nbRdv} rendez-vous</span>
@@ -224,15 +224,15 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
           {overdueTasks.length > 0 && (
             <>
               <span>·</span>
-              <span style={{ color: "var(--red)" }}>{overdueTasks.length} en retard</span>
+              <span style={{ color: "#fbd4d1" }}>{overdueTasks.length} en retard</span>
             </>
           )}
         </div>
 
         {totalWithDone > 0 && (
-          <div style={{ marginTop: "12px" }}>
-            <div style={{ height: "3px", width: "260px", background: "var(--panel2)", borderRadius: "2px", overflow: "hidden" }}>
-              <div style={{ width: `${(doneToday / totalWithDone) * 100}%`, height: "100%", background: "var(--blue)", borderRadius: "2px" }} />
+          <div style={{ marginTop: "14px" }}>
+            <div style={{ height: "3px", width: "260px", background: "rgba(255,255,255,0.22)", borderRadius: "2px", overflow: "hidden" }}>
+              <div style={{ width: `${(doneToday / totalWithDone) * 100}%`, height: "100%", background: "#fff", borderRadius: "2px" }} />
             </div>
           </div>
         )}
