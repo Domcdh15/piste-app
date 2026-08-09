@@ -16,7 +16,7 @@ const FILTERS = [
 ];
 
 const ICONS = {
-  "Appel abouti": <PhoneIcon size={13} color="#0ea968" />,
+  "Appel abouti": <PhoneIcon size={13} color="#527a61" />,
   "Appel manqué": <XIcon size={13} color="var(--red)" />,
   "RDV physique": <CalendarIcon size={13} color="var(--blue)" />,
   "Visio": <CalendarIcon size={13} color="var(--violet)" />,
@@ -26,7 +26,7 @@ const ICONS = {
   "Rendez-vous": <CalendarIcon size={13} color="var(--blue)" />,
   "Note": <ClockIcon size={13} color="var(--text-dim)" />,
   "Analyse IA": <SparklesIcon size={13} color="var(--blue)" />,
-  "Deal gagné": <TrophyIcon size={13} color="#0ea968" />,
+  "Deal gagné": <TrophyIcon size={13} color="#527a61" />,
   "Deal perdu": <XIcon size={13} color="var(--text-dim)" />,
   "Réattribution": <UsersIcon size={13} color="var(--gold-deep)" />,
 };
@@ -178,7 +178,7 @@ function ActivityTab({ prospects, feedItems, activities, loading, filter, setFil
             key={key}
             className="focusable"
             onClick={() => setFilter(key)}
-            style={{ padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 500, background: filter === key ? "var(--blue-dim)" : "var(--panel2)", color: filter === key ? "var(--blue)" : "var(--text-dim)", border: filter === key ? "0.5px solid #2563eb55" : "0.5px solid var(--hairline)" }}
+            style={{ padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 500, background: filter === key ? "var(--blue-dim)" : "var(--panel2)", color: filter === key ? "var(--blue)" : "var(--text-dim)", border: filter === key ? "0.5px solid #315c8a55" : "0.5px solid var(--hairline)" }}
           >
             {label}
           </button>
@@ -429,7 +429,7 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
       </div>
 
       {/* Métrique phare */}
-      <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2563eb55", borderRadius: "12px", padding: "18px", marginBottom: "22px", textAlign: "center" }}>
+      <div style={{ background: "var(--blue-dim)", border: "0.5px solid #315c8a55", borderRadius: "12px", padding: "18px", marginBottom: "22px", textAlign: "center" }}>
         <div style={{ fontSize: "11px", color: "var(--blue)", fontWeight: 700, letterSpacing: "0.02em", marginBottom: "6px" }}>LA MÉTRIQUE LA PLUS IMPORTANTE</div>
         <div className="mono" style={{ fontSize: "32px", fontWeight: 700, color: "var(--text)" }}>{pctWithNextAction !== null ? `${pctWithNextAction}%` : "—"}</div>
         <div style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>des opportunités ont une prochaine action planifiée — aucun deal ne devrait tomber dans l'oubli.</div>
@@ -490,7 +490,7 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
         <HealthTile value={atRisk.length} label="Deals à risque" sub="Sans activité depuis 7j+" accent="var(--red)" />
         <HealthTile value={sansAction.length} label="Sans prochaine action" sub="Aucune tâche ni relance planifiée" accent="var(--amber, #b45309)" />
         <HealthTile value={formatEuros(stagnantValue)} label="Pipeline stagnant" sub="Deals sans activité depuis 14j+" accent="var(--text-dim)" />
-        <HealthTile value={chauds.length} label="Opportunités chaudes" sub="Interactions récentes, fort engagement" accent="#0ea968" />
+        <HealthTile value={chauds.length} label="Opportunités chaudes" sub="Interactions récentes, fort engagement" accent="#527a61" />
       </div>
 
       {/* KPI intelligents */}
@@ -508,13 +508,15 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
         </div>
       </div>
 
+      <AIQuerySection prospects={prospects} activities={activities} session={session} days={days} />
+
       <CustomMetricsSection prospects={prospects} activities={activities} session={session} days={days} />
 
-      <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2563eb55", borderRadius: "12px", padding: "16px", marginBottom: "26px" }}>
+      <div style={{ background: "var(--blue-dim)", border: "0.5px solid #315c8a55", borderRadius: "12px", padding: "16px", marginBottom: "26px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
           <span className="display" style={{ fontWeight: 700, fontSize: "13px", color: "var(--blue)" }}>✨ Ce que Closia remarque</span>
           {!insight && (
-            <button className="focusable" onClick={generateInsight} disabled={loadingInsight} style={{ fontSize: "11px", padding: "5px 10px", borderRadius: "6px", background: "var(--panel)", color: "var(--blue)", border: "0.5px solid #2563eb40" }}>
+            <button className="focusable" onClick={generateInsight} disabled={loadingInsight} style={{ fontSize: "11px", padding: "5px 10px", borderRadius: "6px", background: "var(--panel)", color: "var(--blue)", border: "0.5px solid #315c8a40" }}>
               {loadingInsight ? "Analyse..." : "Générer"}
             </button>
           )}
@@ -603,7 +605,7 @@ function FunnelChart({ steps, finalValue, finalLabel }) {
       ))}
       <span style={{ color: "var(--text-faint)", fontSize: "14px", marginBottom: "20px" }}>→</span>
       <div style={{ textAlign: "center" }}>
-        <div className="mono" style={{ fontSize: "18px", fontWeight: 700, color: "#0ea968" }}>{finalValue}</div>
+        <div className="mono" style={{ fontSize: "18px", fontWeight: 700, color: "#527a61" }}>{finalValue}</div>
         <div style={{ fontSize: "10.5px", color: "var(--text-faint)", width: "110px" }}>{finalLabel}</div>
       </div>
     </div>
@@ -630,7 +632,7 @@ const CHART_TYPES = [
 ];
 
 const WEEKDAY_LABELS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
-const METRIC_PALETTE = ["#2563eb", "#b8862e", "#16a34a", "#dc2626", "#7c3aed", "#64748b", "#0ea5e9", "#ea580c"];
+const METRIC_PALETTE = ["#315c8a", "#b8862e", "#16a34a", "#dc2626", "#7c3aed", "#64748b", "#0ea5e9", "#ea580c"];
 
 function computeMetricData(prospects, activities, dimensionKey, measureKey, periodDays) {
   const dim = METRIC_DIMENSIONS.find((d) => d.key === dimensionKey);
@@ -673,6 +675,115 @@ function computeMetricData(prospects, activities, dimensionKey, measureKey, peri
   return Object.entries(groups)
     .map(([label, g]) => ({ label, value: measureKey === "value" ? g.value : g.count }))
     .sort((a, b) => b.value - a.value);
+}
+
+function AIQuerySection({ prospects, activities, session, days }) {
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null);
+
+  async function ask() {
+    if (!query.trim()) return;
+    setLoading(true);
+    setError("");
+    setResult(null);
+    try {
+      const stageGroups = computeMetricData(prospects, activities, "stage", "count", days);
+      const statusGroups = computeMetricData(prospects, activities, "status", "count", days);
+      const activityGroups = computeMetricData(prospects, activities, "activity_type", "count", days);
+      const open = prospects.filter((p) => p.stage !== "Gagné" && p.stage !== "Perdu");
+      const won = prospects.filter((p) => p.stage === "Gagné");
+      const lost = prospects.filter((p) => p.stage === "Perdu");
+      const totalOpenValue = open.reduce((s, p) => s + (p.deal_value || 0), 0);
+      const totalWonValue = won.reduce((s, p) => s + (p.deal_value || 0), 0);
+      const topDeals = [...open]
+        .sort((a, b) => (b.deal_value || 0) - (a.deal_value || 0))
+        .slice(0, 10)
+        .map((p) => `${p.company} · ${p.stage} · ${formatEuros(p.deal_value || 0)} · dernier contact ${p.last_contact_at ? formatShortDate(p.last_contact_at) : "jamais"}`);
+
+      const prompt = `Tu es l'assistant data d'un CRM commercial (Closia). Voici les données réelles disponibles (période : ${days} derniers jours) :
+
+Pipeline par étape : ${stageGroups.map((g) => `${g.label} (${g.value})`).join(", ") || "aucune donnée"}
+Pipeline par statut : ${statusGroups.map((g) => `${g.label} (${g.value})`).join(", ") || "aucune donnée"}
+Activités par type : ${activityGroups.map((g) => `${g.label} (${g.value})`).join(", ") || "aucune donnée"}
+Deals ouverts : ${open.length}, valeur totale ${formatEuros(totalOpenValue)}
+Deals gagnés : ${won.length}, valeur totale ${formatEuros(totalWonValue)}
+Deals perdus : ${lost.length}
+Plus gros deals ouverts :
+${topDeals.join("\n") || "aucun"}
+
+Demande de l'utilisateur : "${query.trim()}"
+
+Réponds UNIQUEMENT en JSON valide, sans texte autour, avec l'un de ces deux formats selon ce qui convient le mieux à la demande :
+- Tableau : {"type": "table", "title": "...", "columns": ["...", "..."], "rows": [["...", "..."], ["...", "..."]]}
+- Recommandations : {"type": "recommendations", "title": "...", "items": ["...", "..."]}
+
+Base-toi UNIQUEMENT sur les données fournies ci-dessus, n'invente aucun chiffre ni aucune donnée. Si les données disponibles ne permettent pas de répondre précisément à la demande, dis-le dans "title" et fournis le meilleur résumé possible avec ce qui est disponible.`;
+
+      const raw = await callAI(prompt, session.access_token);
+      const parsed = parseJsonLoose(raw);
+      if (!parsed || (parsed.type !== "table" && parsed.type !== "recommendations")) throw new Error("parse_failed");
+      setResult(parsed);
+    } catch (e) {
+      setError(e.message && e.message !== "parse_failed" ? e.message : "La demande a échoué. Réessaie.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "var(--radius-md)", padding: "16px", marginBottom: "20px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+        <SparklesIcon size={13} color="var(--violet)" />
+        <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--violet)" }}>Demander à l'IA</span>
+      </div>
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") ask(); }}
+          placeholder="Ex : mes deals par étape ce trimestre, ou des recommandations pour améliorer ma conversion"
+          style={{ ...selectSm, flex: 1, minWidth: "240px" }}
+        />
+        <button className="focusable" onClick={ask} disabled={loading || !query.trim()} style={{ fontSize: "12.5px", fontWeight: 500, padding: "8px 16px", borderRadius: "8px", background: "var(--blue)", color: "#fff", border: "none", opacity: loading || !query.trim() ? 0.6 : 1, whiteSpace: "nowrap" }}>
+          {loading ? "Analyse..." : "Demander"}
+        </button>
+      </div>
+
+      {error && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "10px" }}>{error}</div>}
+
+      {result && (
+        <div style={{ marginTop: "16px" }}>
+          {result.title && <div style={{ fontSize: "12.5px", color: "var(--text-dim)", marginBottom: "10px" }}>{result.title}</div>}
+          {result.type === "table" ? (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead>
+                  <tr style={{ borderBottom: "0.5px solid var(--hairline)" }}>
+                    {(result.columns || []).map((c, i) => (
+                      <th key={i} style={{ textAlign: "left", padding: "6px 10px", fontSize: "10.5px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{c}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(result.rows || []).map((row, i) => (
+                    <tr key={i} style={{ borderBottom: "0.5px solid var(--hairline)" }}>
+                      {row.map((cell, j) => <td key={j} style={{ padding: "8px 10px", color: "var(--text)", whiteSpace: "nowrap" }}>{String(cell)}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <ul style={{ margin: 0, paddingLeft: "18px", display: "flex", flexDirection: "column", gap: "8px" }}>
+              {(result.items || []).map((it, i) => <li key={i} style={{ fontSize: "13px", color: "var(--text)", lineHeight: 1.5 }}>{it}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function CustomMetricsSection({ prospects, activities, session, days }) {
@@ -723,7 +834,7 @@ function CustomMetricsSection({ prospects, activities, session, days }) {
     <div style={{ marginBottom: "26px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
         <div className="display" style={{ fontWeight: 700, fontSize: "13px" }}>Vos métriques personnalisées</div>
-        <button className="focusable" onClick={() => setShowBuilder((s) => !s)} style={{ fontSize: "11.5px", fontWeight: 600, padding: "6px 12px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55" }}>
+        <button className="focusable" onClick={() => setShowBuilder((s) => !s)} style={{ fontSize: "11.5px", fontWeight: 600, padding: "6px 12px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55" }}>
           {showBuilder ? "Fermer" : "+ Créer une métrique"}
         </button>
       </div>

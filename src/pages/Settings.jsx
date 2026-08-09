@@ -133,7 +133,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
           {WEEKDAYS.map((d) => {
             const on = workDays.includes(d);
             return (
-              <button key={d} className="focusable" onClick={() => toggleWorkDay(d)} style={{ width: "36px", padding: "6px 0", borderRadius: "6px", fontSize: "11.5px", fontWeight: 600, background: on ? "var(--blue-dim)" : "var(--panel2)", color: on ? "var(--blue)" : "var(--text-faint)", border: on ? "0.5px solid #2563eb55" : "0.5px solid var(--hairline)" }}>
+              <button key={d} className="focusable" onClick={() => toggleWorkDay(d)} style={{ width: "36px", padding: "6px 0", borderRadius: "6px", fontSize: "11.5px", fontWeight: 600, background: on ? "var(--blue-dim)" : "var(--panel2)", color: on ? "var(--blue)" : "var(--text-faint)", border: on ? "0.5px solid #315c8a55" : "0.5px solid var(--hairline)" }}>
                 {d}
               </button>
             );
@@ -170,7 +170,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
               key={lvl.value}
               className="focusable"
               onClick={() => set({ ai_initiative: lvl.value })}
-              style={{ textAlign: "left", padding: "8px 10px", borderRadius: "8px", background: (local.ai_initiative || "Équilibré") === lvl.value ? "var(--blue-dim)" : "var(--panel2)", border: (local.ai_initiative || "Équilibré") === lvl.value ? "0.5px solid #2563eb55" : "0.5px solid var(--hairline)" }}
+              style={{ textAlign: "left", padding: "8px 10px", borderRadius: "8px", background: (local.ai_initiative || "Équilibré") === lvl.value ? "var(--blue-dim)" : "var(--panel2)", border: (local.ai_initiative || "Équilibré") === lvl.value ? "0.5px solid #315c8a55" : "0.5px solid var(--hairline)" }}
             >
               <div style={{ fontSize: "12.5px", fontWeight: 600, color: (local.ai_initiative || "Équilibré") === lvl.value ? "var(--blue)" : "var(--text)" }}>{lvl.value}</div>
               <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>{lvl.desc}</div>
@@ -203,7 +203,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
       </Section>
 
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-        <button className="focusable" onClick={save} disabled={saving} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", opacity: saving ? 0.6 : 1 }}>
+        <button className="focusable" onClick={save} disabled={saving} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", opacity: saving ? 0.6 : 1 }}>
           {saving ? "Enregistrement..." : "Enregistrer les préférences"}
         </button>
         {saved && <span style={{ color: "var(--green, #16a34a)", fontSize: "12px" }}>Enregistré ✓</span>}
@@ -364,14 +364,14 @@ export function TeamPanel({ session, team, reloadTeam }) {
               </button>
             </div>
           ) : (
-            <button className="focusable" disabled={busy || !inviteEmail.trim()} onClick={() => submitInvite(false)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "6px", padding: "8px 14px", fontSize: "12.5px", fontWeight: 600, opacity: busy || !inviteEmail.trim() ? 0.6 : 1 }}>
+            <button className="focusable" disabled={busy || !inviteEmail.trim()} onClick={() => submitInvite(false)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "6px", padding: "8px 14px", fontSize: "12.5px", fontWeight: 600, opacity: busy || !inviteEmail.trim() ? 0.6 : 1 }}>
               {busy ? "Envoi..." : "Envoyer l'invitation"}
             </button>
           )}
         </div>
       )}
 
-      {inviteSuccess && <div style={{ color: "#0ea968", fontSize: "12px", marginBottom: "10px" }}>{inviteSuccess}</div>}
+      {inviteSuccess && <div style={{ color: "#527a61", fontSize: "12px", marginBottom: "10px" }}>{inviteSuccess}</div>}
 
       {(team.members || []).map((m) => (
         <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", padding: "8px 0", borderBottom: "0.5px solid var(--hairline)" }}>
@@ -484,7 +484,7 @@ function BillingPanel({ local, session, team }) {
         <span className="display" style={{ fontSize: "22px", fontWeight: 700 }}>{price === 0 ? "Gratuit" : formatEuros(price)}</span>
         {price > 0 && <span style={{ fontSize: "12px", color: "var(--text-faint)" }}>/ mois</span>}
         {!isTeamBilling && price === 0 && (
-          <span style={{ fontSize: "10px", fontWeight: 700, background: "#e2f7ec", color: "#0ea968", borderRadius: "999px", padding: "3px 9px" }}>
+          <span style={{ fontSize: "10px", fontWeight: 700, background: "#eaf1ec", color: "#527a61", borderRadius: "999px", padding: "3px 9px" }}>
             ABONNEMENT OFFERT
           </span>
         )}
@@ -500,7 +500,7 @@ function BillingPanel({ local, session, team }) {
           {daysLeft > 0 ? `Essai gratuit — encore ${daysLeft} jour${daysLeft > 1 ? "s" : ""}` : "Essai gratuit terminé"}
         </div>
       )}
-      {status === "active" && <div style={{ fontSize: "12px", color: "#0ea968", marginBottom: "16px" }}>Abonnement actif</div>}
+      {status === "active" && <div style={{ fontSize: "12px", color: "#527a61", marginBottom: "16px" }}>Abonnement actif</div>}
       {status === "cancelled" && <div style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "16px" }}>Abonnement résilié</div>}
 
       {isTeamBilling && (
@@ -539,7 +539,7 @@ function BillingPanel({ local, session, team }) {
               <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>{accountCreatedAt.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })} · {formatEuros(price)}</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span className="mono" style={{ fontSize: "10px", fontWeight: 700, color: "#0ea968", background: "#e2f7ec", borderRadius: "999px", padding: "3px 9px" }}>PAYÉE</span>
+              <span className="mono" style={{ fontSize: "10px", fontWeight: 700, color: "#527a61", background: "#eaf1ec", borderRadius: "999px", padding: "3px 9px" }}>PAYÉE</span>
               <span style={{ fontSize: "11px", color: "var(--text-faint)", whiteSpace: "nowrap" }}>PDF bientôt disponible</span>
             </div>
           </div>

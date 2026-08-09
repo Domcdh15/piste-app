@@ -1,37 +1,38 @@
-import { Logo, HomeIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIcon, GearIcon } from "../lib/ui.jsx";
+import { useEffect, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
+import { CLOSED_STAGES } from "../lib/ui.jsx";
 
-const NAV_COLOR = "#2563eb";
-const AI_COLOR = "#7c3aed";
-
-const NAV_GROUPS = [
-  {
-    section: null,
-    items: [{ key: "today", label: "Aujourd'hui", Icon: HomeIcon, color: NAV_COLOR }],
-  },
-  {
-    section: "Pipeline commercial",
-    items: [
-      { key: "pipeline", label: "Pipeline", Icon: TargetIcon, color: NAV_COLOR },
-      { key: "planning", label: "Agenda", Icon: CalendarIcon, color: NAV_COLOR },
-    ],
-  },
-  {
-    section: "Suivi & IA",
-    items: [
-      { key: "assistant", label: "Assistant IA", Icon: SparklesIcon, color: AI_COLOR },
-      { key: "activities", label: "Activités", Icon: ListIcon, color: NAV_COLOR },
-    ],
-  },
+const NAV_ITEMS = [
+  { key: "today", label: "Aujourd'hui" },
+  { key: "pipeline", label: "Pipeline" },
+  { key: "planning", label: "Agenda" },
+  { key: "assistant", label: "Assistant IA" },
+  { key: "activities", label: "Activités" },
 ];
 
-const SETTINGS_COLOR = NAV_COLOR;
+export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
+  const [todayCount, setTodayCount] = useState(null);
 
-export default function Sidebar({ activeTab, setActiveTab }) {
+  useEffect(() => {
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+    supabase
+      .from("tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("done", false)
+      .lte("due_at", endOfToday.toISOString())
+      .then(({ count }) => setTodayCount(count ?? null));
+  }, []);
+
+  const pipelineCount = prospects.filter((p) => !CLOSED_STAGES.includes(p.stage)).length;
+
+  const counts = { today: todayCount, pipeline: pipelineCount || null };
+
   return (
     <div
       style={{
-        width: "224px",
-        minWidth: "224px",
+        width: "212px",
+        minWidth: "212px",
         height: "100vh",
         position: "sticky",
         top: 0,
@@ -41,70 +42,50 @@ export default function Sidebar({ activeTab, setActiveTab }) {
         borderRight: "0.5px solid var(--hairline)",
         display: "flex",
         flexDirection: "column",
-        padding: "20px 14px",
+        padding: "28px 16px",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "26px", paddingLeft: "2px" }}>
-        <Logo size={32} />
-        <div>
-          <div className="display" style={{ fontWeight: 700, fontSize: "17px", letterSpacing: "0.02em" }}>Closia</div>
-          <div style={{ color: "var(--blue)", fontSize: "10px", fontWeight: 500 }}>L'assistant du commercial</div>
-        </div>
+      <div style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.08em", color: "var(--text-faint)", padding: "0 10px", marginBottom: "28px" }}>
+        CLOSIA
       </div>
 
-      <nav style={{ display: "flex", flexDirection: "column", gap: "18px", flex: 1 }}>
-        {NAV_GROUPS.map((group, i) => (
-          <div key={i}>
-            {group.section && (
-              <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.04em", textTransform: "uppercase", padding: "0 10px 6px" }}>
-                {group.section}
-              </div>
-            )}
-            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-              {group.items.map((item) => {
-                const active = activeTab === item.key;
-                const Icon = item.Icon;
-                return (
-                  <button
-                    key={item.key}
-                    className="focusable"
-                    onClick={() => setActiveTab(item.key)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      padding: "7px 10px",
-                      borderRadius: "9px",
-                      fontSize: "13.5px",
-                      fontWeight: active ? 600 : 500,
-                      background: active ? `${item.color}1c` : "transparent",
-                      color: active ? item.color : "var(--text-dim)",
-                      textAlign: "left",
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: "26px",
-                        height: "26px",
-                        borderRadius: "8px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                        background: active ? item.color : `${item.color}17`,
-                        boxShadow: active ? `0 2px 6px ${item.color}55` : "none",
-                      }}
-                    >
-                      <Icon size={15} color={active ? "#fff" : item.color} />
-                    </span>
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+      <nav style={{ display: "flex", flexDirection: "column", gap: "1px", flex: 1 }}>
+        {NAV_ITEMS.map((item) => {
+          const active = activeTab === item.key;
+          const count = counts[item.key];
+          return (
+            <button
+              key={item.key}
+              className="focusable"
+              onClick={() => setActiveTab(item.key)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "8px",
+                padding: "8px 10px",
+                borderRadius: "6px",
+                fontSize: "13.5px",
+                fontWeight: active ? 600 : 400,
+                background: active ? "var(--panel2)" : "transparent",
+                color: active ? "var(--text)" : "var(--text-dim)",
+                textAlign: "left",
+                borderLeft: active ? "2px solid var(--blue)" : "2px solid transparent",
+                transition: "background 150ms ease, color 150ms ease",
+              }}
+            >
+              <span>{item.label}</span>
+              {count != null && count > 0 && (
+                <span className="mono" style={{ fontSize: "11px", color: active ? "var(--text-dim)" : "var(--text-faint)" }}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </nav>
+
+      <div style={{ height: "0.5px", background: "var(--hairline)", margin: "16px 10px" }} />
 
       <button
         className="focusable"
@@ -112,32 +93,16 @@ export default function Sidebar({ activeTab, setActiveTab }) {
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "10px",
-          padding: "7px 10px",
-          borderRadius: "9px",
+          padding: "8px 10px",
+          borderRadius: "6px",
           fontSize: "13.5px",
-          fontWeight: activeTab === "settings" ? 600 : 500,
-          background: activeTab === "settings" ? `${SETTINGS_COLOR}1c` : "transparent",
-          color: activeTab === "settings" ? SETTINGS_COLOR : "var(--text-dim)",
+          fontWeight: activeTab === "settings" ? 600 : 400,
+          background: activeTab === "settings" ? "var(--panel2)" : "transparent",
+          color: activeTab === "settings" ? "var(--text)" : "var(--text-dim)",
           textAlign: "left",
-          marginTop: "12px",
+          borderLeft: activeTab === "settings" ? "2px solid var(--blue)" : "2px solid transparent",
         }}
       >
-        <span
-          style={{
-            width: "26px",
-            height: "26px",
-            borderRadius: "8px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-            background: activeTab === "settings" ? SETTINGS_COLOR : `${SETTINGS_COLOR}17`,
-            boxShadow: activeTab === "settings" ? `0 2px 6px ${SETTINGS_COLOR}55` : "none",
-          }}
-        >
-          <GearIcon size={15} color={activeTab === "settings" ? "#fff" : SETTINGS_COLOR} />
-        </span>
         Paramètres
       </button>
     </div>

@@ -273,7 +273,7 @@ const primaryBtnStyle = {
   width: "100%",
   background: "var(--blue-dim)",
   color: "var(--blue)",
-  border: "0.5px solid #2563eb55",
+  border: "0.5px solid #315c8a55",
   borderRadius: "8px",
   padding: "10px 14px",
   fontSize: "14px",

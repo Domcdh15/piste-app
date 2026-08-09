@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import {
-  STATUS_META,
-  STAGE_META,
   computeDealScore,
   computeHotProspects,
   computeAtRiskDeals,
@@ -32,8 +30,6 @@ import {
   PinIcon,
   LinkedinIcon,
   ArrowLeftIcon,
-  TableIcon,
-  KanbanIcon,
   inputStyle,
   selectStyle,
 } from "../lib/ui.jsx";
@@ -41,7 +37,7 @@ import {
 const TASK_TYPE_META = {
   appel_telephone: { label: "Appel téléphonique", color: "var(--amber)", Icon: PhoneIcon },
   appel_visio: { label: "Appel visio", color: "#7c3aed", Icon: VideoIcon },
-  rdv_physique: { label: "RDV physique", color: "#0ea968", Icon: PinIcon },
+  rdv_physique: { label: "RDV physique", color: "#527a61", Icon: PinIcon },
   relance_email: { label: "Relance mail", color: "var(--blue)", Icon: MailIcon },
 };
 
@@ -125,43 +121,14 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
   const [saving, setSaving] = useState(false);
   const [selectedId, setSelectedId] = useState(initialSelectedId || null);
   const [search, setSearch] = useState("");
-  const [stageFilter, setStageFilter] = useState("Toutes");
-  const [statusFilter, setStatusFilter] = useState("Tous");
-  const [sortKey, setSortKey] = useState("priority");
-  const [sortDir, setSortDir] = useState("desc");
-  const [viewMode, setViewMode] = useState("table");
   const [openTasks, setOpenTasks] = useState([]);
-  const [quickFilter, setQuickFilter] = useState("tous");
+  const [quickFilter, setQuickFilter] = useState("toutes");
   const [panelId, setPanelId] = useState(null);
   const [showOptimize, setShowOptimize] = useState(false);
 
   useEffect(() => {
     supabase.from("tasks").select("*").eq("done", false).order("due_at", { ascending: true, nullsFirst: false }).then(({ data }) => setOpenTasks(data || []));
   }, []);
-
-  function toggleSort(key) {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir(key === "name" || key === "company" ? "asc" : "desc");
-    }
-  }
-
-  function sortList(list) {
-    return [...list].sort((a, b) => {
-      let av = a[sortKey];
-      let bv = b[sortKey];
-      if (sortKey === "name" || sortKey === "company") {
-        av = (av || "").toLowerCase();
-        bv = (bv || "").toLowerCase();
-        return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
-      }
-      av = av || 0;
-      bv = bv || 0;
-      return sortDir === "asc" ? av - bv : bv - av;
-    });
-  }
 
   useEffect(() => {
     if (initialSelectedId) onConsumeInitialSelection?.();
@@ -198,6 +165,11 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
     if (!error) reload();
   }
 
+  function toggleStar(p) {
+    const starred = (p.priority || 0) >= 75;
+    handleUpdateProspect(p.id, { priority: starred ? 50 : 100 });
+  }
+
   async function handleDeleteProspect(id) {
     const { error } = await supabase.from("prospects").delete().eq("id", id);
     if (!error) {
@@ -220,8 +192,6 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
       : null;
   const visibleProspects = prospects
     .filter((p) => !presetIds || presetIds.has(p.id))
-    .filter((p) => stageFilter === "Toutes" || p.stage === stageFilter)
-    .filter((p) => statusFilter === "Tous" || p.status === statusFilter)
     .filter((p) => !q || p.name.toLowerCase().includes(q) || p.company.toLowerCase().includes(q));
   const now = new Date();
   const nextTaskByProspect = {};
@@ -236,20 +206,15 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
   const totalValue = openList.reduce((sum, p) => sum + (p.deal_value || 0), 0);
 
   const quickFiltered = visibleProspects.filter((p) => {
-    if (quickFilter === "risque") return isAtRisk(p);
-    if (quickFilter === "a_traiter") return isAtRisk(p) || hasNoNextAction(p);
-    if (quickFilter === "semaine") {
-      const t = nextTaskByProspect[p.id];
-      const inWeek = (iso) => iso && (new Date(iso) - now) / 86400000 <= 7 && (new Date(iso) - now) / 86400000 >= -1;
-      return inWeek(t?.due_at) || inWeek(p.next_contact_at);
-    }
-    if (quickFilter === "moi") return p.sales_owner_id === session.user.id || p.csm_owner_id === session.user.id;
+    if (quickFilter === "prioritaires") return (p.priority || 0) >= 75;
+    if (quickFilter === "relancer") return isAtRisk(p);
+    if (quickFilter === "clients") return p.stage === "Gagné";
     return true;
   });
 
-  const combinedList = sortList(quickFiltered);
+  const stageGroups = groupByStage(quickFiltered);
   const priorityLabel =
-    presetFilter === "chauds" ? "PROSPECTS CHAUDS" : presetFilter === "a-sauver" ? "DEALS À SAUVER" : "FILE DE PRIORITÉ";
+    presetFilter === "chauds" ? "Prospects chauds" : presetFilter === "a-sauver" ? "Deals à sauver" : "Opportunités";
 
   if (selected) {
     return (
@@ -269,30 +234,31 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
     );
   }
 
+  const showOwners = team && (team.team?.has_multiple_sales || team.team?.has_multiple_csm);
+
   return (
-    <div style={{ padding: "28px 32px 48px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px", gap: "12px", flexWrap: "wrap" }}>
-        <div>
-          <div className="display" style={{ fontWeight: 700, fontSize: "20px" }}>Opportunités</div>
-          <div style={{ color: "var(--text-dim)", fontSize: "13px", marginTop: "2px" }}>
-            {openList.length} opportunité{openList.length > 1 ? "s" : ""} · {formatEuros(totalValue)} de pipeline
-          </div>
+    <div style={{ padding: "40px 40px 64px", maxWidth: "980px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "4px", gap: "12px", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
+          <span className="display" style={{ fontWeight: 600, fontSize: "17px" }}>{priorityLabel}</span>
+          <span className="mono" style={{ fontSize: "13px", color: "var(--text-faint)" }}>{openList.length}</span>
         </div>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <button className="focusable" onClick={() => setShowOptimize((s) => !s)} style={{ display: "flex", alignItems: "center", gap: "6px", background: showOptimize ? "var(--blue)" : "var(--blue-dim)", color: showOptimize ? "#fff" : "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "8px 12px", fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap" }}>
-            <SparklesIcon size={13} color={showOptimize ? "#fff" : "var(--blue)"} /> Optimiser mon pipeline
+        <div style={{ display: "flex", gap: "18px", alignItems: "center" }}>
+          <button className="focusable" onClick={() => setShowOptimize((s) => !s)} style={{ display: "flex", alignItems: "center", gap: "5px", background: "none", border: "none", color: showOptimize ? "var(--blue)" : "var(--text-dim)", fontSize: "12.5px", fontWeight: 500, padding: 0 }}>
+            <SparklesIcon size={12} color={showOptimize ? "var(--blue)" : "var(--text-dim)"} /> Optimiser
           </button>
-          <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "8px 12px", fontSize: "13px", fontWeight: 600, whiteSpace: "nowrap" }}>
+          <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "none", border: "none", color: "var(--blue)", fontSize: "12.5px", fontWeight: 500, padding: 0 }}>
             {showForm ? "Annuler" : "+ Opportunité"}
           </button>
         </div>
       </div>
+      <div style={{ color: "var(--text-faint)", fontSize: "12.5px", marginBottom: "24px" }}>{formatEuros(totalValue)} de pipeline</div>
 
       {(atRiskCount > 0 || noActionCount > 0) && (
-        <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", background: "var(--red-dim)", border: "0.5px solid var(--red)33", borderRadius: "8px", padding: "9px 14px", marginBottom: "14px" }}>
-          <span style={{ fontSize: "12.5px", color: "var(--red)", fontWeight: 600 }}>⚠ {atRiskCount} deal{atRiskCount > 1 ? "s" : ""} à risque</span>
-          {noActionCount > 0 && <span style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>{noActionCount} sans prochaine action</span>}
-          <button className="focusable" onClick={() => setQuickFilter("a_traiter")} style={{ marginLeft: "auto", fontSize: "12px", fontWeight: 600, color: "var(--red)", background: "none", border: "none", padding: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", padding: "10px 2px", borderTop: "0.5px solid var(--hairline)", borderBottom: "0.5px solid var(--hairline)", marginBottom: "20px", fontSize: "12.5px" }}>
+          <span style={{ color: "var(--red)" }}>{atRiskCount} deal{atRiskCount > 1 ? "s" : ""} à risque</span>
+          {noActionCount > 0 && <span style={{ color: "var(--text-dim)" }}>{noActionCount} sans prochaine action</span>}
+          <button className="focusable" onClick={() => setQuickFilter("relancer")} style={{ marginLeft: "auto", fontWeight: 500, color: "var(--blue)", background: "none", border: "none", padding: 0, fontSize: "12.5px" }}>
             Voir →
           </button>
         </div>
@@ -300,47 +266,33 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
 
       {showOptimize && <OptimizePipelinePanel prospects={openList} session={session} onOpenProspect={setPanelId} onClose={() => setShowOptimize(false)} />}
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", gap: "12px", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px", gap: "12px", flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
           {QUICK_FILTERS.map((f) => (
-            <button key={f.key} className="focusable" onClick={() => setQuickFilter(f.key)} style={{ padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 600, background: quickFilter === f.key ? "var(--blue)" : "var(--panel2)", color: quickFilter === f.key ? "#fff" : "var(--text-dim)", border: "none" }}>
+            <button
+              key={f.key}
+              className="focusable"
+              onClick={() => setQuickFilter(f.key)}
+              style={{
+                padding: "5px 12px",
+                borderRadius: "var(--radius-pill)",
+                fontSize: "12.5px",
+                fontWeight: 500,
+                background: quickFilter === f.key ? "var(--text)" : "transparent",
+                color: quickFilter === f.key ? "var(--bg)" : "var(--text-dim)",
+                border: quickFilter === f.key ? "none" : "0.5px solid var(--hairline)",
+              }}
+            >
               {f.label}
             </button>
           ))}
         </div>
-        <div style={{ display: "flex", gap: "4px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
-          <button className="focusable" onClick={() => setViewMode("kanban")} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: viewMode === "kanban" ? "var(--bg)" : "transparent", color: viewMode === "kanban" ? "var(--blue)" : "var(--text-dim)", boxShadow: viewMode === "kanban" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
-            <KanbanIcon size={13} color={viewMode === "kanban" ? "var(--blue)" : "var(--text-dim)"} /> Pipeline
-          </button>
-          <button className="focusable" onClick={() => setViewMode("table")} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: viewMode === "table" ? "var(--bg)" : "transparent", color: viewMode === "table" ? "var(--blue)" : "var(--text-dim)", boxShadow: viewMode === "table" ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
-            <TableIcon size={13} color={viewMode === "table" ? "var(--blue)" : "var(--text-dim)"} /> Liste
-          </button>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
         <input
-          placeholder="Rechercher un nom ou une entreprise..."
+          placeholder="Rechercher…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ ...inputStyle, flex: 1, minWidth: "200px" }}
+          style={{ ...inputStyle, width: "220px" }}
         />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
-          <option value="Tous">Tous les statuts</option>
-          {Object.entries(STATUS_META).map(([key, meta]) => (
-            <option key={key} value={key}>{meta.label}</option>
-          ))}
-        </select>
-        <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
-          <option value="Toutes">Toutes les étapes</option>
-          <optgroup label="En cours">
-            {OPEN_STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </optgroup>
-          <option value="Gagné">Client</option>
-          <optgroup label="Clôturé">
-            <option value="Perdu">Perdu</option>
-          </optgroup>
-        </select>
       </div>
 
       {panelId && (() => {
@@ -356,7 +308,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
       })()}
 
       {showForm && (
-        <form onSubmit={handleAddProspect} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px", marginBottom: "16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+        <form onSubmit={handleAddProspect} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "var(--radius-md)", padding: "16px", marginBottom: "20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
           <select value={form.civility} onChange={(e) => setForm({ ...form, civility: e.target.value })} style={inputStyle}>
             <option value="-">Civilité —</option>
             <option value="Monsieur">Monsieur</option>
@@ -382,43 +334,108 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
             {PRIORITY_LEVELS.map((l) => <option key={l.value} value={l.value}>Priorité : {l.label}</option>)}
           </select>
           <input type="number" min="0" placeholder="Valeur du deal (€)" value={form.deal_value} onChange={(e) => setForm({ ...form, deal_value: e.target.value })} style={inputStyle} />
-          <button type="submit" disabled={saving} className="focusable" style={{ gridColumn: "1 / -1", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px" }}>
+          <button type="submit" disabled={saving} className="focusable" style={{ gridColumn: "1 / -1", background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "9px", fontSize: "13px", fontWeight: 500 }}>
             {saving ? "Enregistrement..." : "Enregistrer le prospect"}
           </button>
         </form>
       )}
 
       {loading ? (
-        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Chargement...</div>
+        <div style={{ color: "var(--text-dim)", padding: "20px 2px", fontSize: "13px" }}>Chargement...</div>
       ) : prospects.length === 0 ? (
-        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun prospect pour l'instant. Ajoute ton premier prospect ci-dessus.</div>
-      ) : visibleProspects.length === 0 ? (
-        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", color: "var(--text-dim)", padding: "20px", fontSize: "13px" }}>Aucun résultat pour cette recherche ou ces filtres.</div>
-      ) : viewMode === "kanban" ? (
-        <KanbanBoard list={combinedList} tasks={openTasks} onOpenProspect={setPanelId} team={team} />
+        <div style={{ color: "var(--text-dim)", padding: "20px 2px", fontSize: "13px" }}>Rien à traiter pour le moment.<br /><span style={{ color: "var(--text-faint)" }}>Votre premier prospect apparaîtra ici.</span></div>
+      ) : quickFiltered.length === 0 ? (
+        <div style={{ color: "var(--text-dim)", padding: "20px 2px", fontSize: "13px" }}>Aucun résultat pour cette recherche ou ce filtre.</div>
       ) : (
-        <ProspectTable list={combinedList} onSelect={setPanelId} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} team={team} />
+        <OpportunityList groups={stageGroups} nextTaskByProspect={nextTaskByProspect} onOpen={setPanelId} onToggleStar={toggleStar} team={team} showOwners={showOwners} />
       )}
     </div>
   );
 }
 
-const KANBAN_COLUMNS = [
-  { key: "À contacter", label: "À contacter" },
-  { key: "Contact établi", label: "Contact établi" },
-  { key: "Rendez-vous prévu", label: "Rendez-vous prévu" },
-  { key: "Proposition envoyée", label: "Proposition envoyée" },
-  { key: "Négociation", label: "Négociation" },
-  { key: "closed", label: "Gagné / Perdu" },
-];
+const STAGE_GROUP_ORDER = [...OPEN_STAGES, "Gagné", "Perdu"];
+const STAGE_GROUP_LABEL = { "Gagné": "Clients" };
+
+function groupByStage(list) {
+  return STAGE_GROUP_ORDER.map((stage) => ({
+    stage,
+    label: (STAGE_GROUP_LABEL[stage] || stage).toUpperCase(),
+    items: list
+      .filter((p) => p.stage === stage)
+      .sort((a, b) => (b.priority || 0) - (a.priority || 0) || (b.deal_value || 0) - (a.deal_value || 0)),
+  })).filter((g) => g.items.length > 0);
+}
 
 const QUICK_FILTERS = [
-  { key: "a_traiter", label: "À traiter" },
-  { key: "tous", label: "Tous" },
-  { key: "risque", label: "À risque" },
-  { key: "semaine", label: "Cette semaine" },
-  { key: "moi", label: "Mes deals" },
+  { key: "toutes", label: "Toutes" },
+  { key: "prioritaires", label: "Prioritaires" },
+  { key: "relancer", label: "À relancer" },
+  { key: "clients", label: "Clients" },
 ];
+
+function OpportunityList({ groups, nextTaskByProspect, onOpen, onToggleStar, team, showOwners }) {
+  return (
+    <div>
+      {groups.map((g) => (
+        <div key={g.stage} style={{ marginBottom: "26px" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "8px", padding: "0 4px 7px", borderBottom: "0.5px solid var(--hairline)", marginBottom: "1px" }}>
+            <span style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-faint)" }}>{g.label}</span>
+            <span className="mono" style={{ fontSize: "11px", color: "var(--text-faint)" }}>{g.items.length}</span>
+          </div>
+          {g.items.map((p) => (
+            <OpportunityRow
+              key={p.id}
+              p={p}
+              nextTask={nextTaskByProspect[p.id]}
+              onClick={() => onOpen(p.id)}
+              onToggleStar={() => onToggleStar(p)}
+              team={team}
+              showOwners={showOwners}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function OpportunityRow({ p, onClick, onToggleStar, team, showOwners }) {
+  const starred = (p.priority || 0) >= 75;
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+      className="focusable row-hover"
+      style={{
+        display: "grid",
+        gridTemplateColumns: showOwners ? "20px minmax(0,1.3fr) minmax(0,1fr) 92px 150px 44px" : "20px minmax(0,1.3fr) minmax(0,1fr) 92px 150px",
+        alignItems: "center",
+        gap: "12px",
+        padding: "9px 4px",
+        borderBottom: "0.5px solid var(--hairline)",
+        cursor: "pointer",
+        opacity: p.stage === "Perdu" ? 0.5 : 1,
+        borderRadius: "6px",
+      }}
+    >
+      <button
+        onClick={(e) => { e.stopPropagation(); onToggleStar(); }}
+        className="focusable"
+        title={starred ? "Retirer la priorité" : "Marquer prioritaire"}
+        style={{ background: "none", border: "none", padding: 0, fontSize: "14px", lineHeight: 1, color: starred ? "var(--blue)" : "var(--text-faint)" }}
+      >
+        {starred ? "★" : "☆"}
+      </button>
+      <span style={{ fontWeight: 500, fontSize: "13.5px", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.company}</span>
+      <span style={{ color: "var(--text-dim)", fontSize: "13px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+      <span className="mono" style={{ fontSize: "13px", color: "var(--text)", textAlign: "right" }}>{formatEuros(p.deal_value)}</span>
+      <span style={{ fontSize: "12.5px", color: "var(--text-faint)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.stage === "Gagné" ? "Client" : p.stage}</span>
+      {showOwners && <OwnerBadges team={team} prospect={p} />}
+    </div>
+  );
+}
 
 function nextActionInfo(p, nextTask) {
   if (nextTask) {
@@ -427,13 +444,13 @@ function nextActionInfo(p, nextTask) {
     const label = nextTask.due_at
       ? overdue ? `${nextTask.note} · en retard` : dueToday ? `${nextTask.note} aujourd'hui` : `${nextTask.note} · ${formatShortDate(nextTask.due_at)}`
       : nextTask.note;
-    return { dot: overdue ? "🔴" : dueToday ? "🟢" : "🟠", color: overdue ? "var(--red)" : dueToday ? "#0ea968" : "var(--amber)", text: label };
+    return { dot: overdue ? "🔴" : dueToday ? "🟢" : "🟠", color: overdue ? "var(--red)" : dueToday ? "#527a61" : "var(--amber)", text: label };
   }
   const days = p.last_contact_at ? Math.floor((Date.now() - new Date(p.last_contact_at)) / 86400000) : null;
   if (days === null) return { dot: "🔴", color: "var(--red)", text: "Aucune activité enregistrée" };
   if (days >= 10) return { dot: "🔴", color: "var(--red)", text: `Aucune activité depuis ${days} jours` };
   if (days >= 4) return { dot: "🟠", color: "var(--amber)", text: `Relancer depuis ${days} jours` };
-  return { dot: "🟢", color: "#0ea968", text: "À jour" };
+  return { dot: "🟢", color: "#527a61", text: "À jour" };
 }
 
 function ownerInitials(team, userId) {
@@ -467,115 +484,40 @@ function OwnerBadges({ team, prospect, size = "sm" }) {
   );
 }
 
-function KanbanBoard({ list, tasks, onOpenProspect, team }) {
-  const nextTaskByProspect = {};
-  for (const t of tasks) {
-    if (!nextTaskByProspect[t.prospect_id]) nextTaskByProspect[t.prospect_id] = t;
-  }
-
-  return (
-    <div style={{ display: "flex", gap: "14px", overflowX: "auto", paddingBottom: "8px" }}>
-      {KANBAN_COLUMNS.map((col) => {
-        const items = list.filter((p) => (col.key === "closed" ? p.stage === "Gagné" || p.stage === "Perdu" : p.stage === col.key));
-        const columnValue = items.reduce((sum, p) => sum + (p.deal_value || 0), 0);
-        const accent = col.key === "closed" ? "#0ea968" : (STAGE_META[col.key]?.color || "var(--text-dim)");
-        return (
-          <div key={col.key} style={{ minWidth: "260px", width: "260px", display: "flex", flexDirection: "column", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", flexShrink: 0 }}>
-            <div style={{ padding: "12px 14px", borderBottom: "0.5px solid var(--hairline)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "3px" }}>
-                <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: accent, flexShrink: 0 }} />
-                <span className="display" style={{ fontWeight: 700, fontSize: "12px", letterSpacing: "0.03em" }}>{col.label.toUpperCase()}</span>
-                <span className="mono" style={{ marginLeft: "auto", color: "var(--text-faint)", fontSize: "11px" }}>{items.length}</span>
-              </div>
-              {columnValue > 0 && <div className="mono" style={{ color: "var(--text-faint)", fontSize: "11px" }}>{formatEuros(columnValue)}</div>}
-            </div>
-
-            <div style={{ padding: "10px", display: "flex", flexDirection: "column", gap: "8px", overflowY: "auto" }}>
-              {items.length === 0 ? (
-                <div style={{ color: "var(--text-faint)", fontSize: "11px", padding: "8px" }}>Vide</div>
-              ) : (
-                items.map((p) => (
-                  <OpportunityCard key={p.id} prospect={p} nextTask={nextTaskByProspect[p.id]} onClick={() => onOpenProspect(p.id)} team={team} />
-                ))
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function OpportunityCard({ prospect: p, nextTask, onClick, team }) {
-  const temp = prospectTemperature(p);
-  const action = nextActionInfo(p, nextTask);
-  const days = p.last_contact_at ? Math.floor((Date.now() - new Date(p.last_contact_at)) / 86400000) : null;
-
-  return (
-    <button
-      onClick={onClick}
-      className="focusable"
-      style={{ textAlign: "left", background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px", display: "flex", flexDirection: "column", gap: "6px" }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
-        <div className="display" style={{ fontWeight: 700, fontSize: "13px", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {p.company}{temp && <span style={{ marginLeft: "5px" }}>{temp.emoji}</span>}
-        </div>
-        <OwnerBadges team={team} prospect={p} />
-      </div>
-
-      <div style={{ color: "var(--text-dim)", fontSize: "11.5px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
-
-      <div className="mono" style={{ fontWeight: 700, fontSize: "15px", color: "var(--text)" }}>{formatEuros(p.deal_value)}</div>
-
-      <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>
-        {p.stage}{days !== null ? ` · il y a ${days} j` : ""}
-      </div>
-
-      <div style={{ fontSize: "11.5px", color: action.color, fontWeight: 600, marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {action.dot} {action.text}
-      </div>
-    </button>
-  );
-}
-
-
 function ProspectSidePanel({ prospect, nextTask, onClose, onOpenFull }) {
   const history = useProspectHistory(prospect.id);
-  const temp = prospectTemperature(prospect);
   const action = nextActionInfo(prospect, nextTask);
   const recentActivities = history.activities.slice(0, 3);
   const recommendation = prospect.last_analysis?.recommendation || prospect.last_analysis?.next_action;
 
   return (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.25)", zIndex: 40 }} />
-      <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: "360px", maxWidth: "92vw", background: "var(--bg)", borderLeft: "0.5px solid var(--hairline)", boxShadow: "var(--shadow-md)", zIndex: 41, overflowY: "auto", padding: "20px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(24,25,24,0.2)", zIndex: 40 }} />
+      <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: "400px", maxWidth: "92vw", background: "var(--panel)", borderLeft: "0.5px solid var(--hairline)", boxShadow: "var(--shadow-md)", zIndex: 41, overflowY: "auto", padding: "28px 24px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
           <div>
-            <div className="display" style={{ fontWeight: 700, fontSize: "16px" }}>{prospect.company}</div>
-            <div style={{ color: "var(--text-dim)", fontSize: "12.5px" }}>{prospect.name}</div>
+            <div className="display" style={{ fontWeight: 600, fontSize: "16px" }}>{prospect.company}</div>
+            <div style={{ color: "var(--text-dim)", fontSize: "13px", marginTop: "1px" }}>{prospect.name}</div>
           </div>
           <button className="focusable" onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "16px", padding: "2px" }}>✕</button>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
-          {temp && <span style={{ fontSize: "11px", fontWeight: 700, color: temp.color, background: temp.bg, borderRadius: "999px", padding: "3px 9px" }}>{temp.emoji} {temp.label}</span>}
-          <span className="mono" style={{ fontSize: "13px", fontWeight: 700 }}>{formatEuros(prospect.deal_value)}</span>
-          <span style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>· {prospect.stage}</span>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "8px", flexWrap: "wrap", marginBottom: "24px" }}>
+          <span className="mono" style={{ fontSize: "17px", fontWeight: 600 }}>{formatEuros(prospect.deal_value)}</span>
+          <span style={{ fontSize: "12.5px", color: "var(--text-faint)" }}>{prospect.stage === "Gagné" ? "Client" : prospect.stage}</span>
         </div>
 
-        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px", marginBottom: "14px" }}>
-          <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.03em", marginBottom: "6px" }}>PROCHAINE ACTION</div>
-          <div style={{ fontSize: "13px", fontWeight: 600, color: action.color, marginBottom: nextTask ? "10px" : 0 }}>{action.dot} {action.text}</div>
+        <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px", marginBottom: "20px" }}>
+          <div style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.05em", marginBottom: "6px" }}>PROCHAINE ACTION</div>
+          <div style={{ fontSize: "13.5px", fontWeight: 500, color: action.color, marginBottom: nextTask ? "12px" : 0 }}>{action.text}</div>
           {nextTask && (
-            <div style={{ display: "flex", gap: "6px" }}>
+            <div style={{ display: "flex", gap: "16px" }}>
               {prospect.phone && (
-                <a href={`tel:${prospect.phone}`} className="focusable" style={{ fontSize: "12px", fontWeight: 600, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "6px", padding: "6px 12px", textDecoration: "none" }}>
+                <a href={`tel:${prospect.phone}`} className="focusable" style={{ fontSize: "12.5px", fontWeight: 500, color: "var(--blue)", textDecoration: "none" }}>
                   Appeler
                 </a>
               )}
-              <button className="focusable" onClick={onOpenFull} style={{ fontSize: "12px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "6px", padding: "6px 12px" }}>
+              <button className="focusable" onClick={onOpenFull} style={{ fontSize: "12.5px", background: "none", color: "var(--text-dim)", border: "none", padding: 0 }}>
                 Modifier
               </button>
             </div>
@@ -583,28 +525,31 @@ function ProspectSidePanel({ prospect, nextTask, onClose, onOpenFull }) {
         </div>
 
         {recommendation && (
-          <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2563eb55", borderRadius: "10px", padding: "12px", marginBottom: "14px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "10px", fontWeight: 700, color: "var(--blue)", letterSpacing: "0.03em", marginBottom: "6px" }}>
-              <SparklesIcon size={11} color="var(--blue)" /> RECOMMANDATION CLOSIA
+          <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px", marginBottom: "20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "10.5px", fontWeight: 700, color: "var(--violet)", letterSpacing: "0.05em", marginBottom: "6px" }}>
+              <SparklesIcon size={11} color="var(--violet)" /> RECOMMANDATION
             </div>
             <div style={{ fontSize: "12.5px", color: "var(--text)", lineHeight: 1.5 }}>{recommendation}</div>
           </div>
         )}
 
-        <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.03em", marginBottom: "8px" }}>DERNIÈRES ACTIVITÉS</div>
-        {recentActivities.length === 0 ? (
-          <div style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "16px" }}>Aucune activité enregistrée.</div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "16px" }}>
-            {recentActivities.map((a) => (
-              <div key={a.id} style={{ fontSize: "12px", color: "var(--text-dim)" }}>
-                {ACTIVITY_LABEL[a.type] || a.type} · {formatShortDate(a.created_at)}
-              </div>
-            ))}
-          </div>
-        )}
+        <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px" }}>
+          <div style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.05em", marginBottom: "10px" }}>ACTIVITÉ</div>
+          {recentActivities.length === 0 ? (
+            <div style={{ fontSize: "12.5px", color: "var(--text-faint)", marginBottom: "20px" }}>Aucune activité enregistrée.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "20px" }}>
+              {recentActivities.map((a) => (
+                <div key={a.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px", color: "var(--text-dim)" }}>
+                  <span>{ACTIVITY_LABEL[a.type] || a.type}</span>
+                  <span className="mono" style={{ color: "var(--text-faint)" }}>{formatShortDate(a.created_at)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
-        <button className="focusable" onClick={onOpenFull} style={{ width: "100%", background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
+        <button className="focusable" onClick={onOpenFull} style={{ width: "100%", background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 500 }}>
           Voir la fiche complète
         </button>
       </div>
@@ -667,7 +612,7 @@ ${atRisk.slice(0, 15).map((p) => `- ${p.name} (${p.company}), ${formatEuros(p.de
           <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "14px" }}>
             <span style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>{prospects.length} deals actifs</span>
             <span style={{ fontSize: "12.5px", color: "var(--red)" }}>⚠ {result.at_risk_count} nécessitent une action</span>
-            <span style={{ fontSize: "12.5px", color: "#0ea968" }}>🔥 {result.hot_count} fort potentiel</span>
+            <span style={{ fontSize: "12.5px", color: "#527a61" }}>🔥 {result.hot_count} fort potentiel</span>
             <span style={{ fontSize: "12.5px", color: "var(--blue)" }}>🧊 {result.cooling_count} refroidissent</span>
             <span style={{ fontSize: "12.5px", color: "var(--gold-deep)" }}>💰 {formatEuros(result.proposal_value || 0)} en proposition</span>
           </div>
@@ -687,87 +632,6 @@ ${atRisk.slice(0, 15).map((p) => `- ${p.name} (${p.company}), ${formatEuros(p.de
         </>
       )}
     </div>
-  );
-}
-
-const th = { textAlign: "left", padding: "10px 12px", fontSize: "10px", letterSpacing: "0.04em", color: "var(--text-faint)", whiteSpace: "nowrap", fontWeight: 700 };
-
-function SortHeader({ label, sortKeyName, sortKey, sortDir, onSort }) {
-  const active = sortKey === sortKeyName;
-  return (
-    <th onClick={() => onSort(sortKeyName)} style={{ ...th, color: active ? "var(--blue)" : "var(--text-faint)", cursor: "pointer", userSelect: "none" }}>
-      {label} {active ? (sortDir === "asc" ? "▲" : "▼") : ""}
-    </th>
-  );
-}
-
-function ProspectTable({ list, onSelect, onSort, sortKey, sortDir, team }) {
-  const showOwners = team && (team.team?.has_multiple_sales || team.team?.has_multiple_csm);
-  return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", overflow: "hidden", overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr style={{ borderBottom: "0.5px solid var(--hairline)" }}>
-            <SortHeader label="NOM" sortKeyName="name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-            <SortHeader label="ENTREPRISE" sortKeyName="company" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-            <th style={th}>STATUT</th>
-            <th style={th}>ÉTAPE</th>
-            <th style={th}>PROCHAIN CONTACT</th>
-            {showOwners && <th style={th}>RESPONSABLE</th>}
-            <SortHeader label="MONTANT" sortKeyName="deal_value" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
-          </tr>
-        </thead>
-        <tbody>
-          {list.map((p) => <ProspectTableRow key={p.id} p={p} onClick={() => onSelect(p.id)} team={team} showOwners={showOwners} />)}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function ProspectTableRow({ p, onClick, team, showOwners }) {
-  const meta = STATUS_META[p.status] || STATUS_META.attente;
-  const isClient = p.stage === "Gagné";
-  const closed = p.stage === "Perdu";
-  const td = { padding: "10px 12px", fontSize: "13px", verticalAlign: "middle" };
-  return (
-    <tr onClick={onClick} style={{ cursor: "pointer", borderBottom: "0.5px solid var(--hairline)", opacity: closed ? 0.6 : 1 }}>
-      <td style={td}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <Avatar name={p.name} stage={p.stage} size={26} />
-          <span className="display" style={{ fontWeight: 500, whiteSpace: "nowrap" }}>{p.name}</span>
-        </div>
-      </td>
-      <td style={{ ...td, color: "var(--text-dim)", whiteSpace: "nowrap" }}>{p.company}</td>
-      <td style={td}>
-        {isClient ? (
-          <span className="mono" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, color: "#0ea968", background: "#e2f7ec", border: "0.5px solid #0ea96855", borderRadius: "6px", padding: "4px 8px", whiteSpace: "nowrap" }}>
-            <TrophyIcon size={11} color="#0ea968" /> CLIENT
-          </span>
-        ) : (
-          <span className="mono" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: 700, color: meta.color, background: meta.dim, border: `0.5px solid ${meta.color}55`, borderRadius: "6px", padding: "4px 8px", whiteSpace: "nowrap" }}>
-            <meta.Icon size={11} color={meta.color} /> {meta.label}
-          </span>
-        )}
-      </td>
-      <td style={{ ...td, color: "var(--text-dim)", fontSize: "12px", whiteSpace: "nowrap" }}>{p.stage}</td>
-      <td style={td}>
-        {p.next_contact_at ? (
-          <span className="mono" style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "11px", color: isOverdue(p.next_contact_at) ? "var(--red)" : "var(--text-faint)", whiteSpace: "nowrap" }}>
-            <CalendarIcon size={10} color={isOverdue(p.next_contact_at) ? "var(--red)" : "var(--text-faint)"} />
-            {formatShortDate(p.next_contact_at)}
-          </span>
-        ) : (
-          <span style={{ color: "var(--text-faint)", fontSize: "12px" }}>—</span>
-        )}
-      </td>
-      {showOwners && (
-        <td style={td}>
-          <OwnerBadges team={team} prospect={p} />
-        </td>
-      )}
-      <td className="mono" style={{ ...td, color: "var(--blue)", textAlign: "right", whiteSpace: "nowrap" }}>{formatEuros(p.deal_value)}</td>
-    </tr>
   );
 }
 
@@ -829,8 +693,8 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
 
             <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginBottom: "8px" }}>
               {prospect.stage === "Gagné" && (
-                <span className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "10px", fontWeight: 700, color: "#0ea968", background: "#e2f7ec", border: "0.5px solid #0ea96855", borderRadius: "6px", padding: "3px 7px" }}>
-                  <TrophyIcon size={10} color="#0ea968" /> CLIENT
+                <span className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "10px", fontWeight: 700, color: "#527a61", background: "#eaf1ec", border: "0.5px solid #527a6155", borderRadius: "6px", padding: "3px 7px" }}>
+                  <TrophyIcon size={10} color="#527a61" /> CLIENT
                 </span>
               )}
               {temperature && (
@@ -891,7 +755,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
               </a>
             )}
             <button className="focusable" onClick={() => onUpdate({ last_contact_at: new Date().toISOString() })} style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: "var(--text)" }}>
-              <CheckIcon size={12} color="#0ea968" /> Marquer contacté aujourd'hui
+              <CheckIcon size={12} color="#527a61" /> Marquer contacté aujourd'hui
             </button>
             <button className="focusable" onClick={() => goToTab("devis")} style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: "var(--text)" }}>
               <MailIcon size={12} color="var(--gold-deep)" /> Générer un devis
@@ -1011,7 +875,7 @@ function PipelineStepper({ stage, onChange }) {
         </div>
       )}
       {closed && (
-        <span style={{ display: "inline-flex", alignSelf: "flex-start", fontSize: "12px", fontWeight: 700, color: stage === "Gagné" ? "#0ea968" : "var(--text-faint)", background: stage === "Gagné" ? "#e2f7ec" : "var(--panel2)", borderRadius: "999px", padding: "5px 12px" }}>
+        <span style={{ display: "inline-flex", alignSelf: "flex-start", fontSize: "12px", fontWeight: 700, color: stage === "Gagné" ? "#527a61" : "var(--text-faint)", background: stage === "Gagné" ? "#eaf1ec" : "var(--panel2)", borderRadius: "999px", padding: "5px 12px" }}>
           {stage === "Gagné" ? "🏆 Gagné" : "Perdu"}
         </span>
       )}
@@ -1360,7 +1224,7 @@ ${buildHistoryContext(history)}`;
             key={key}
             className="focusable"
             onClick={() => setActionType(key)}
-            style={{ display: "flex", alignItems: "center", gap: "5px", background: actionType === key ? "var(--blue-dim)" : "var(--panel2)", color: actionType === key ? "var(--blue)" : "var(--text-dim)", border: actionType === key ? "0.5px solid #2563eb55" : "0.5px solid var(--hairline)", borderRadius: "999px", padding: "6px 11px", fontSize: "12px" }}
+            style={{ display: "flex", alignItems: "center", gap: "5px", background: actionType === key ? "var(--blue-dim)" : "var(--panel2)", color: actionType === key ? "var(--blue)" : "var(--text-dim)", border: actionType === key ? "0.5px solid #315c8a55" : "0.5px solid var(--hairline)", borderRadius: "999px", padding: "6px 11px", fontSize: "12px" }}
           >
             <Icon size={12} /> {label}
           </button>
@@ -1378,7 +1242,7 @@ ${buildHistoryContext(history)}`;
           className="focusable"
           onClick={saveNote}
           disabled={busy}
-          style={{ flex: 1, background: saved ? "#e2f7ec" : "var(--panel2)", color: saved ? "#0ea968" : "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px", fontSize: "12.5px", opacity: busy ? 0.6 : 1 }}
+          style={{ flex: 1, background: saved ? "#eaf1ec" : "var(--panel2)", color: saved ? "#527a61" : "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px", fontSize: "12.5px", opacity: busy ? 0.6 : 1 }}
         >
           {saving ? "Enregistrement..." : saved ? "Ajoutée ✓" : "Ajouter la note"}
         </button>
@@ -1395,7 +1259,7 @@ ${buildHistoryContext(history)}`;
           className="focusable"
           onClick={analyze}
           disabled={!note.trim() || busy}
-          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "12.5px", opacity: !note.trim() || busy ? 0.6 : 1 }}
+          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "9px", fontSize: "12.5px", opacity: !note.trim() || busy ? 0.6 : 1 }}
         >
           <SparklesIcon size={13} color="var(--blue)" />
           {analyzing ? "Analyse..." : "Analyser la note"}
@@ -1485,7 +1349,7 @@ ${buildHistoryContext(history)}`;
 
           {result.opportunities?.length > 0 && (
             <div style={{ marginBottom: "16px" }}>
-              <div style={{ fontSize: "11px", color: "#0ea968", fontWeight: 700, marginBottom: "6px" }}>OPPORTUNITÉS</div>
+              <div style={{ fontSize: "11px", color: "#527a61", fontWeight: 700, marginBottom: "6px" }}>OPPORTUNITÉS</div>
               <ul style={{ margin: 0, paddingLeft: "18px", fontSize: "12px", color: "var(--text-dim)", lineHeight: 1.6 }}>
                 {result.opportunities.map((p, i) => <li key={i}>{p}</li>)}
               </ul>
@@ -1516,7 +1380,7 @@ ${buildHistoryContext(history)}`;
               className="focusable"
               onClick={createTasks}
               disabled={creating || selected.length === 0}
-              style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", opacity: creating || selected.length === 0 ? 0.6 : 1 }}
+              style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", opacity: creating || selected.length === 0 ? 0.6 : 1 }}
             >
               {creating ? "Création..." : `Créer ${selected.length} tâche${selected.length > 1 ? "s" : ""}`}
             </button>
@@ -1686,7 +1550,7 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
       </select>
       <input type="number" min="0" placeholder="Valeur du deal (€)" value={dealValue} onChange={(e) => setDealValue(e.target.value)} style={inputStyle} />
       <div style={{ display: "flex", gap: "8px", gridColumn: "1 / -1" }}>
-        <button type="submit" disabled={saving} className="focusable" style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px" }}>
+        <button type="submit" disabled={saving} className="focusable" style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "9px", fontSize: "13px" }}>
           {saving ? "Enregistrement..." : "Enregistrer les modifications"}
         </button>
         <button type="button" onClick={onCancel} className="focusable" style={{ background: "transparent", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px 14px", fontSize: "13px" }}>
@@ -1748,7 +1612,7 @@ ${buildHistoryContext(history)}`;
       <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
           <span className="display" style={{ fontWeight: 700, fontSize: "11.5px", color: "var(--text-faint)", letterSpacing: "0.04em" }}>ANALYSE DE L'OPPORTUNITÉ</span>
-          <button className="focusable" onClick={generate} disabled={loading} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55" }}>
+          <button className="focusable" onClick={generate} disabled={loading} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55" }}>
             <SparklesIcon size={11} color="var(--blue)" /> {loading ? "Analyse..." : data ? "Régénérer" : "Analyser"}
           </button>
         </div>
@@ -1756,7 +1620,7 @@ ${buildHistoryContext(history)}`;
         {data ? (
           <>
             <div style={{ display: "flex", gap: "12px", marginBottom: "10px", flexWrap: "wrap" }}>
-              <span style={{ fontSize: "12px", color: "#0ea968" }}>🟢 {(data.positive_signals || []).length} signaux positifs</span>
+              <span style={{ fontSize: "12px", color: "#527a61" }}>🟢 {(data.positive_signals || []).length} signaux positifs</span>
               <span style={{ fontSize: "12px", color: "var(--amber)" }}>🟠 {(data.watch_points || []).length} points de vigilance</span>
             </div>
             <div style={{ fontSize: "12.5px", color: "var(--text)", lineHeight: 1.6, marginBottom: "6px" }}>{data.recommendation}</div>
@@ -1825,7 +1689,7 @@ function ActivityTimeline({ history }) {
             key={f}
             className="focusable"
             onClick={() => setFilter(f)}
-            style={{ padding: "5px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 500, background: filter === f ? "var(--blue-dim)" : "var(--panel2)", color: filter === f ? "var(--blue)" : "var(--text-dim)", border: filter === f ? "0.5px solid #2563eb55" : "0.5px solid var(--hairline)" }}
+            style={{ padding: "5px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 500, background: filter === f ? "var(--blue-dim)" : "var(--panel2)", color: filter === f ? "var(--blue)" : "var(--text-dim)", border: filter === f ? "0.5px solid #315c8a55" : "0.5px solid var(--hairline)" }}
           >
             {f}
           </button>
@@ -1923,7 +1787,7 @@ function TasksTab({ prospect, session, settings, onChange }) {
         <select value={priority} onChange={(e) => setPriority(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
           {PRIORITY_LEVELS.map((l) => <option key={l.value} value={l.value}>Priorité : {l.label}</option>)}
         </select>
-        <button type="submit" disabled={saving || !note.trim()} className="focusable" style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "8px 14px", fontSize: "13px" }}>
+        <button type="submit" disabled={saving || !note.trim()} className="focusable" style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "8px 14px", fontSize: "13px" }}>
           Ajouter
         </button>
       </form>
@@ -1939,7 +1803,7 @@ function TasksTab({ prospect, session, settings, onChange }) {
             return (
               <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "10px", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px", opacity: t.done ? 0.55 : 1 }}>
                 <button className="focusable" onClick={() => toggleDone(t)} style={{ background: "none", border: "none", padding: 0, display: "flex" }}>
-                  <CheckIcon size={18} color={t.done ? "#0ea968" : "var(--text-faint)"} />
+                  <CheckIcon size={18} color={t.done ? "#527a61" : "var(--text-faint)"} />
                 </button>
                 <meta.Icon size={13} color={meta.color} />
                 <div style={{ flex: 1, fontSize: "13px", textDecoration: t.done ? "line-through" : "none" }}>{t.note}</div>
@@ -2049,7 +1913,7 @@ ${buildHistoryContext(history)}`;
         sending={sending}
         sendError={sent ? "" : sendError}
       />
-      {sent && <div style={{ color: "#0ea968", fontSize: "12px", marginTop: "-4px" }}>Email envoyé à {prospect.email}.</div>}
+      {sent && <div style={{ color: "#527a61", fontSize: "12px", marginTop: "-4px" }}>Email envoyé à {prospect.email}.</div>}
 
       {showModal && (
         <Modal onClose={() => setShowModal(false)}>
@@ -2081,7 +1945,7 @@ ${buildHistoryContext(history)}`;
             className="focusable"
             onClick={generateWithAI}
             disabled={loading}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: loading ? 0.6 : 1 }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: loading ? 0.6 : 1 }}
           >
             <SparklesIcon size={13} color="var(--blue)" />
             {loading ? "Génération..." : "Générer avec l'IA"}
@@ -2241,7 +2105,7 @@ function GeneratorBlock({ label, loading, error, content, setContent, onGenerate
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-      <button className="focusable" onClick={onGenerate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "10px", fontSize: "13px", opacity: loading ? 0.7 : 1 }}>
+      <button className="focusable" onClick={onGenerate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "10px", fontSize: "13px", opacity: loading ? 0.7 : 1 }}>
         <SparklesIcon size={14} color="var(--blue)" />
         {loading ? "Génération en cours..." : label}
       </button>

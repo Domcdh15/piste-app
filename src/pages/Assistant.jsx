@@ -655,7 +655,7 @@ ${ctx.text}`;
                 <div style={{ fontSize: "11px", fontWeight: 700, color: TEXT2, marginBottom: "4px" }}>PROCHAINE MEILLEURE ACTION</div>
                 <div style={{ fontSize: "14px", fontWeight: 600, color: TEXT, marginBottom: "6px" }}>{result.next_action}</div>
                 <div style={{ fontSize: "12px", color: TEXT2, marginBottom: "12px" }}>Pourquoi ? {result.next_action_why}</div>
-                <button className="focusable" onClick={planCall} disabled={taskCreated} style={{ background: taskCreated ? "#e2f7ec" : ACCENT_DIM, color: taskCreated ? "#0ea968" : ACCENT, border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600 }}>
+                <button className="focusable" onClick={planCall} disabled={taskCreated} style={{ background: taskCreated ? "#eaf1ec" : ACCENT_DIM, color: taskCreated ? "#527a61" : ACCENT, border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600 }}>
                   {taskCreated ? "Tâche créée ✓" : "Planifier l'appel"}
                 </button>
               </div>

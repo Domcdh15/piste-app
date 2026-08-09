@@ -7,7 +7,7 @@ const VIEWS = ["Liste", "Jour", "Semaine"];
 const TASK_TYPE_META = {
   appel_telephone: { label: "Appels", color: "var(--amber)", dim: "var(--amber-dim)", Icon: PhoneIcon },
   appel_visio: { label: "Visio", color: "#7c3aed", dim: "#f1e9fe", Icon: VideoIcon },
-  rdv_physique: { label: "RDV physique", color: "#0ea968", dim: "#e2f7ec", Icon: PinIcon },
+  rdv_physique: { label: "RDV physique", color: "#527a61", dim: "#eaf1ec", Icon: PinIcon },
   relance_email: { label: "Emails", color: "var(--blue)", dim: "var(--blue-dim)", Icon: MailIcon },
 };
 const TASK_TYPE_KEYS = Object.keys(TASK_TYPE_META);
@@ -469,7 +469,7 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                         left: `calc(${eventsLeftPct + colIndex * widthPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
                         background: active ? "var(--blue)" : "var(--blue-dim)",
                         color: active ? "#fff" : "var(--blue)",
-                        border: "0.5px solid #2563eb55", borderRadius: "6px", padding: "4px 6px",
+                        border: "0.5px solid #315c8a55", borderRadius: "6px", padding: "4px 6px",
                         textAlign: "left", overflow: "hidden", zIndex: 2, fontSize: "11px", cursor: "pointer",
                       }}
                     >
@@ -571,7 +571,7 @@ ${context}`;
               <div className="display" style={{ fontWeight: 700, fontSize: "14px" }}>{prospect.name}</div>
               <div style={{ color: "var(--text-dim)", fontSize: "12px" }}>{prospect.company}</div>
             </div>
-            <button className="focusable" onClick={() => onOpenProspect?.(prospect.id)} style={{ marginLeft: "auto", fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55" }}>
+            <button className="focusable" onClick={() => onOpenProspect?.(prospect.id)} style={{ marginLeft: "auto", fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55" }}>
               Ouvrir le dossier
             </button>
           </div>
@@ -594,7 +594,7 @@ ${context}`;
             </div>
           )}
 
-          <button className="focusable" onClick={generatePrep} disabled={loadingPrep} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px", marginBottom: "12px", opacity: loadingPrep ? 0.6 : 1 }}>
+          <button className="focusable" onClick={generatePrep} disabled={loadingPrep} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "9px", fontSize: "13px", marginBottom: "12px", opacity: loadingPrep ? 0.6 : 1 }}>
             <SparklesIcon size={13} color="var(--blue)" /> {loadingPrep ? "Préparation..." : "Préparer avec l'IA"}
           </button>
           {error && <div style={{ color: "var(--red)", fontSize: "12px", marginBottom: "10px" }}>{error}</div>}
@@ -633,7 +633,7 @@ function DaySummaryBar({ overdueCount, todayCount, onOrganize, organizing }) {
     <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px 16px", marginBottom: "16px" }}>
       <span style={{ fontSize: "13px", fontWeight: 600 }}>{todayCount} action{todayCount > 1 ? "s" : ""} aujourd'hui</span>
       {overdueCount > 0 && <span style={{ fontSize: "12.5px", color: "var(--red)", fontWeight: 600 }}>⚠ {overdueCount} en retard</span>}
-      <button className="focusable" onClick={onOrganize} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "6px", background: organizing ? "var(--blue)" : "var(--blue-dim)", color: organizing ? "#fff" : "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "8px 14px", fontSize: "12.5px", fontWeight: 600 }}>
+      <button className="focusable" onClick={onOrganize} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "6px", background: organizing ? "var(--blue)" : "var(--blue-dim)", color: organizing ? "#fff" : "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "8px 14px", fontSize: "12.5px", fontWeight: 600 }}>
         <SparklesIcon size={12} color={organizing ? "#fff" : "var(--blue)"} /> Organiser ma journée
       </button>
     </div>
@@ -802,7 +802,7 @@ function TaskDetailPanel({ task, prospect, onClose, onDone, onReport, onOpenPros
       )}
 
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-        <button className="focusable" onClick={onDone} style={{ flex: 1, background: "#e2f7ec", color: "#0ea968", border: "none", borderRadius: "8px", padding: "9px", fontSize: "13px", fontWeight: 600 }}>
+        <button className="focusable" onClick={onDone} style={{ flex: 1, background: "#eaf1ec", color: "#527a61", border: "none", borderRadius: "8px", padding: "9px", fontSize: "13px", fontWeight: 600 }}>
           Terminer
         </button>
       </div>
@@ -863,7 +863,7 @@ function AddActionForm({ prospects, session, onCreated, onCancel }) {
       <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={field} />
       <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={field} />
       <div style={{ gridColumn: "1 / -1", display: "flex", gap: "8px" }}>
-        <button type="submit" disabled={saving || !prospectId || !note.trim()} className="focusable" style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px", fontSize: "13px", fontWeight: 600 }}>
+        <button type="submit" disabled={saving || !prospectId || !note.trim()} className="focusable" style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "9px", fontSize: "13px", fontWeight: 600 }}>
           {saving ? "Création..." : "Créer"}
         </button>
         <button type="button" onClick={onCancel} className="focusable" style={{ background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px 16px", fontSize: "13px" }}>
@@ -906,7 +906,7 @@ ${list || "Aucune."}`;
   }
 
   return (
-    <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2563eb55", borderRadius: "12px", padding: "16px", marginBottom: "18px" }}>
+    <div style={{ background: "var(--blue-dim)", border: "0.5px solid #315c8a55", borderRadius: "12px", padding: "16px", marginBottom: "18px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
         <span className="display" style={{ fontWeight: 700, fontSize: "13px", color: "var(--blue)" }}>✨ Closia organise votre journée</span>
         <button className="focusable" onClick={onClose} style={{ background: "none", border: "none", color: "var(--blue)", fontSize: "13px" }}>✕</button>

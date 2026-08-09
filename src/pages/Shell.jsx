@@ -110,7 +110,7 @@ export default function Shell({ session, team, reloadTeam }) {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} prospects={prospects} />
       <div style={{ flex: 1, minWidth: 0 }}>
         {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} onOpenProspect={openProspect} settings={settings} />}
         {activeTab === "planning" && <Agenda prospects={prospects} session={session} onOpenProspect={openProspect} settings={settings} />}
