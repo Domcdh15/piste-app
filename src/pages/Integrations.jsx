@@ -11,8 +11,8 @@ function badgeColor(label) {
 const CATEGORIES = ["Toutes", "Agenda", "CRM", "Email", "Productivité"];
 
 const CATALOG = [
-  { key: "google", label: "Google Calendar", category: "Agenda", desc: "Synchronisez vos rendez-vous avec votre agenda Closia.", real: true, permissions: "Lecture de l'agenda (calendar.readonly)" },
-  { key: "microsoft", label: "Outlook Calendar", category: "Agenda", desc: "Synchronisez vos événements et rendez-vous Outlook.", real: true, permissions: "Lecture de l'agenda (Calendars.Read)" },
+  { key: "google", label: "Google Calendar", category: "Agenda", desc: "Synchronisez vos rendez-vous et envoyez vos relances directement depuis Gmail.", real: true, permissions: "Lecture de l'agenda (calendar.readonly) et envoi d'email (gmail.send)" },
+  { key: "microsoft", label: "Outlook Calendar", category: "Agenda", desc: "Synchronisez vos événements et envoyez vos relances directement depuis Outlook.", real: true, permissions: "Lecture de l'agenda (Calendars.Read) et envoi d'email (Mail.Send)" },
   { key: "hubspot", label: "HubSpot", category: "CRM", desc: "Synchronisez vos contacts, entreprises et opportunités avec Closia." },
   { key: "salesforce", label: "Salesforce", category: "CRM", desc: "Centralisez vos comptes, contacts et opportunités Salesforce dans Closia." },
   { key: "pipedrive", label: "Pipedrive", category: "CRM", desc: "Synchronisez vos prospects et opportunités avec Closia." },
@@ -235,7 +235,7 @@ function ConnectConfirmModal({ tool, onCancel, onConfirm }) {
           <span className="display" style={{ fontWeight: 700, fontSize: "15px" }}>Connecter {tool.label}</span>
         </div>
         <div style={{ fontSize: "13px", color: "var(--text-dim)", lineHeight: 1.5, marginBottom: "14px" }}>
-          Closia va lire vos rendez-vous à venir dans {tool.label} pour les afficher dans votre agenda. Vous serez redirigé vers {tool.label} pour autoriser l'accès.
+          Closia va lire vos rendez-vous à venir dans {tool.label} pour les afficher dans votre agenda, et pourra envoyer des emails de relance en votre nom lorsque vous cliquez sur "Envoyer". Vous serez redirigé vers {tool.label} pour autoriser l'accès.
         </div>
         <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginBottom: "18px" }}>Permissions demandées : {tool.permissions}</div>
         <div style={{ display: "flex", gap: "8px" }}>
