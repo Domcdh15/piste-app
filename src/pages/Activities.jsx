@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { Avatar, formatShortDate, formatEuros, callAI, parseJsonLoose, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, ListIcon, UsersIcon, LinkedinIcon, AlertIcon, PageTitle } from "../lib/ui.jsx";
+import { Avatar, formatShortDate, formatEuros, callAI, parseJsonLoose, STATUS_META, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, ListIcon, UsersIcon, LinkedinIcon, AlertIcon, PageTitle } from "../lib/ui.jsx";
 
 const PERIOD_DAYS = { "7": 7, "30": 30, "90": 90 };
 const PERIODS = [["7", "7 jours"], ["30", "30 jours"], ["90", "90 jours"]];
@@ -383,7 +383,9 @@ Durée moyenne du cycle de vente : ${avgCycle !== null ? avgCycle + " jours" : "
         </div>
       </div>
 
-      <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2563eb55", borderRadius: "12px", padding: "16px" }}>
+      <CustomMetricsSection prospects={prospects} activities={activities} session={session} />
+
+      <div style={{ background: "var(--blue-dim)", border: "0.5px solid #2563eb55", borderRadius: "12px", padding: "16px", marginBottom: "26px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
           <span className="display" style={{ fontWeight: 700, fontSize: "13px", color: "var(--blue)" }}>✨ Ce que Closia remarque</span>
           {!insight && (
@@ -495,3 +497,215 @@ function ActivityTrendChart({ activities, feedItems, days, filter }) {
     </div>
   );
 }
+
+const METRIC_DIMENSIONS = [
+  { key: "stage", label: "Étape du pipeline", source: "prospects" },
+  { key: "status", label: "Statut", source: "prospects" },
+  { key: "activity_type", label: "Type d'activité", source: "activities" },
+  { key: "weekday", label: "Jour de la semaine", source: "activities" },
+];
+
+const METRIC_MEASURES = [
+  { key: "count", label: "Nombre" },
+  { key: "value", label: "Valeur totale (€)", requiresSource: "prospects" },
+];
+
+const CHART_TYPES = [
+  { key: "bar", label: "Barres" },
+  { key: "pie", label: "Camembert" },
+  { key: "table", label: "Tableau" },
+];
+
+const WEEKDAY_LABELS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+const METRIC_PALETTE = ["#2563eb", "#b8862e", "#16a34a", "#dc2626", "#7c3aed", "#64748b", "#0ea5e9", "#ea580c"];
+
+function computeMetricData(prospects, activities, dimensionKey, measureKey) {
+  const dim = METRIC_DIMENSIONS.find((d) => d.key === dimensionKey);
+  if (!dim) return [];
+  const groups = {};
+
+  if (dim.source === "prospects") {
+    prospects.forEach((p) => {
+      const key = dimensionKey === "stage" ? (p.stage || "—") : (STATUS_META[p.status]?.label || p.status || "—");
+      groups[key] = groups[key] || { count: 0, value: 0 };
+      groups[key].count += 1;
+      groups[key].value += p.deal_value || 0;
+    });
+  } else {
+    activities.forEach((a) => {
+      const key = dimensionKey === "activity_type" ? (ACTIVITY_LABEL[a.type] || a.type) : WEEKDAY_LABELS[new Date(a.created_at).getDay()];
+      groups[key] = groups[key] || { count: 0, value: 0 };
+      groups[key].count += 1;
+    });
+  }
+
+  return Object.entries(groups)
+    .map(([label, g]) => ({ label, value: measureKey === "value" ? g.value : g.count }))
+    .sort((a, b) => b.value - a.value);
+}
+
+function CustomMetricsSection({ prospects, activities, session }) {
+  const [saved, setSaved] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showBuilder, setShowBuilder] = useState(false);
+  const [name, setName] = useState("");
+  const [dimension, setDimension] = useState("stage");
+  const [measure, setMeasure] = useState("count");
+  const [chartType, setChartType] = useState("bar");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    supabase.from("custom_metrics").select("*").eq("user_id", session.user.id).order("created_at", { ascending: true }).then(({ data }) => {
+      setSaved(data || []);
+      setLoading(false);
+    });
+  }, [session.user.id]);
+
+  const dimMeta = METRIC_DIMENSIONS.find((d) => d.key === dimension);
+  const availableMeasures = METRIC_MEASURES.filter((m) => !m.requiresSource || m.requiresSource === dimMeta?.source);
+
+  useEffect(() => {
+    if (!availableMeasures.find((m) => m.key === measure)) setMeasure(availableMeasures[0]?.key || "count");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dimension]);
+
+  async function saveMetric() {
+    if (!name.trim()) return;
+    setSaving(true);
+    const { data, error } = await supabase.from("custom_metrics").insert({ user_id: session.user.id, name: name.trim(), dimension, measure, chart_type: chartType }).select().single();
+    setSaving(false);
+    if (!error && data) {
+      setSaved((prev) => [...prev, data]);
+      setName("");
+      setShowBuilder(false);
+    }
+  }
+
+  async function removeMetric(id) {
+    await supabase.from("custom_metrics").delete().eq("id", id);
+    setSaved((prev) => prev.filter((m) => m.id !== id));
+  }
+
+  const previewData = computeMetricData(prospects, activities, dimension, measure);
+
+  return (
+    <div style={{ marginBottom: "26px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+        <div className="display" style={{ fontWeight: 700, fontSize: "13px" }}>Vos métriques personnalisées</div>
+        <button className="focusable" onClick={() => setShowBuilder((s) => !s)} style={{ fontSize: "11.5px", fontWeight: 600, padding: "6px 12px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55" }}>
+          {showBuilder ? "Annuler" : "+ Créer une métrique"}
+        </button>
+      </div>
+
+      {showBuilder && (
+        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px", marginBottom: "14px" }}>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "12px" }}>
+            <select value={dimension} onChange={(e) => setDimension(e.target.value)} style={selectSm}>
+              {METRIC_DIMENSIONS.map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
+            </select>
+            <span style={{ alignSelf: "center", fontSize: "12px", color: "var(--text-faint)" }}>croisé avec</span>
+            <select value={measure} onChange={(e) => setMeasure(e.target.value)} style={selectSm}>
+              {availableMeasures.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+            </select>
+            <span style={{ alignSelf: "center", fontSize: "12px", color: "var(--text-faint)" }}>en</span>
+            <select value={chartType} onChange={(e) => setChartType(e.target.value)} style={selectSm}>
+              {CHART_TYPES.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+            </select>
+          </div>
+
+          <MetricChart data={previewData} chartType={chartType} measure={measure} />
+
+          <div style={{ display: "flex", gap: "8px", marginTop: "14px", alignItems: "center" }}>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom de la métrique (ex : Deals par étape)" style={{ ...selectSm, flex: 1 }} />
+            <button className="focusable" onClick={saveMetric} disabled={saving || !name.trim()} style={{ fontSize: "12px", fontWeight: 600, padding: "8px 14px", borderRadius: "6px", background: "var(--blue)", color: "#fff", border: "none", opacity: saving || !name.trim() ? 0.6 : 1 }}>
+              {saving ? "Enregistrement..." : "Enregistrer"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!loading && saved.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "12px" }}>
+          {saved.map((m) => (
+            <div key={m.id} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                <span className="display" style={{ fontWeight: 600, fontSize: "12.5px" }}>{m.name}</span>
+                <button className="focusable" onClick={() => removeMetric(m.id)} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "12px" }}>✕</button>
+              </div>
+              <MetricChart data={computeMetricData(prospects, activities, m.dimension, m.measure)} chartType={m.chart_type} measure={m.measure} compact />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MetricChart({ data, chartType, measure, compact }) {
+  if (data.length === 0) return <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Pas de données pour ce croisement.</div>;
+  const fmt = (v) => (measure === "value" ? formatEuros(v) : v);
+
+  if (chartType === "table") {
+    return (
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: compact ? "11.5px" : "12.5px" }}>
+        <tbody>
+          {data.map((d, i) => (
+            <tr key={i} style={{ borderBottom: "0.5px solid var(--hairline)" }}>
+              <td style={{ padding: "5px 4px", color: "var(--text)" }}>{d.label}</td>
+              <td style={{ padding: "5px 4px", textAlign: "right", fontWeight: 600, color: "var(--text)" }} className="mono">{fmt(d.value)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
+  if (chartType === "pie") {
+    const total = data.reduce((s, d) => s + d.value, 0) || 1;
+    let acc = 0;
+    const stops = data.map((d, i) => {
+      const start = (acc / total) * 360;
+      acc += d.value;
+      const end = (acc / total) * 360;
+      return `${METRIC_PALETTE[i % METRIC_PALETTE.length]} ${start}deg ${end}deg`;
+    });
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+        <div style={{ width: compact ? "80px" : "110px", height: compact ? "80px" : "110px", borderRadius: "50%", background: `conic-gradient(${stops.join(", ")})`, flexShrink: 0 }} />
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+          {data.slice(0, 8).map((d, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: compact ? "11px" : "12px" }}>
+              <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: METRIC_PALETTE[i % METRIC_PALETTE.length], flexShrink: 0 }} />
+              <span style={{ color: "var(--text-dim)" }}>{d.label}</span>
+              <span className="mono" style={{ fontWeight: 600, color: "var(--text)" }}>{fmt(d.value)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const max = Math.max(...data.map((d) => d.value), 1);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+      {data.slice(0, 10).map((d, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ width: compact ? "70px" : "100px", fontSize: compact ? "11px" : "12px", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 0 }}>{d.label}</span>
+          <div style={{ flex: 1, height: "14px", background: "var(--panel2)", borderRadius: "3px", overflow: "hidden" }}>
+            <div style={{ width: `${Math.max((d.value / max) * 100, 3)}%`, height: "100%", background: "var(--blue)", borderRadius: "3px" }} />
+          </div>
+          <span className="mono" style={{ fontSize: compact ? "11px" : "12px", fontWeight: 600, color: "var(--text)", width: "56px", textAlign: "right", flexShrink: 0 }}>{fmt(d.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const selectSm = {
+  background: "var(--panel2)",
+  border: "0.5px solid var(--hairline)",
+  borderRadius: "8px",
+  color: "var(--text)",
+  fontSize: "13px",
+  padding: "8px 10px",
+};
