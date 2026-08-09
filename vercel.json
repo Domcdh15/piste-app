@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/calendar/status?action=vacation_check", "schedule": "0 8 * * *" }
+  ]
+}

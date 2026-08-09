@@ -11,10 +11,10 @@
   --text-dim: #6d706f;
   --text-faint: #a1a29c;
 
-  /* identity accent — blue encre, used sparingly */
-  --blue: #315c8a;
-  --blue-deep: #24476b;
-  --blue-dim: #e8eff6;
+  /* identity accent, used sparingly */
+  --blue: #4c9ad4;
+  --blue-deep: #2f6fa3;
+  --blue-dim: #eaf3fb;
 
   /* AI accent, kept distinct and rare */
   --violet: #7c3aed;
@@ -110,4 +110,17 @@ button {
 }
 .row-hover:hover {
   background: var(--panel2);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 40px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
 }

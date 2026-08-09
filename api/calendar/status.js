@@ -1,9 +1,68 @@
 import { supabaseAdmin, getUserFromToken, bearerToken } from "../_lib/supabase.js";
-import { ensureFreshToken, sendEmail } from "../_lib/providers.js";
+import { ensureFreshToken, sendEmail, listRecentMessages } from "../_lib/providers.js";
 
-// L'envoi d'email vit ici (et non dans son propre fichier) pour rester sous la limite
-// de 12 fonctions serverless du plan Vercel Hobby — voir les autres endpoints calendar/*.
+function buildVacationReply(s) {
+  const lines = [(s.vacation_message || "").trim() || "Je suis actuellement absent(e)."];
+  if (s.vacation_return_at) {
+    lines.push(`Je serai de retour le ${new Date(s.vacation_return_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}.`);
+  }
+  if (s.vacation_redirect_name || s.vacation_redirect_email) {
+    lines.push(`En cas d'urgence, vous pouvez contacter ${[s.vacation_redirect_name, s.vacation_redirect_email && `(${s.vacation_redirect_email})`].filter(Boolean).join(" ")}.`);
+  }
+  return lines.join("\n\n");
+}
+
+async function runVacationCheck(admin) {
+  const { data: rows } = await admin.from("user_settings").select("*").eq("vacation_mode_enabled", true);
+  let repliesSent = 0;
+
+  for (const s of rows || []) {
+    const { data: conns } = await admin.from("calendar_connections").select("*").eq("user_id", s.user_id);
+    const since = s.vacation_last_checked_at || new Date(Date.now() - 2 * 3600000).toISOString();
+    const already = new Set(s.vacation_replied_senders || []);
+    const newlyReplied = [];
+
+    for (const conn of conns || []) {
+      try {
+        const accessToken = await ensureFreshToken(admin, conn);
+        const messages = await listRecentMessages(conn.provider, accessToken, since);
+        for (const msg of messages) {
+          if (already.has(msg.from) || newlyReplied.includes(msg.from)) continue;
+          await sendEmail(conn.provider, accessToken, {
+            to: msg.from,
+            subject: msg.subject ? `Re: ${msg.subject}` : "Réponse automatique",
+            body: buildVacationReply(s),
+          });
+          newlyReplied.push(msg.from);
+          repliesSent++;
+        }
+      } catch (e) {
+        // une connexion en échec (token expiré, scope manquant, etc.) ne doit pas bloquer les autres utilisateurs
+        continue;
+      }
+    }
+
+    await admin
+      .from("user_settings")
+      .update({ vacation_last_checked_at: new Date().toISOString(), vacation_replied_senders: [...already, ...newlyReplied] })
+      .eq("user_id", s.user_id);
+  }
+
+  return repliesSent;
+}
+
+// L'envoi d'email et la vérification du mode absence vivent ici (et non dans leur propre
+// fichier) pour rester sous la limite de 12 fonctions serverless du plan Vercel Hobby.
 export default async function handler(req, res) {
+  if (req.method === "GET" && req.query?.action === "vacation_check") {
+    const auth = req.headers.authorization || "";
+    if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+      return res.status(401).json({ error: "Non autorisé" });
+    }
+    const repliesSent = await runVacationCheck(supabaseAdmin());
+    return res.status(200).json({ ok: true, repliesSent });
+  }
+
   const user = await getUserFromToken(bearerToken(req));
   if (!user) return res.status(401).json({ error: "Non authentifié" });
 

@@ -178,7 +178,7 @@ function ActivityTab({ prospects, feedItems, activities, loading, filter, setFil
             key={key}
             className="focusable"
             onClick={() => setFilter(key)}
-            style={{ padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 500, background: filter === key ? "var(--blue-dim)" : "var(--panel2)", color: filter === key ? "var(--blue)" : "var(--text-dim)", border: filter === key ? "0.5px solid #315c8a55" : "0.5px solid var(--hairline)" }}
+            style={{ padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 500, background: filter === key ? "var(--blue-dim)" : "var(--panel2)", color: filter === key ? "var(--blue)" : "var(--text-dim)", border: filter === key ? "0.5px solid #4c9ad455" : "0.5px solid var(--hairline)" }}
           >
             {label}
           </button>
@@ -429,7 +429,7 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
       </div>
 
       {/* Métrique phare */}
-      <div style={{ background: "var(--blue-dim)", border: "0.5px solid #315c8a55", borderRadius: "12px", padding: "18px", marginBottom: "22px", textAlign: "center" }}>
+      <div style={{ background: "var(--blue-dim)", border: "0.5px solid #4c9ad455", borderRadius: "12px", padding: "18px", marginBottom: "22px", textAlign: "center" }}>
         <div style={{ fontSize: "11px", color: "var(--blue)", fontWeight: 700, letterSpacing: "0.02em", marginBottom: "6px" }}>LA MÉTRIQUE LA PLUS IMPORTANTE</div>
         <div className="mono" style={{ fontSize: "32px", fontWeight: 700, color: "var(--text)" }}>{pctWithNextAction !== null ? `${pctWithNextAction}%` : "—"}</div>
         <div style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>des opportunités ont une prochaine action planifiée — aucun deal ne devrait tomber dans l'oubli.</div>
@@ -512,11 +512,11 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
 
       <CustomMetricsSection prospects={prospects} activities={activities} session={session} days={days} />
 
-      <div style={{ background: "var(--blue-dim)", border: "0.5px solid #315c8a55", borderRadius: "12px", padding: "16px", marginBottom: "26px" }}>
+      <div style={{ background: "var(--blue-dim)", border: "0.5px solid #4c9ad455", borderRadius: "12px", padding: "16px", marginBottom: "26px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
           <span className="display" style={{ fontWeight: 700, fontSize: "13px", color: "var(--blue)" }}>✨ Ce que Closia remarque</span>
           {!insight && (
-            <button className="focusable" onClick={generateInsight} disabled={loadingInsight} style={{ fontSize: "11px", padding: "5px 10px", borderRadius: "6px", background: "var(--panel)", color: "var(--blue)", border: "0.5px solid #315c8a40" }}>
+            <button className="focusable" onClick={generateInsight} disabled={loadingInsight} style={{ fontSize: "11px", padding: "5px 10px", borderRadius: "6px", background: "var(--panel)", color: "var(--blue)", border: "0.5px solid #4c9ad440" }}>
               {loadingInsight ? "Analyse..." : "Générer"}
             </button>
           )}
@@ -632,7 +632,7 @@ const CHART_TYPES = [
 ];
 
 const WEEKDAY_LABELS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
-const METRIC_PALETTE = ["#315c8a", "#b8862e", "#16a34a", "#dc2626", "#7c3aed", "#64748b", "#0ea5e9", "#ea580c"];
+const METRIC_PALETTE = ["#4c9ad4", "#b8862e", "#16a34a", "#dc2626", "#7c3aed", "#64748b", "#0ea5e9", "#ea580c"];
 
 function computeMetricData(prospects, activities, dimensionKey, measureKey, periodDays) {
   const dim = METRIC_DIMENSIONS.find((d) => d.key === dimensionKey);
@@ -834,7 +834,7 @@ function CustomMetricsSection({ prospects, activities, session, days }) {
     <div style={{ marginBottom: "26px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
         <div className="display" style={{ fontWeight: 700, fontSize: "13px" }}>Vos métriques personnalisées</div>
-        <button className="focusable" onClick={() => setShowBuilder((s) => !s)} style={{ fontSize: "11.5px", fontWeight: 600, padding: "6px 12px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55" }}>
+        <button className="focusable" onClick={() => setShowBuilder((s) => !s)} style={{ fontSize: "11.5px", fontWeight: 600, padding: "6px 12px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #4c9ad455" }}>
           {showBuilder ? "Fermer" : "+ Créer une métrique"}
         </button>
       </div>

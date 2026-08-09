@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import {
-  computeDealScore,
   computeHotProspects,
   computeAtRiskDeals,
   SCRIPT_SECTIONS,
@@ -18,7 +17,6 @@ import {
   SCRIPT_TEMPLATES,
   appendSignature,
   nearestPriorityLevel,
-  Avatar,
   SparklesIcon,
   CalendarIcon,
   CheckIcon,
@@ -30,6 +28,8 @@ import {
   PinIcon,
   LinkedinIcon,
   ArrowLeftIcon,
+  ListIcon,
+  UsersIcon,
   inputStyle,
   selectStyle,
 } from "../lib/ui.jsx";
@@ -642,6 +642,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
   const [dealValueInput, setDealValueInput] = useState(prospect.deal_value ?? 0);
   const [taskVersion, setTaskVersion] = useState(0);
   const toolsRef = useRef(null);
+  const noteRef = useRef(null);
 
   useEffect(() => {
     setDealValueInput(prospect.deal_value ?? 0);
@@ -650,6 +651,10 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
   function goToTab(key) {
     setTab(key);
     toolsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function goToNote() {
+    noteRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function commitDealValue() {
@@ -668,193 +673,208 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
     onUpdate(changes);
   }
 
-  const temperature = prospectTemperature(prospect);
+  const starred = (prospect.priority || 0) >= 75;
+  function toggleStar() {
+    onUpdate({ priority: starred ? 50 : 100 });
+  }
+
+  const showOwners = team && (team.team?.has_multiple_sales || team.team?.has_multiple_csm);
 
   return (
-    <div style={{ padding: "24px 32px 60px", maxWidth: "1080px", margin: "0 auto" }}>
-      <button className="focusable" onClick={onBack} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: "4px 0", marginBottom: "16px", color: "var(--text-dim)", fontSize: "13px" }}>
-        <ArrowLeftIcon size={14} color="var(--text-dim)" /> {backLabel || "Retour à la file de priorité"}
+    <div style={{ padding: "28px 40px 64px", maxWidth: "1040px", margin: "0 auto" }}>
+      <button className="focusable" onClick={onBack} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: "4px 0", marginBottom: "20px", color: "var(--text-dim)", fontSize: "13px" }}>
+        <ArrowLeftIcon size={14} color="var(--text-dim)" /> {backLabel || "Retour au pipeline"}
       </button>
 
-      <div style={{ display: "grid", gridTemplateColumns: "300px minmax(0,1fr)", gap: "24px", alignItems: "start" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "10px" }}>
-              <Avatar name={prospect.name} stage={prospect.stage} size={48} />
-              <div style={{ minWidth: 0 }}>
-                <div className="display" style={{ fontWeight: 700, fontSize: "17px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {prospect.civility && prospect.civility !== "-" ? `${prospect.civility} ` : ""}{prospect.name}
-                </div>
-                <div style={{ color: "var(--text-dim)", fontSize: "12.5px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {prospect.job_title ? `${prospect.job_title} · ` : ""}{prospect.company}
-                </div>
-              </div>
-            </div>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px" }}>
+        <div className="display" style={{ fontWeight: 600, fontSize: "23px", overflow: "hidden", textOverflow: "ellipsis" }}>{prospect.company}</div>
+        <button className="focusable" onClick={toggleStar} title={starred ? "Retirer la priorité" : "Marquer prioritaire"} style={{ background: "none", border: "none", padding: 0, fontSize: "22px", lineHeight: 1, color: starred ? "var(--blue)" : "var(--text-faint)" }}>
+          {starred ? "★" : "☆"}
+        </button>
+      </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginBottom: "8px" }}>
-              {prospect.stage === "Gagné" && (
-                <span className="mono" style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "10px", fontWeight: 700, color: "#527a61", background: "#eaf1ec", border: "0.5px solid #527a6155", borderRadius: "6px", padding: "3px 7px" }}>
-                  <TrophyIcon size={10} color="#527a61" /> CLIENT
-                </span>
-              )}
-              {temperature && (
-                <span style={{ fontSize: "11px", fontWeight: 700, color: temperature.color, background: temperature.bg, borderRadius: "999px", padding: "3px 9px" }}>
-                  {temperature.emoji} {temperature.label}
-                </span>
-              )}
-              {prospect.deal_value > 0 && (
-                <span className="mono" style={{ fontSize: "11px", fontWeight: 700, color: "var(--gold-deep)", background: "var(--gold-dim)", borderRadius: "999px", padding: "3px 9px" }}>
-                  {formatEuros(prospect.deal_value)}
-                </span>
-              )}
-            </div>
+      <div style={{ marginTop: "6px", fontSize: "15px", fontWeight: 500, color: "var(--text)" }}>
+        {prospect.civility && prospect.civility !== "-" ? `${prospect.civility} ` : ""}{prospect.name}
+      </div>
+      {prospect.job_title && <div style={{ fontSize: "13px", color: "var(--text-dim)", marginTop: "1px" }}>{prospect.job_title}</div>}
 
-            <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>
-              Dernier contact : {prospect.last_contact_at ? formatShortDate(prospect.last_contact_at) : "jamais"}
-            </div>
-
-            <ProspectOwnersReadout team={team} prospect={prospect} />
-          </div>
-
-          <PipelineStepper stage={prospect.stage} onChange={handleStageChange} />
-
-          {(prospect.email || prospect.phone || prospect.linkedin_url) && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              {prospect.email && (
-                <a href={`mailto:${prospect.email}`} style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--blue)", fontSize: "12.5px", textDecoration: "none", minWidth: 0 }}>
-                  <MailIcon size={12} color="var(--blue)" /> <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{prospect.email}</span>
-                </a>
-              )}
-              {prospect.phone && (
-                <a href={`tel:${prospect.phone}`} style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--blue)", fontSize: "12.5px", textDecoration: "none" }}>
-                  <PhoneIcon size={12} color="var(--blue)" /> {prospect.phone}
-                </a>
-              )}
-              {prospect.linkedin_url && (
-                <a href={prospect.linkedin_url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--blue)", fontSize: "12.5px", textDecoration: "none" }}>
-                  <LinkedinIcon size={12} color="var(--blue)" /> LinkedIn
-                </a>
-              )}
-            </div>
-          )}
-
-          {team && (team.team?.has_multiple_sales || team.team?.has_multiple_csm) && (
-            <ProspectOwnersPanel prospect={prospect} session={session} team={team} onAssigned={reload} />
-          )}
-
-          <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginTop: "4px" }}>ACTIONS RAPIDES</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            {prospect.phone && (
-              <a href={`tel:${prospect.phone}`} className="focusable" style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: "var(--text)", textDecoration: "none" }}>
-                <PhoneIcon size={12} color="var(--blue)" /> Appeler
-              </a>
-            )}
-            {prospect.email && (
-              <a href={`mailto:${prospect.email}`} className="focusable" style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: "var(--text)", textDecoration: "none" }}>
-                <MailIcon size={12} color="var(--blue)" /> Envoyer un email
-              </a>
-            )}
-            <button className="focusable" onClick={() => onUpdate({ last_contact_at: new Date().toISOString() })} style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: "var(--text)" }}>
-              <CheckIcon size={12} color="#527a61" /> Marquer contacté aujourd'hui
-            </button>
-            <button className="focusable" onClick={() => goToTab("devis")} style={{ display: "flex", alignItems: "center", gap: "8px", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: "var(--text)" }}>
-              <MailIcon size={12} color="var(--gold-deep)" /> Générer un devis
-            </button>
-            <button className="focusable" onClick={() => setShowEdit((s) => !s)} style={{ display: "flex", alignItems: "center", gap: "8px", background: showEdit ? "var(--blue-dim)" : "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: showEdit ? "var(--blue)" : "var(--text)" }}>
-              {showEdit ? "Fermer l'édition" : "Modifier la fiche"}
-            </button>
-            {confirmDelete ? (
-              <div style={{ display: "flex", gap: "6px" }}>
-                <button className="focusable" onClick={onDelete} style={{ flex: 1, fontSize: "12px", padding: "8px", borderRadius: "8px", background: "var(--red-dim)", color: "var(--red)", border: "0.5px solid var(--red)55" }}>Confirmer</button>
-                <button className="focusable" onClick={() => setConfirmDelete(false)} style={{ flex: 1, fontSize: "12px", padding: "8px", borderRadius: "8px", background: "transparent", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>Annuler</button>
-              </div>
-            ) : (
-              <button className="focusable" onClick={() => setConfirmDelete(true)} style={{ display: "flex", alignItems: "center", gap: "8px", background: "transparent", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 10px", fontSize: "12.5px", color: "var(--text-faint)" }}>
-                Supprimer la fiche
-              </button>
-            )}
-          </div>
-
-          {showEdit && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <EditProspectForm
-                prospect={prospect}
-                onSave={(changes) => onUpdate(changes)}
-                onCancel={() => setShowEdit(false)}
-              />
-              <div>
-                <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>STATUT</div>
-                <select value={prospect.status} onChange={(e) => onUpdate({ status: e.target.value })} style={{ ...selectStyle, width: "100%" }}>
-                  <option value="appeler">À appeler</option>
-                  <option value="relancer">À relancer</option>
-                  <option value="attente">En attente</option>
-                  <option value="retard">En retard</option>
-                </select>
-              </div>
-              <div>
-                <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>PROCHAIN CONTACT</div>
-                <input
-                  type="date"
-                  value={prospect.next_contact_at ? prospect.next_contact_at.slice(0, 10) : ""}
-                  onChange={(e) => onUpdate({ next_contact_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
-                  style={{ ...selectStyle, width: "100%", color: isOverdue(prospect.next_contact_at) ? "var(--red)" : "var(--text)" }}
-                />
-              </div>
-              <div>
-                <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>MONTANT DU DEAL (€)</div>
-                <input
-                  type="number"
-                  min="0"
-                  value={dealValueInput}
-                  onChange={(e) => setDealValueInput(e.target.value)}
-                  onBlur={commitDealValue}
-                  onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }}
-                  style={{ ...selectStyle, width: "100%" }}
-                />
-              </div>
-            </div>
-          )}
+      {(prospect.email || prospect.phone || prospect.linkedin_url) && (
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px", fontSize: "13px", color: "var(--blue)" }}>
+          {[
+            prospect.email && <a key="email" href={`mailto:${prospect.email}`} style={{ color: "var(--blue)", textDecoration: "none" }}>{prospect.email}</a>,
+            prospect.phone && <a key="phone" href={`tel:${prospect.phone}`} style={{ color: "var(--blue)", textDecoration: "none" }}>{prospect.phone}</a>,
+            prospect.linkedin_url && <a key="li" href={prospect.linkedin_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)", textDecoration: "none" }}>LinkedIn</a>,
+          ].filter(Boolean).reduce((acc, el, i) => (i === 0 ? [el] : [...acc, <span key={`sep-${i}`} style={{ color: "var(--text-faint)" }}> · </span>, el]), [])}
         </div>
+      )}
 
+      <ProspectOwnersReadout team={team} prospect={prospect} />
+
+      {/* Quick actions */}
+      <div style={{ display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap", marginTop: "18px" }}>
+        {prospect.email ? (
+          <a href={`mailto:${prospect.email}`} className="focusable" style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "var(--blue)", color: "#fff", borderRadius: "8px", padding: "8px 16px", fontSize: "13px", fontWeight: 500, textDecoration: "none" }}>
+            <MailIcon size={13} color="#fff" /> Email
+          </a>
+        ) : prospect.phone ? (
+          <a href={`tel:${prospect.phone}`} className="focusable" style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "var(--blue)", color: "#fff", borderRadius: "8px", padding: "8px 16px", fontSize: "13px", fontWeight: 500, textDecoration: "none" }}>
+            <PhoneIcon size={13} color="#fff" /> Appeler
+          </a>
+        ) : null}
+        {prospect.phone && prospect.email && (
+          <a href={`tel:${prospect.phone}`} className="focusable" style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "var(--text-dim)", fontSize: "13px", fontWeight: 500, textDecoration: "none" }}>
+            <PhoneIcon size={13} color="var(--text-dim)" /> Appeler
+          </a>
+        )}
+        <button className="focusable" onClick={goToNote} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
+          Ajouter une note
+        </button>
+        <button className="focusable" onClick={() => goToTab("taches")} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
+          Ajouter une tâche
+        </button>
+        <button className="focusable" onClick={() => onUpdate({ last_contact_at: new Date().toISOString() })} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
+          Marquer contacté
+        </button>
+        <button className="focusable" onClick={() => setShowEdit((s) => !s)} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: showEdit ? "var(--blue)" : "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
+          Modifier
+        </button>
+      </div>
+
+      {showEdit && (
+        <div style={{ marginTop: "16px" }}>
+          <EditProspectForm
+            prospect={prospect}
+            onSave={(changes) => onUpdate(changes)}
+            onCancel={() => setShowEdit(false)}
+          />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px" }}>
+            <div>
+              <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>STATUT</div>
+              <select value={prospect.status} onChange={(e) => onUpdate({ status: e.target.value })} style={{ ...selectStyle, width: "100%" }}>
+                <option value="appeler">À appeler</option>
+                <option value="relancer">À relancer</option>
+                <option value="attente">En attente</option>
+                <option value="retard">En retard</option>
+              </select>
+            </div>
+            <div>
+              <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>PROCHAIN CONTACT</div>
+              <input
+                type="date"
+                value={prospect.next_contact_at ? prospect.next_contact_at.slice(0, 10) : ""}
+                onChange={(e) => onUpdate({ next_contact_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                style={{ ...selectStyle, width: "100%", color: isOverdue(prospect.next_contact_at) ? "var(--red)" : "var(--text)" }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ borderTop: "0.5px solid var(--hairline)", margin: "22px 0" }} />
+
+      {/* Commercial block */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "32px", flexWrap: "wrap" }}>
+        <div>
+          <div className="mono" style={{ fontSize: "28px", fontWeight: 600, color: "var(--text)" }}>{formatEuros(prospect.deal_value)}</div>
+          <div style={{ fontSize: "13px", color: "var(--text-dim)", marginTop: "2px" }}>
+            {prospect.stage === "Gagné" ? "Client" : prospect.stage}{starred ? " · ★ Prioritaire" : ""}
+          </div>
+          <div style={{ marginTop: "10px", maxWidth: "260px" }}>
+            <PipelineStepper stage={prospect.stage} onChange={handleStageChange} />
+          </div>
+        </div>
+        <NextActionCard prospect={prospect} refreshKey={taskVersion} onOpenTab={goToTab} />
+      </div>
+
+      <div style={{ borderTop: "0.5px solid var(--hairline)", margin: "22px 0" }} />
+
+      {/* Main + secondary columns */}
+      <div className="detail-grid">
         <div style={{ minWidth: 0 }}>
-          <NextActionCard prospect={prospect} refreshKey={taskVersion} onOpenTab={goToTab} />
-
-          <NoteAnalyzer prospect={prospect} history={history} session={session} onLogActivity={onLogActivity} onUpdate={onUpdate} settings={settings} onTaskCreated={bumpTasks} onOpenTab={goToTab} />
+          <div ref={noteRef} style={{ scrollMarginTop: "20px" }}>
+            <NoteAnalyzer prospect={prospect} history={history} session={session} onLogActivity={onLogActivity} onUpdate={onUpdate} settings={settings} onTaskCreated={bumpTasks} onOpenTab={goToTab} />
+          </div>
 
           <OpportunityAI prospect={prospect} history={history} session={session} onUpdate={onUpdate} />
 
-          <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "18px", marginBottom: "16px" }}>
-            <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginBottom: "12px" }}>ACTIVITÉ</div>
-            <ActivityTimeline history={history} />
-          </div>
+          <div style={{ color: "var(--text-faint)", fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", marginBottom: "14px" }}>ACTIVITÉ</div>
+          <ActivityTimeline history={history} />
 
-          <div ref={toolsRef} style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginBottom: "8px", scrollMarginTop: "20px" }}>OUTILS</div>
-          <div style={{ display: "flex", gap: "4px", marginBottom: "16px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
+          <div style={{ borderTop: "0.5px solid var(--hairline)", margin: "26px 0 16px" }} />
+
+          <div ref={toolsRef} style={{ color: "var(--text-faint)", fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", marginBottom: "10px", scrollMarginTop: "20px" }}>OUTILS</div>
+          <div style={{ display: "flex", gap: "16px", marginBottom: "14px", flexWrap: "wrap" }}>
             {[["email", "Email"], ["script", "Script"], ["taches", "Tâches"], ["devis", "Devis"]].map(([key, label]) => (
-              <button key={key} className="focusable" onClick={() => setTab(key)} style={{ flex: 1, padding: "7px 6px", borderRadius: "6px", fontSize: "11px", fontWeight: 500, background: tab === key ? "var(--hairline)" : "transparent", color: tab === key ? "var(--text)" : "var(--text-dim)" }}>
+              <button key={key} className="focusable" onClick={() => setTab(key)} style={{ background: "none", border: "none", padding: 0, fontSize: "13px", fontWeight: tab === key ? 600 : 400, color: tab === key ? "var(--blue)" : "var(--text-dim)" }}>
                 {label}
               </button>
             ))}
           </div>
 
-          <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "18px" }}>
+          <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "var(--radius-md)", padding: "18px" }}>
             {tab === "email" && <EmailGenerator prospect={prospect} history={history} session={session} settings={settings} />}
             {tab === "script" && <ScriptGenerator prospect={prospect} history={history} session={session} />}
             {tab === "taches" && <TasksTab prospect={prospect} session={session} settings={settings} onChange={bumpTasks} />}
             {tab === "devis" && <DevisGenerator prospect={prospect} history={history} session={session} settings={settings} />}
           </div>
         </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          <div>
+            <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--text-faint)", marginBottom: "8px" }}>INFORMATIONS</div>
+            <div style={{ fontSize: "13px", color: "var(--text-dim)" }}>Entreprise</div>
+            <div style={{ fontSize: "13.5px", color: "var(--text)", marginBottom: "8px" }}>{prospect.company}</div>
+            {prospect.job_title && (
+              <>
+                <div style={{ fontSize: "13px", color: "var(--text-dim)" }}>Poste</div>
+                <div style={{ fontSize: "13.5px", color: "var(--text)" }}>{prospect.job_title}</div>
+              </>
+            )}
+          </div>
+
+          {(prospect.email || prospect.phone) && (
+            <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "16px" }}>
+              <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--text-faint)", marginBottom: "8px" }}>CONTACT</div>
+              {prospect.email && (
+                <>
+                  <div style={{ fontSize: "13px", color: "var(--text-dim)" }}>Email</div>
+                  <div style={{ fontSize: "13.5px", color: "var(--blue)", marginBottom: "8px", overflowWrap: "anywhere" }}>{prospect.email}</div>
+                </>
+              )}
+              {prospect.phone && (
+                <>
+                  <div style={{ fontSize: "13px", color: "var(--text-dim)" }}>Téléphone</div>
+                  <div style={{ fontSize: "13.5px", color: "var(--text)" }}>{prospect.phone}</div>
+                </>
+              )}
+            </div>
+          )}
+
+          {showOwners && (
+            <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "16px" }}>
+              <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--text-faint)", marginBottom: "8px" }}>ÉQUIPE</div>
+              <ProspectOwnersPanel prospect={prospect} session={session} team={team} onAssigned={reload} />
+            </div>
+          )}
+
+          <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "16px" }}>
+            <div style={{ fontSize: "13px", color: "var(--text-faint)" }}>Dernier contact : {prospect.last_contact_at ? formatShortDate(prospect.last_contact_at) : "jamais"}</div>
+            {confirmDelete ? (
+              <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                <button className="focusable" onClick={onDelete} style={{ fontSize: "12.5px", fontWeight: 500, color: "var(--red)", background: "none", border: "none", padding: 0 }}>Confirmer la suppression</button>
+                <button className="focusable" onClick={() => setConfirmDelete(false)} style={{ fontSize: "12.5px", color: "var(--text-dim)", background: "none", border: "none", padding: 0 }}>Annuler</button>
+              </div>
+            ) : (
+              <button className="focusable" onClick={() => setConfirmDelete(true)} style={{ fontSize: "12.5px", color: "var(--text-faint)", background: "none", border: "none", padding: 0, marginTop: "10px" }}>
+                Supprimer la fiche
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
-}
-
-function prospectTemperature(p) {
-  if (CLOSED_STAGES.includes(p.stage)) return null;
-  const days = p.last_contact_at ? Math.floor((Date.now() - new Date(p.last_contact_at)) / 86400000) : null;
-  if (days !== null && days <= 3 && computeDealScore(p) >= 70) return { emoji: "🔥", label: "Chaud", color: "#dc2626", bg: "#fbe7e7" };
-  if (days === null || days >= 5) return { emoji: "❄️", label: "À relancer", color: "var(--blue)", bg: "var(--blue-dim)" };
-  return null;
 }
 
 function PipelineStepper({ stage, onChange }) {
@@ -922,43 +942,39 @@ function NextActionCard({ prospect, refreshKey, onOpenTab }) {
 
   if (loading) return null;
 
-  const meta = task ? (TASK_TYPE_META[task.type] || TASK_TYPE_META.appel_telephone) : null;
   const VERB = { appel_telephone: "Appeler", appel_visio: "Appel visio avec", rdv_physique: "RDV avec", relance_email: "Relancer" };
 
   return (
-    <div style={{ background: "var(--gold-dim)", border: "0.5px solid var(--gold)55", borderRadius: "12px", padding: "18px", marginBottom: "16px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
-        <span style={{ fontSize: "14px" }}>⚡</span>
-        <span className="display" style={{ fontWeight: 700, fontSize: "11.5px", color: "var(--gold-deep)", letterSpacing: "0.04em" }}>PROCHAINE ACTION</span>
-      </div>
+    <div style={{ textAlign: "right", minWidth: "200px" }}>
+      <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--text-faint)", marginBottom: "6px" }}>PROCHAINE ACTION</div>
       {task ? (
         <>
-          <div className="display" style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 700, fontSize: "16px", marginBottom: "2px" }}>
-            <meta.Icon size={15} color="var(--gold-deep)" /> {VERB[task.type] || meta.label} {prospect.name}
+          <div style={{ fontSize: "15px", fontWeight: 600, color: "var(--text)" }}>
+            {VERB[task.type] || TASK_TYPE_META[task.type]?.label} {prospect.name}
           </div>
-          <div className="mono" style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: task.note ? "8px" : "14px", textTransform: "capitalize" }}>
+          <div className="mono" style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "2px", marginBottom: "10px", textTransform: "capitalize" }}>
             {formatDayTime(task.due_at)}
           </div>
-          {task.note && <div style={{ fontSize: "13px", color: "var(--text)", marginBottom: "14px" }}>Objectif : {task.note}</div>}
-          <div style={{ display: "flex", gap: "8px" }}>
+          {task.note && <div style={{ fontSize: "12.5px", color: "var(--text-dim)", marginBottom: "10px" }}>{task.note}</div>}
+          <div style={{ display: "flex", gap: "14px", justifyContent: "flex-end" }}>
+            <button className="focusable" onClick={() => onOpenTab?.("taches")} style={{ background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px" }}>
+              Modifier
+            </button>
             {prospect.phone && task.type !== "relance_email" ? (
-              <a href={`tel:${prospect.phone}`} className="focusable" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", background: "var(--gold)", color: "#fff", border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600, textDecoration: "none" }}>
+              <a href={`tel:${prospect.phone}`} className="focusable" style={{ background: "var(--blue)", color: "#fff", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", fontWeight: 500, textDecoration: "none" }}>
                 Appeler
               </a>
             ) : (
-              <button className="focusable" onClick={markDone} style={{ background: "var(--gold)", color: "#fff", border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600 }}>
+              <button className="focusable" onClick={markDone} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", fontWeight: 500 }}>
                 Marquer fait
               </button>
             )}
-            <button className="focusable" onClick={() => onOpenTab?.("taches")} style={{ background: "var(--panel)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px 16px", fontSize: "13px" }}>
-              Modifier
-            </button>
           </div>
         </>
       ) : (
         <>
-          <div style={{ fontSize: "13px", color: "var(--text-dim)", marginBottom: "12px" }}>Aucune action planifiée pour ce prospect.</div>
-          <button className="focusable" onClick={() => onOpenTab?.("taches")} style={{ background: "var(--gold)", color: "#fff", border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600 }}>
+          <div style={{ fontSize: "13px", color: "var(--text-dim)", marginBottom: "10px" }}>Aucune action planifiée.</div>
+          <button className="focusable" onClick={() => onOpenTab?.("taches")} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", fontWeight: 500 }}>
             Planifier une action
           </button>
         </>
@@ -1224,7 +1240,7 @@ ${buildHistoryContext(history)}`;
             key={key}
             className="focusable"
             onClick={() => setActionType(key)}
-            style={{ display: "flex", alignItems: "center", gap: "5px", background: actionType === key ? "var(--blue-dim)" : "var(--panel2)", color: actionType === key ? "var(--blue)" : "var(--text-dim)", border: actionType === key ? "0.5px solid #315c8a55" : "0.5px solid var(--hairline)", borderRadius: "999px", padding: "6px 11px", fontSize: "12px" }}
+            style={{ display: "flex", alignItems: "center", gap: "5px", background: actionType === key ? "var(--blue-dim)" : "var(--panel2)", color: actionType === key ? "var(--blue)" : "var(--text-dim)", border: actionType === key ? "0.5px solid #4c9ad455" : "0.5px solid var(--hairline)", borderRadius: "999px", padding: "6px 11px", fontSize: "12px" }}
           >
             <Icon size={12} /> {label}
           </button>
@@ -1259,7 +1275,7 @@ ${buildHistoryContext(history)}`;
           className="focusable"
           onClick={analyze}
           disabled={!note.trim() || busy}
-          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "9px", fontSize: "12.5px", opacity: !note.trim() || busy ? 0.6 : 1 }}
+          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #4c9ad455", borderRadius: "8px", padding: "9px", fontSize: "12.5px", opacity: !note.trim() || busy ? 0.6 : 1 }}
         >
           <SparklesIcon size={13} color="var(--blue)" />
           {analyzing ? "Analyse..." : "Analyser la note"}
@@ -1380,7 +1396,7 @@ ${buildHistoryContext(history)}`;
               className="focusable"
               onClick={createTasks}
               disabled={creating || selected.length === 0}
-              style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", opacity: creating || selected.length === 0 ? 0.6 : 1 }}
+              style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #4c9ad455", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", opacity: creating || selected.length === 0 ? 0.6 : 1 }}
             >
               {creating ? "Création..." : `Créer ${selected.length} tâche${selected.length > 1 ? "s" : ""}`}
             </button>
@@ -1550,7 +1566,7 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
       </select>
       <input type="number" min="0" placeholder="Valeur du deal (€)" value={dealValue} onChange={(e) => setDealValue(e.target.value)} style={inputStyle} />
       <div style={{ display: "flex", gap: "8px", gridColumn: "1 / -1" }}>
-        <button type="submit" disabled={saving} className="focusable" style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "9px", fontSize: "13px" }}>
+        <button type="submit" disabled={saving} className="focusable" style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #4c9ad455", borderRadius: "8px", padding: "9px", fontSize: "13px" }}>
           {saving ? "Enregistrement..." : "Enregistrer les modifications"}
         </button>
         <button type="button" onClick={onCancel} className="focusable" style={{ background: "transparent", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px 14px", fontSize: "13px" }}>
@@ -1612,7 +1628,7 @@ ${buildHistoryContext(history)}`;
       <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
           <span className="display" style={{ fontWeight: 700, fontSize: "11.5px", color: "var(--text-faint)", letterSpacing: "0.04em" }}>ANALYSE DE L'OPPORTUNITÉ</span>
-          <button className="focusable" onClick={generate} disabled={loading} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55" }}>
+          <button className="focusable" onClick={generate} disabled={loading} style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #4c9ad455" }}>
             <SparklesIcon size={11} color="var(--blue)" /> {loading ? "Analyse..." : data ? "Régénérer" : "Analyser"}
           </button>
         </div>
@@ -1654,8 +1670,13 @@ const HISTORIQUE_FILTER_BY_TYPE = {
 
 const HISTORIQUE_FILTERS = ["Tous", "Appels", "RDV & Visio", "LinkedIn", "Notes", "Deals", "IA", "Équipe"];
 
-const TIMELINE_EMOJI = {
-  Appels: "📞", "RDV & Visio": "📅", LinkedIn: "💬", Notes: "📝", Deals: "🏆", IA: "✉️", Équipe: "👥",
+const TIMELINE_ICON = {
+  appel_abouti: PhoneIcon, appel_manque: PhoneIcon,
+  rdv_physique: PinIcon, appel_visio: VideoIcon,
+  message_linkedin: LinkedinIcon,
+  deal_gagne: TrophyIcon, deal_perdu: TrophyIcon,
+  reassignation: UsersIcon,
+  note: ListIcon,
 };
 
 function timelineDayLabel(iso) {
@@ -1665,7 +1686,7 @@ function timelineDayLabel(iso) {
   const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
   if (diffDays === 0) return "Aujourd'hui";
   if (diffDays === 1) return "Hier";
-  return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  return d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "short" });
 }
 
 function ActivityTimeline({ history }) {
@@ -1673,23 +1694,31 @@ function ActivityTimeline({ history }) {
   if (history.loading) return <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Chargement...</div>;
 
   const items = [
-    ...history.emails.map((x) => ({ ...x, kind: x.type === "devis" ? "Devis" : "Email", filterKey: "IA" })),
-    ...history.scripts.map((x) => ({ ...x, kind: `Script — ${x.section}`, filterKey: "IA" })),
-    ...history.analyses.map((x) => ({ ...x, kind: x.type === "opportunite" ? "Analyse Closia" : "Analyse", filterKey: "IA" })),
-    ...history.activities.map((x) => ({ ...x, kind: ACTIVITY_LABEL[x.type] || x.type, content: x.note || "", filterKey: HISTORIQUE_FILTER_BY_TYPE[x.type] || "Notes" })),
+    ...history.emails.map((x) => ({ ...x, kind: x.type === "devis" ? "Devis envoyé" : "Email envoyé", filterKey: "IA", Icon: MailIcon })),
+    ...history.scripts.map((x) => ({ ...x, kind: `Script préparé — ${x.section}`, filterKey: "IA", Icon: CalendarIcon })),
+    ...history.analyses.map((x) => ({ ...x, kind: x.type === "opportunite" ? "Analyse Closia" : "Analyse", filterKey: "IA", Icon: SparklesIcon })),
+    ...history.activities.map((x) => ({ ...x, kind: ACTIVITY_LABEL[x.type] || x.type, content: x.note || "", filterKey: HISTORIQUE_FILTER_BY_TYPE[x.type] || "Notes", Icon: TIMELINE_ICON[x.type] || ListIcon })),
   ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   const visible = filter === "Tous" ? items : items.filter((i) => i.filterKey === filter);
 
+  const groups = [];
+  for (const item of visible) {
+    const label = timelineDayLabel(item.created_at);
+    let g = groups.find((g) => g.label === label);
+    if (!g) { g = { label, items: [] }; groups.push(g); }
+    g.items.push(item);
+  }
+
   return (
     <div>
-      <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", marginBottom: "12px" }}>
+      <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "16px" }}>
         {HISTORIQUE_FILTERS.map((f) => (
           <button
             key={f}
             className="focusable"
             onClick={() => setFilter(f)}
-            style={{ padding: "5px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 500, background: filter === f ? "var(--blue-dim)" : "var(--panel2)", color: filter === f ? "var(--blue)" : "var(--text-dim)", border: filter === f ? "0.5px solid #315c8a55" : "0.5px solid var(--hairline)" }}
+            style={{ background: "none", border: "none", padding: 0, fontSize: "12px", fontWeight: filter === f ? 600 : 400, color: filter === f ? "var(--blue)" : "var(--text-faint)" }}
           >
             {f}
           </button>
@@ -1697,16 +1726,39 @@ function ActivityTimeline({ history }) {
       </div>
 
       {visible.length === 0 ? (
-        <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Rien pour ce filtre.</div>
+        <div style={{ color: "var(--text-faint)", fontSize: "13px", lineHeight: 1.6 }}>
+          Aucune activité pour le moment.<br />Les appels, emails, notes et tâches apparaîtront ici.
+        </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "2px", maxHeight: "420px", overflowY: "auto" }}>
-          {visible.map((item) => (
-            <div key={`${item.kind}-${item.id}`} title={item.content || item.kind} style={{ display: "flex", alignItems: "flex-start", gap: "10px", padding: "8px 4px", borderBottom: "0.5px solid var(--hairline)" }}>
-              <div style={{ width: "62px", flexShrink: 0, fontSize: "11px", color: "var(--text-faint)", paddingTop: "1px" }}>{timelineDayLabel(item.created_at)}</div>
-              <div style={{ fontSize: "13px", flexShrink: 0 }}>{TIMELINE_EMOJI[item.filterKey] || "•"}</div>
-              <div style={{ flex: 1, minWidth: 0, fontSize: "12.5px", color: "var(--text)" }}>
-                <span style={{ fontWeight: 600 }}>{item.kind}</span>
-                {item.content && <span style={{ color: "var(--text-dim)" }}> · {item.content.length > 70 ? `${item.content.slice(0, 70)}…` : item.content}</span>}
+        <div style={{ display: "flex", flexDirection: "column", gap: "22px", maxHeight: "460px", overflowY: "auto", paddingRight: "4px" }}>
+          {groups.map((g) => (
+            <div key={g.label}>
+              <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--text-faint)", marginBottom: "10px", textTransform: "uppercase" }}>{g.label}</div>
+              <div>
+                {g.items.map((item, i) => {
+                  const Icon = item.Icon;
+                  const time = new Date(item.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+                  return (
+                    <div key={`${item.kind}-${item.id}`} style={{ display: "flex", gap: "12px" }}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, paddingTop: "5px" }}>
+                        <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--hairline-strong)", flexShrink: 0 }} />
+                        {i < g.items.length - 1 && <span style={{ width: "1px", flex: 1, background: "var(--hairline)", marginTop: "4px", minHeight: "18px" }} />}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0, paddingBottom: "16px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                          <span className="mono" style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>{time}</span>
+                          <Icon size={12} color="var(--text-faint)" />
+                          <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--text)" }}>{item.kind}</span>
+                        </div>
+                        {item.content && (
+                          <div style={{ fontSize: "12.5px", color: "var(--text-dim)", marginTop: "3px" }}>
+                            {item.content.length > 140 ? `${item.content.slice(0, 140)}…` : item.content}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -1787,7 +1839,7 @@ function TasksTab({ prospect, session, settings, onChange }) {
         <select value={priority} onChange={(e) => setPriority(e.target.value)} style={{ ...inputStyle, width: "auto" }}>
           {PRIORITY_LEVELS.map((l) => <option key={l.value} value={l.value}>Priorité : {l.label}</option>)}
         </select>
-        <button type="submit" disabled={saving || !note.trim()} className="focusable" style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "8px 14px", fontSize: "13px" }}>
+        <button type="submit" disabled={saving || !note.trim()} className="focusable" style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #4c9ad455", borderRadius: "8px", padding: "8px 14px", fontSize: "13px" }}>
           Ajouter
         </button>
       </form>
@@ -1945,7 +1997,7 @@ ${buildHistoryContext(history)}`;
             className="focusable"
             onClick={generateWithAI}
             disabled={loading}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: loading ? 0.6 : 1 }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", width: "100%", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #4c9ad455", borderRadius: "8px", padding: "9px", fontSize: "13px", opacity: loading ? 0.6 : 1 }}
           >
             <SparklesIcon size={13} color="var(--blue)" />
             {loading ? "Génération..." : "Générer avec l'IA"}
@@ -2105,7 +2157,7 @@ function GeneratorBlock({ label, loading, error, content, setContent, onGenerate
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-      <button className="focusable" onClick={onGenerate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "10px", fontSize: "13px", opacity: loading ? 0.7 : 1 }}>
+      <button className="focusable" onClick={onGenerate} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #4c9ad455", borderRadius: "8px", padding: "10px", fontSize: "13px", opacity: loading ? 0.7 : 1 }}>
         <SparklesIcon size={14} color="var(--blue)" />
         {loading ? "Génération en cours..." : label}
       </button>

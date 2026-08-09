@@ -122,6 +122,58 @@ export async function ensureFreshToken(admin, conn) {
   return tokens.access_token;
 }
 
+export async function listRecentMessages(provider, accessToken, sinceISO) {
+  if (provider === "google") {
+    const listRes = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent("in:inbox newer_than:2d")}&maxResults=20`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!listRes.ok) throw new Error("gmail_list_failed");
+    const listData = await listRes.json();
+    const ids = (listData.messages || []).map((m) => m.id);
+    const sinceMs = new Date(sinceISO).getTime();
+    const messages = [];
+    for (const id of ids) {
+      const msgRes = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (!msgRes.ok) continue;
+      const msg = await msgRes.json();
+      const internalDate = Number(msg.internalDate || 0);
+      if (internalDate <= sinceMs) continue;
+      const headers = msg.payload?.headers || [];
+      const fromHeader = headers.find((h) => h.name === "From")?.value || "";
+      const subjectHeader = headers.find((h) => h.name === "Subject")?.value || "";
+      const emailMatch = fromHeader.match(/<([^>]+)>/);
+      const fromEmail = (emailMatch ? emailMatch[1] : fromHeader).trim().toLowerCase();
+      if (fromEmail) messages.push({ id, from: fromEmail, subject: subjectHeader, receivedAt: new Date(internalDate).toISOString() });
+    }
+    return messages;
+  }
+
+  if (provider === "microsoft") {
+    const url = new URL("https://graph.microsoft.com/v1.0/me/messages");
+    url.searchParams.set("$filter", `receivedDateTime gt ${sinceISO}`);
+    url.searchParams.set("$select", "id,from,subject,receivedDateTime");
+    url.searchParams.set("$top", "20");
+    url.searchParams.set("$orderby", "receivedDateTime desc");
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}`, Prefer: 'outlook.timezone="UTC"' } });
+    if (!res.ok) throw new Error("outlook_list_failed");
+    const data = await res.json();
+    return (data.value || [])
+      .map((m) => ({
+        id: m.id,
+        from: (m.from?.emailAddress?.address || "").toLowerCase(),
+        subject: m.subject || "",
+        receivedAt: m.receivedDateTime,
+      }))
+      .filter((m) => m.from);
+  }
+
+  return [];
+}
+
 export async function sendEmail(provider, accessToken, { to, subject, body, fromName }) {
   if (provider === "google") {
     const headers = [

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { PlugIcon, PageTitle, CalendarIcon, ArrowLeftIcon } from "../lib/ui.jsx";
 
-const BADGE_COLORS = ["#315c8a", "#0ea5e9", "#7c3aed", "#0d9488", "#d97706", "#dc2626", "#4f46e5", "#0284c7", "#059669"];
+const BADGE_COLORS = ["#4c9ad4", "#0ea5e9", "#7c3aed", "#0d9488", "#d97706", "#dc2626", "#4f46e5", "#0284c7", "#059669"];
 function badgeColor(label) {
   let hash = 0;
   for (let i = 0; i < label.length; i++) hash = label.charCodeAt(i) + ((hash << 5) - hash);
@@ -95,7 +95,7 @@ export default function Integrations({ session, onBack }) {
           <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "24px", textAlign: "center" }}>
             <div className="display" style={{ fontWeight: 700, fontSize: "14px", marginBottom: "6px" }}>Connectez votre premier outil</div>
             <div style={{ color: "var(--text-dim)", fontSize: "12.5px", marginBottom: "14px" }}>Importez vos données et retrouvez votre activité commerciale dans Closia.</div>
-            <button className="focusable" onClick={() => document.getElementById("connect-app-anchor")?.scrollIntoView({ behavior: "smooth" })} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "8px 16px", fontSize: "13px", fontWeight: 600 }}>
+            <button className="focusable" onClick={() => document.getElementById("connect-app-anchor")?.scrollIntoView({ behavior: "smooth" })} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #4c9ad455", borderRadius: "8px", padding: "8px 16px", fontSize: "13px", fontWeight: 600 }}>
               Voir les intégrations
             </button>
           </div>
@@ -134,7 +134,7 @@ export default function Integrations({ session, onBack }) {
         />
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "20px" }}>
           {CATEGORIES.map((c) => (
-            <button key={c} className="focusable" onClick={() => setCategory(c)} style={{ padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 500, background: category === c ? "var(--blue-dim)" : "var(--panel2)", color: category === c ? "var(--blue)" : "var(--text-dim)", border: category === c ? "0.5px solid #315c8a55" : "0.5px solid var(--hairline)" }}>
+            <button key={c} className="focusable" onClick={() => setCategory(c)} style={{ padding: "6px 12px", borderRadius: "999px", fontSize: "12px", fontWeight: 500, background: category === c ? "var(--blue-dim)" : "var(--panel2)", color: category === c ? "var(--blue)" : "var(--text-dim)", border: category === c ? "0.5px solid #4c9ad455" : "0.5px solid var(--hairline)" }}>
               {c}
             </button>
           ))}
@@ -179,7 +179,7 @@ export default function Integrations({ session, onBack }) {
       <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "18px", textAlign: "center" }}>
         <div className="display" style={{ fontWeight: 700, fontSize: "14px", marginBottom: "4px" }}>Besoin d'aide pour connecter votre outil ?</div>
         <div style={{ color: "var(--text-dim)", fontSize: "12.5px", marginBottom: "12px" }}>Écrivez-nous, on vous répond rapidement.</div>
-        <a href="mailto:support@clos-ia.fr" className="focusable" style={{ display: "inline-block", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "8px 16px", fontSize: "13px", fontWeight: 600, textDecoration: "none" }}>
+        <a href="mailto:support@clos-ia.fr" className="focusable" style={{ display: "inline-block", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #4c9ad455", borderRadius: "8px", padding: "8px 16px", fontSize: "13px", fontWeight: 600, textDecoration: "none" }}>
           Contacter le support
         </a>
       </div>
@@ -216,7 +216,7 @@ function ToolCard({ tool, connected, loading, onConnect, onDisconnect }) {
             Déconnecter
           </button>
         ) : (
-          <button className="focusable" onClick={onConnect} style={{ fontSize: "11.5px", padding: "6px 10px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", whiteSpace: "nowrap" }}>
+          <button className="focusable" onClick={onConnect} style={{ fontSize: "11.5px", padding: "6px 10px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #4c9ad455", whiteSpace: "nowrap" }}>
             Connecter
           </button>
         )}

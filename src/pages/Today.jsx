@@ -561,7 +561,7 @@ function DailyBriefModal({ firstName, events, taches, prospectById, tip, onOpenP
         </div>
 
         <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
-          <button className="focusable" onClick={onGoToPlanning} style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
+          <button className="focusable" onClick={onGoToPlanning} style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #4c9ad455", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
             Voir mon agenda complet
           </button>
           <button className="focusable" onClick={onClose} style={{ flex: 1, background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px", fontSize: "13px" }}>

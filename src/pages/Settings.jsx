@@ -25,10 +25,18 @@ export default function Settings({ session, prospects, settings, reloadSettings,
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [local, setLocal] = useState(null);
+  const [mailConnected, setMailConnected] = useState({ google: false, microsoft: false });
 
   useEffect(() => {
     if (settings) setLocal(settings);
   }, [settings]);
+
+  useEffect(() => {
+    fetch("/api/calendar/status", { headers: { Authorization: `Bearer ${session.access_token}` } })
+      .then((r) => r.json())
+      .then((d) => setMailConnected({ google: !!d.google, microsoft: !!d.microsoft }))
+      .catch(() => {});
+  }, [session.access_token]);
 
   function set(patch) {
     setLocal((l) => ({ ...l, ...patch }));
@@ -133,7 +141,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
           {WEEKDAYS.map((d) => {
             const on = workDays.includes(d);
             return (
-              <button key={d} className="focusable" onClick={() => toggleWorkDay(d)} style={{ width: "36px", padding: "6px 0", borderRadius: "6px", fontSize: "11.5px", fontWeight: 600, background: on ? "var(--blue-dim)" : "var(--panel2)", color: on ? "var(--blue)" : "var(--text-faint)", border: on ? "0.5px solid #315c8a55" : "0.5px solid var(--hairline)" }}>
+              <button key={d} className="focusable" onClick={() => toggleWorkDay(d)} style={{ width: "36px", padding: "6px 0", borderRadius: "6px", fontSize: "11.5px", fontWeight: 600, background: on ? "var(--blue-dim)" : "var(--panel2)", color: on ? "var(--blue)" : "var(--text-faint)", border: on ? "0.5px solid #4c9ad455" : "0.5px solid var(--hairline)" }}>
                 {d}
               </button>
             );
@@ -170,7 +178,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
               key={lvl.value}
               className="focusable"
               onClick={() => set({ ai_initiative: lvl.value })}
-              style={{ textAlign: "left", padding: "8px 10px", borderRadius: "8px", background: (local.ai_initiative || "Équilibré") === lvl.value ? "var(--blue-dim)" : "var(--panel2)", border: (local.ai_initiative || "Équilibré") === lvl.value ? "0.5px solid #315c8a55" : "0.5px solid var(--hairline)" }}
+              style={{ textAlign: "left", padding: "8px 10px", borderRadius: "8px", background: (local.ai_initiative || "Équilibré") === lvl.value ? "var(--blue-dim)" : "var(--panel2)", border: (local.ai_initiative || "Équilibré") === lvl.value ? "0.5px solid #4c9ad455" : "0.5px solid var(--hairline)" }}
             >
               <div style={{ fontSize: "12.5px", fontWeight: 600, color: (local.ai_initiative || "Équilibré") === lvl.value ? "var(--blue)" : "var(--text)" }}>{lvl.value}</div>
               <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>{lvl.desc}</div>
@@ -203,7 +211,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
       </Section>
 
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-        <button className="focusable" onClick={save} disabled={saving} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", opacity: saving ? 0.6 : 1 }}>
+        <button className="focusable" onClick={save} disabled={saving} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #4c9ad455", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", opacity: saving ? 0.6 : 1 }}>
           {saving ? "Enregistrement..." : "Enregistrer les préférences"}
         </button>
         {saved && <span style={{ color: "var(--green, #16a34a)", fontSize: "12px" }}>Enregistré ✓</span>}
@@ -227,6 +235,48 @@ export default function Settings({ session, prospects, settings, reloadSettings,
           <PlugIcon size={13} color="var(--text-dim)" /> Gérer les intégrations
         </button>
       </Section>
+
+      {(mailConnected.google || mailConnected.microsoft) && (
+        <Section title="Mode absence">
+          <Toggle
+            label="Activer le mode absence"
+            checked={!!local.vacation_mode_enabled}
+            onChange={(v) => {
+              set(
+                v
+                  ? { vacation_mode_enabled: true, vacation_last_checked_at: new Date().toISOString(), vacation_replied_senders: [] }
+                  : { vacation_mode_enabled: false }
+              );
+            }}
+          />
+          {local.vacation_mode_enabled && (
+            <>
+              <div style={{ fontSize: "13px", color: "var(--text)", marginTop: "12px", marginBottom: "6px" }}>Message d'accusé de réception</div>
+              <textarea
+                value={local.vacation_message || ""}
+                onChange={(e) => set({ vacation_message: e.target.value })}
+                placeholder="ex : Je suis actuellement absent(e) et de retour le..."
+                rows={3}
+                style={{ ...inputSm, width: "100%", resize: "vertical", fontFamily: "inherit" }}
+              />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "12px" }}>
+                <Field label="Date de retour">
+                  <input type="date" value={local.vacation_return_at ? local.vacation_return_at.slice(0, 10) : ""} onChange={(e) => set({ vacation_return_at: e.target.value ? new Date(e.target.value).toISOString() : null })} style={{ ...inputSm, width: "100%" }} />
+                </Field>
+                <Field label="Collègue à contacter (nom)">
+                  <input value={local.vacation_redirect_name || ""} onChange={(e) => set({ vacation_redirect_name: e.target.value })} style={{ ...inputSm, width: "100%" }} placeholder="ex : Camille Martin" />
+                </Field>
+              </div>
+              <Field label="Email du collègue" last>
+                <input type="email" value={local.vacation_redirect_email || ""} onChange={(e) => set({ vacation_redirect_email: e.target.value })} style={{ ...inputSm, width: "100%" }} placeholder="ex : camille@entreprise.fr" />
+              </Field>
+              <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>
+                Chaque nouvel expéditeur reçoit une réponse automatique une seule fois. La boîte est vérifiée une fois par jour — ce n'est pas instantané.
+              </div>
+            </>
+          )}
+        </Section>
+      )}
 
       <Section title="Données et export" last>
         <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "12px" }}>Exportez l'ensemble de vos prospects et clients au format CSV.</div>
@@ -364,7 +414,7 @@ export function TeamPanel({ session, team, reloadTeam }) {
               </button>
             </div>
           ) : (
-            <button className="focusable" disabled={busy || !inviteEmail.trim()} onClick={() => submitInvite(false)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #315c8a55", borderRadius: "6px", padding: "8px 14px", fontSize: "12.5px", fontWeight: 600, opacity: busy || !inviteEmail.trim() ? 0.6 : 1 }}>
+            <button className="focusable" disabled={busy || !inviteEmail.trim()} onClick={() => submitInvite(false)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #4c9ad455", borderRadius: "6px", padding: "8px 14px", fontSize: "12.5px", fontWeight: 600, opacity: busy || !inviteEmail.trim() ? 0.6 : 1 }}>
               {busy ? "Envoi..." : "Envoyer l'invitation"}
             </button>
           )}
