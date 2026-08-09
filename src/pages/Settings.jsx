@@ -284,6 +284,11 @@ const ROLE_LABELS = { admin: "Admin", sales: "Commercial", customer_success: "Cu
 export function TeamPanel({ session, team, reloadTeam }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("sales");
+  const [overageInfo, setOverageInfo] = useState(null);
+  const [inviteSuccess, setInviteSuccess] = useState("");
 
   if (!team) return <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Chargement...</div>;
 
@@ -301,15 +306,73 @@ export function TeamPanel({ session, team, reloadTeam }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Une erreur est survenue");
       await reloadTeam?.();
+      return data;
     } catch (e) {
       setError(e.message);
+      return null;
     } finally {
       setBusy(false);
     }
   }
 
+  async function submitInvite(confirmOverage) {
+    if (!inviteEmail.trim()) return;
+    setInviteSuccess("");
+    const data = await call({ action: "invite_member", email: inviteEmail.trim(), role: inviteRole, confirmOverage });
+    if (!data) return;
+    if (data.needsConfirmation) {
+      setOverageInfo(data);
+      return;
+    }
+    setOverageInfo(null);
+    setInviteSuccess(`Invitation envoyée à ${data.invitedEmail} — un email lui a été envoyé pour créer son mot de passe.`);
+    setInviteEmail("");
+    setShowInvite(false);
+  }
+
   return (
     <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+        <span style={{ fontSize: "12px", color: "var(--text-faint)" }}>{(team.members || []).length} membre{(team.members || []).length > 1 ? "s" : ""}</span>
+        {isAdmin && (
+          <button className="focusable" onClick={() => { setShowInvite((s) => !s); setOverageInfo(null); }} style={{ ...btnGhost, padding: "6px 10px" }}>
+            {showInvite ? "Annuler" : "+ Ajouter un membre"}
+          </button>
+        )}
+      </div>
+
+      {showInvite && (
+        <div style={{ background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "12px", marginBottom: "14px" }}>
+          <div style={{ display: "flex", gap: "6px", marginBottom: "8px", flexWrap: "wrap" }}>
+            <input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="email@entreprise.fr" style={{ ...inputSm, flex: 1, minWidth: "160px", width: "auto" }} />
+            <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value)} style={inputSm}>
+              <option value="sales">Commercial</option>
+              <option value="customer_success">Customer Success</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+
+          {overageInfo ? (
+            <div style={{ background: "var(--red-dim)", border: "0.5px solid var(--red)33", borderRadius: "6px", padding: "10px", marginBottom: "8px" }}>
+              <div style={{ fontSize: "12.5px", color: "var(--red)", fontWeight: 600, marginBottom: "4px" }}>Vous avez atteint votre limite de places.</div>
+              <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "10px" }}>
+                Votre abonnement {overageInfo.tier} comprend {overageInfo.seatsIncluded} place{overageInfo.seatsIncluded > 1 ? "s" : ""}. Vous en utilisez {overageInfo.seatsUsed}/{overageInfo.seatsIncluded}.
+                Ajouter ce membre : <strong>+{formatEuros(overageInfo.overagePrice)}/mois</strong>.
+              </div>
+              <button className="focusable" disabled={busy} onClick={() => submitInvite(true)} style={{ background: "var(--red)", color: "#fff", border: "none", borderRadius: "6px", padding: "7px 12px", fontSize: "12px", fontWeight: 600 }}>
+                Ajouter et augmenter mon abonnement
+              </button>
+            </div>
+          ) : (
+            <button className="focusable" disabled={busy || !inviteEmail.trim()} onClick={() => submitInvite(false)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "6px", padding: "8px 14px", fontSize: "12.5px", fontWeight: 600, opacity: busy || !inviteEmail.trim() ? 0.6 : 1 }}>
+              {busy ? "Envoi..." : "Envoyer l'invitation"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {inviteSuccess && <div style={{ color: "#0ea968", fontSize: "12px", marginBottom: "10px" }}>{inviteSuccess}</div>}
+
       {(team.members || []).map((m) => (
         <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", padding: "8px 0", borderBottom: "0.5px solid var(--hairline)" }}>
           <div>
@@ -371,9 +434,6 @@ export function TeamPanel({ session, team, reloadTeam }) {
         </div>
       )}
 
-      <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "14px" }}>
-        Pour ajouter un nouveau coéquipier, contacte le support Closia.
-      </div>
     </div>
   );
 }

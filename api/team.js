@@ -1,6 +1,18 @@
 import { getUserFromToken, bearerToken, supabaseAdmin } from "./_lib/supabase.js";
 
 const ROLES = ["admin", "sales", "customer_success"];
+const APP_URL = "https://piste-app-seven.vercel.app";
+
+const PLAN_TIERS = [
+  { name: "Solo", maxPrice: 19, seats: 1, overagePrice: 12 },
+  { name: "Équipe", maxPrice: 39, seats: 3, overagePrice: 12 },
+  { name: "Business", maxPrice: 79, seats: 10, overagePrice: 10 },
+  { name: "Sur mesure", maxPrice: Infinity, seats: 20, overagePrice: 8 },
+];
+
+function planTierFor(price) {
+  return PLAN_TIERS.find((t) => price <= t.maxPrice) || PLAN_TIERS[PLAN_TIERS.length - 1];
+}
 
 async function memberLabel(admin, userId) {
   if (!userId) return "Non attribué";
@@ -129,6 +141,44 @@ export default async function handler(req, res) {
     const { error } = await admin.from("team_members").delete().eq("team_id", membership.team_id).eq("user_id", userId);
     if (error) return res.status(500).json({ error: "La suppression a échoué" });
     return res.status(200).json({ ok: true });
+  }
+
+  if (action === "invite_member") {
+    const { email, role, confirmOverage } = req.body;
+    if (!email || !ROLES.includes(role)) return res.status(400).json({ error: "Email ou rôle invalide" });
+
+    const [{ count: currentCount }, { data: teamRow }] = await Promise.all([
+      admin.from("team_members").select("id", { count: "exact", head: true }).eq("team_id", membership.team_id),
+      admin.from("teams").select("plan_price").eq("id", membership.team_id).single(),
+    ]);
+    const price = Number(teamRow?.plan_price ?? 19);
+    const tier = planTierFor(price);
+    const seatsUsed = currentCount || 0;
+    const willBeCount = seatsUsed + 1;
+
+    if (willBeCount > tier.seats && !confirmOverage) {
+      return res.status(200).json({
+        needsConfirmation: true,
+        tier: tier.name,
+        seatsIncluded: tier.seats,
+        seatsUsed,
+        overagePrice: tier.overagePrice,
+      });
+    }
+
+    const { data: created, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+      redirectTo: APP_URL,
+    });
+    if (inviteError) return res.status(500).json({ error: inviteError.message || "L'invitation a échoué" });
+
+    const { error: memberError } = await admin.from("team_members").insert({ team_id: membership.team_id, user_id: created.user.id, role });
+    if (memberError) return res.status(500).json({ error: "L'ajout à l'équipe a échoué" });
+
+    if (willBeCount > tier.seats && confirmOverage) {
+      await admin.from("teams").update({ plan_price: price + tier.overagePrice }).eq("id", membership.team_id);
+    }
+
+    return res.status(200).json({ ok: true, invitedEmail: email });
   }
 
   if (action === "set_team_flags") {
