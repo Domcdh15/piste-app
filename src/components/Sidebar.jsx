@@ -4,7 +4,7 @@ import { CLOSED_STAGES, HomeIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIc
 
 const NAV_ITEMS = [
   { key: "today", label: "Aujourd'hui", Icon: HomeIcon },
-  { key: "pipeline", label: "Pipeline", Icon: TargetIcon },
+  { key: "pipeline", label: "Opportunités", Icon: TargetIcon },
   { key: "planning", label: "Agenda", Icon: CalendarIcon },
   { key: "assistant", label: "Assistant IA", Icon: SparklesIcon },
   { key: "activities", label: "Activités", Icon: ListIcon },
@@ -68,18 +68,18 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
                 display: "flex",
                 alignItems: "center",
                 gap: "10px",
-                padding: "9px 12px",
-                borderRadius: "9px",
+                padding: "8px 12px",
+                borderRadius: "8px",
                 fontSize: "13.5px",
                 fontWeight: active ? 600 : 500,
-                background: active ? "var(--blue)" : isHovered ? "var(--blue-dim)" : "transparent",
-                color: active ? "#fff" : "var(--text-dim)",
+                background: active ? "var(--blue-dim)" : isHovered ? "var(--panel2)" : "transparent",
+                color: active ? "var(--blue-deep)" : "var(--text-dim)",
                 textAlign: "left",
-                boxShadow: active ? "0 1px 3px rgba(49,92,138,0.35)" : "none",
-                transition: "background 150ms ease, color 150ms ease, box-shadow 150ms ease",
+                borderLeft: active ? "2px solid var(--blue)" : "2px solid transparent",
+                transition: "background 150ms ease, color 150ms ease",
               }}
             >
-              <Icon size={15} color={active ? "#fff" : "var(--blue)"} />
+              <Icon size={15} color={active ? "var(--blue)" : "var(--text-faint)"} />
               <span style={{ flex: 1 }}>{item.label}</span>
               {count != null && count > 0 && (
                 <span
@@ -87,8 +87,8 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
                   style={{
                     fontSize: "10.5px",
                     fontWeight: 600,
-                    color: active ? "#fff" : "var(--text-faint)",
-                    background: active ? "rgba(255,255,255,0.22)" : "var(--panel2)",
+                    color: active ? "var(--blue)" : "var(--text-faint)",
+                    background: active ? "#fff" : "var(--panel2)",
                     borderRadius: "var(--radius-pill)",
                     padding: "1px 6px",
                   }}
@@ -112,17 +112,17 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
           display: "flex",
           alignItems: "center",
           gap: "10px",
-          padding: "9px 12px",
-          borderRadius: "9px",
+          padding: "8px 12px",
+          borderRadius: "8px",
           fontSize: "13.5px",
           fontWeight: activeTab === "settings" ? 600 : 500,
-          background: activeTab === "settings" ? "var(--blue)" : hovered === "settings" ? "var(--blue-dim)" : "transparent",
-          color: activeTab === "settings" ? "#fff" : "var(--text-dim)",
+          background: activeTab === "settings" ? "var(--blue-dim)" : hovered === "settings" ? "var(--panel2)" : "transparent",
+          color: activeTab === "settings" ? "var(--blue-deep)" : "var(--text-dim)",
           textAlign: "left",
-          boxShadow: activeTab === "settings" ? "0 1px 3px rgba(49,92,138,0.35)" : "none",
+          borderLeft: activeTab === "settings" ? "2px solid var(--blue)" : "2px solid transparent",
         }}
       >
-        <GearIcon size={15} color={activeTab === "settings" ? "#fff" : "var(--blue)"} />
+        <GearIcon size={15} color={activeTab === "settings" ? "var(--blue)" : "var(--text-faint)"} />
         Paramètres
       </button>
     </div>

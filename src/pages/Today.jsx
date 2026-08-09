@@ -198,41 +198,30 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
   const attentionCount = watchAtRisk.length;
   const attentionValue = watchAtRisk.reduce((sum, p) => sum + (p.deal_value || 0), 0);
 
+  const priorityCount = totalActions + overdueTasks.length;
+
   return (
     <div>
-      <div style={{ background: "var(--blue)", color: "#fff", padding: "36px 40px 30px" }}>
+      <div style={{ padding: "40px 40px 0" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: "16px" }}>
           <div>
-            <div className="editorial" style={{ fontSize: "27px", color: "#fff" }}>
+            <div className="h1" style={{ color: "var(--text)" }}>
               Bonjour{firstName ? ` ${firstName}` : ""}
             </div>
-            <div style={{ color: "rgba(255,255,255,0.72)", fontSize: "13px", marginTop: "4px" }}>{todayLabel()}</div>
+            <div style={{ color: "var(--text-dim)", fontSize: "14px", marginTop: "6px" }}>
+              {todayLabel()} · {priorityCount} élément{priorityCount > 1 ? "s" : ""} prioritaire{priorityCount > 1 ? "s" : ""}
+              {overdueTasks.length > 0 && <span style={{ color: "var(--red)" }}> · {overdueTasks.length} en retard</span>}
+            </div>
           </div>
-          <button className="focusable" onClick={openOrganize} style={{ display: "flex", alignItems: "center", gap: "7px", background: "rgba(255,255,255,0.14)", border: "0.5px solid rgba(255,255,255,0.28)", borderRadius: "8px", padding: "8px 14px", color: "#fff", fontSize: "13px", fontWeight: 500 }}>
-            <SparklesIcon size={13} color="#fff" /> Organiser ma journée
+          <button className="focusable" onClick={openOrganize} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", color: "var(--blue)", fontSize: "14px", fontWeight: 500, padding: 0 }}>
+            <SparklesIcon size={13} color="var(--blue)" /> Organiser ma journée
           </button>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap", marginTop: "20px", fontSize: "12.5px", color: "rgba(255,255,255,0.82)" }}>
-          <span>{totalWithDone} action{totalWithDone > 1 ? "s" : ""}</span>
-          <span>·</span>
-          <span>{nbRdv} rendez-vous</span>
-          <span>·</span>
-          <span>{nbRelances} relance{nbRelances > 1 ? "s" : ""}</span>
-          <span>·</span>
-          <span>{nbAppels} appel{nbAppels > 1 ? "s" : ""}</span>
-          {overdueTasks.length > 0 && (
-            <>
-              <span>·</span>
-              <span style={{ color: "#fbd4d1" }}>{overdueTasks.length} en retard</span>
-            </>
-          )}
-        </div>
-
         {totalWithDone > 0 && (
-          <div style={{ marginTop: "14px" }}>
-            <div style={{ height: "3px", width: "260px", background: "rgba(255,255,255,0.22)", borderRadius: "2px", overflow: "hidden" }}>
-              <div style={{ width: `${(doneToday / totalWithDone) * 100}%`, height: "100%", background: "#fff", borderRadius: "2px" }} />
+          <div style={{ marginTop: "18px" }}>
+            <div style={{ height: "3px", width: "260px", background: "var(--panel2)", borderRadius: "2px", overflow: "hidden" }}>
+              <div style={{ width: `${(doneToday / totalWithDone) * 100}%`, height: "100%", background: "var(--blue)", borderRadius: "2px" }} />
             </div>
           </div>
         )}
@@ -495,7 +484,7 @@ ${list || "Aucune."}`;
         <button className="focusable" onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "13px" }}>✕</button>
       </div>
       {!result && (
-        <button className="focusable" onClick={organize} disabled={loading || tasks.length === 0} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 500, opacity: loading || tasks.length === 0 ? 0.6 : 1 }}>
+        <button className="focusable" onClick={organize} disabled={loading || tasks.length === 0} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600, opacity: loading || tasks.length === 0 ? 0.6 : 1 }}>
           {loading ? "Analyse..." : tasks.length === 0 ? "Rien à organiser" : "Lancer l'analyse"}
         </button>
       )}
@@ -561,7 +550,7 @@ function DailyBriefModal({ firstName, events, taches, prospectById, tip, onOpenP
         </div>
 
         <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
-          <button className="focusable" onClick={onGoToPlanning} style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #4c9ad455", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
+          <button className="focusable" onClick={onGoToPlanning} style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
             Voir mon agenda complet
           </button>
           <button className="focusable" onClick={onClose} style={{ flex: 1, background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px", fontSize: "13px" }}>
