@@ -383,6 +383,10 @@ function ActionTaskCard({ task, prospect, overdue, onDone, onReport, onOpenProsp
         <button className="focusable" onClick={handleDone} title="Terminer" style={{ background: "none", border: "none", padding: 0, marginTop: "2px", flexShrink: 0, fontSize: "13px", color: "var(--text-faint)", lineHeight: 1 }}>
           ○
         </button>
+        {(TASK_TYPE_META[task.type] || TASK_TYPE_META.appel_telephone).Icon && (() => {
+          const TypeIcon = (TASK_TYPE_META[task.type] || TASK_TYPE_META.appel_telephone).Icon;
+          return <TypeIcon size={13} color="var(--blue-400)" style={{ marginTop: "2px", flexShrink: 0 }} />;
+        })()}
         <span className="mono" style={{ fontSize: "11.5px", fontWeight: 500, color: overdue ? "var(--red)" : "var(--text-faint)", width: "40px", flexShrink: 0, marginTop: "1px" }}>
           {overdue ? formatShortDate(task.due_at) : formatEventTime(task.due_at)}
         </span>
@@ -438,6 +442,7 @@ function ActionEventCard({ event }) {
   return (
     <div className="row-hover" style={{ borderBottom: "0.5px solid var(--hairline)", padding: "10px 4px", display: "flex", alignItems: "flex-start", gap: "10px", borderRadius: "6px" }}>
       <span style={{ width: "13px", flexShrink: 0, marginTop: "2px" }} />
+      <CalendarIcon size={13} color="var(--blue-400)" style={{ marginTop: "2px", flexShrink: 0 }} />
       <span className="mono" style={{ fontSize: "11.5px", fontWeight: 500, color: "var(--text-faint)", width: "40px", flexShrink: 0, marginTop: "1px" }}>{formatEventTime(event.start)}</span>
       <div style={{ fontSize: "13.5px", fontWeight: 500, color: "var(--text)" }}>{event.title}</div>
     </div>
@@ -550,7 +555,7 @@ function DailyBriefModal({ firstName, events, taches, prospectById, tip, onOpenP
         </div>
 
         <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
-          <button className="focusable" onClick={onGoToPlanning} style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
+          <button className="focusable" onClick={onGoToPlanning} style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
             Voir mon agenda complet
           </button>
           <button className="focusable" onClick={onClose} style={{ flex: 1, background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px", fontSize: "13px" }}>

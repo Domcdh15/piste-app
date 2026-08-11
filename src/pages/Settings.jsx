@@ -141,7 +141,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
           {WEEKDAYS.map((d) => {
             const on = workDays.includes(d);
             return (
-              <button key={d} className="focusable" onClick={() => toggleWorkDay(d)} style={{ width: "36px", padding: "6px 0", borderRadius: "6px", fontSize: "11.5px", fontWeight: 600, background: on ? "var(--blue-dim)" : "var(--panel2)", color: on ? "var(--blue)" : "var(--text-faint)", border: on ? "0.5px solid #2563eb55" : "0.5px solid var(--hairline)" }}>
+              <button key={d} className="focusable" onClick={() => toggleWorkDay(d)} style={{ width: "36px", padding: "6px 0", borderRadius: "6px", fontSize: "11.5px", fontWeight: 600, background: on ? "var(--blue-dim)" : "var(--panel2)", color: on ? "var(--blue)" : "var(--text-faint)", border: on ? "0.5px solid #147ff555" : "0.5px solid var(--hairline)" }}>
                 {d}
               </button>
             );
@@ -178,7 +178,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
               key={lvl.value}
               className="focusable"
               onClick={() => set({ ai_initiative: lvl.value })}
-              style={{ textAlign: "left", padding: "8px 10px", borderRadius: "8px", background: (local.ai_initiative || "Équilibré") === lvl.value ? "var(--blue-dim)" : "var(--panel2)", border: (local.ai_initiative || "Équilibré") === lvl.value ? "0.5px solid #2563eb55" : "0.5px solid var(--hairline)" }}
+              style={{ textAlign: "left", padding: "8px 10px", borderRadius: "8px", background: (local.ai_initiative || "Équilibré") === lvl.value ? "var(--blue-dim)" : "var(--panel2)", border: (local.ai_initiative || "Équilibré") === lvl.value ? "0.5px solid #147ff555" : "0.5px solid var(--hairline)" }}
             >
               <div style={{ fontSize: "12.5px", fontWeight: 600, color: (local.ai_initiative || "Équilibré") === lvl.value ? "var(--blue)" : "var(--text)" }}>{lvl.value}</div>
               <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>{lvl.desc}</div>
@@ -211,7 +211,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
       </Section>
 
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-        <button className="focusable" onClick={save} disabled={saving} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", opacity: saving ? 0.6 : 1 }}>
+        <button className="focusable" onClick={save} disabled={saving} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", opacity: saving ? 0.6 : 1 }}>
           {saving ? "Enregistrement..." : "Enregistrer les préférences"}
         </button>
         {saved && <span style={{ color: "var(--green, #16a34a)", fontSize: "12px" }}>Enregistré ✓</span>}
@@ -414,7 +414,7 @@ export function TeamPanel({ session, team, reloadTeam }) {
               </button>
             </div>
           ) : (
-            <button className="focusable" disabled={busy || !inviteEmail.trim()} onClick={() => submitInvite(false)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #2563eb55", borderRadius: "6px", padding: "8px 14px", fontSize: "12.5px", fontWeight: 600, opacity: busy || !inviteEmail.trim() ? 0.6 : 1 }}>
+            <button className="focusable" disabled={busy || !inviteEmail.trim()} onClick={() => submitInvite(false)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "6px", padding: "8px 14px", fontSize: "12.5px", fontWeight: 600, opacity: busy || !inviteEmail.trim() ? 0.6 : 1 }}>
               {busy ? "Envoi..." : "Envoyer l'invitation"}
             </button>
           )}

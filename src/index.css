@@ -1,20 +1,23 @@
 :root {
   /* surfaces */
-  --bg: #f6f7f9;
+  --bg: #f8fafd;
   --panel: #ffffff;
-  --panel2: #f9fafb;
-  --hairline: #e5e7eb;
-  --hairline-strong: #d1d5db;
+  --panel2: #f8fafc;
+  --hairline: #e2e8f0;
+  --hairline-strong: #d0d5dd;
 
   /* ink */
-  --text: #111318;
-  --text-dim: #6b7280;
-  --text-faint: #9ca3af;
+  --text: #0f172a;
+  --text-dim: #475467;
+  --text-faint: #98a2b3;
 
-  /* identity accent, used sparingly */
-  --blue: #2563eb;
-  --blue-deep: #1d4ed8;
-  --blue-dim: #eff6ff;
+  /* identity accent — a blue ramp used to create visual rhythm, kept to ~10% of the UI */
+  --blue: #147ff5;
+  --blue-deep: #0e63c4;
+  --blue-500: #3b8cff;
+  --blue-400: #5ea2ff;
+  --blue-300: #8cc0ff;
+  --blue-dim: #eaf3ff;
 
   /* AI accent, kept distinct and rare */
   --violet: #7c3aed;
@@ -92,13 +95,13 @@ button {
 
 .h1 {
   font-size: 32px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1.2;
 }
 .h2 {
   font-size: 24px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1.25;
 }
@@ -106,6 +109,69 @@ button {
   font-size: 18px;
   font-weight: 600;
   line-height: 1.3;
+}
+
+/* shared button system */
+.btn-primary,
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 150ms ease, transform 150ms ease, border-color 150ms ease;
+}
+.btn-primary {
+  background: var(--blue);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--blue-deep);
+  transform: translateY(-1px);
+}
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+.btn-primary:disabled {
+  opacity: 0.6;
+}
+.btn-secondary {
+  background: #fff;
+  color: var(--text);
+  border: 1px solid var(--hairline-strong);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--panel2);
+  transform: translateY(-1px);
+}
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 0;
+  transition: color 150ms ease;
+}
+.btn-ghost:hover {
+  color: var(--text);
+}
+
+.star-toggle {
+  transition: transform 150ms ease, color 150ms ease;
+}
+.star-toggle:active {
+  transform: scale(0.8);
 }
 
 .focusable:focus-visible {
