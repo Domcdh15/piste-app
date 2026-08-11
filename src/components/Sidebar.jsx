@@ -75,6 +75,7 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
                 background: active ? "var(--blue-dim)" : isHovered ? "var(--panel2)" : "transparent",
                 color: active ? "var(--blue-deep)" : "var(--text-dim)",
                 textAlign: "left",
+                border: "none",
                 borderLeft: active ? "2px solid var(--blue)" : "2px solid transparent",
                 transition: "background 150ms ease, color 150ms ease",
               }}
@@ -119,6 +120,7 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
           background: activeTab === "settings" ? "var(--blue-dim)" : hovered === "settings" ? "var(--panel2)" : "transparent",
           color: activeTab === "settings" ? "var(--blue-deep)" : "var(--text-dim)",
           textAlign: "left",
+          border: "none",
           borderLeft: activeTab === "settings" ? "2px solid var(--blue)" : "2px solid transparent",
         }}
       >
