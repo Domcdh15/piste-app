@@ -202,26 +202,26 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
 
   return (
     <div>
-      <div style={{ padding: "40px 40px 0" }}>
+      <div style={{ background: "var(--blue)", color: "#fff", padding: "40px 40px 32px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: "16px" }}>
           <div>
-            <div className="h1" style={{ color: "var(--text)" }}>
+            <div className="h1" style={{ color: "#fff" }}>
               Bonjour{firstName ? ` ${firstName}` : ""}
             </div>
-            <div style={{ color: "var(--text-dim)", fontSize: "14px", marginTop: "6px" }}>
+            <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "14px", marginTop: "6px" }}>
               {todayLabel()} · {priorityCount} élément{priorityCount > 1 ? "s" : ""} prioritaire{priorityCount > 1 ? "s" : ""}
-              {overdueTasks.length > 0 && <span style={{ color: "var(--red)" }}> · {overdueTasks.length} en retard</span>}
+              {overdueTasks.length > 0 && <span style={{ color: "#ffd9d4" }}> · {overdueTasks.length} en retard</span>}
             </div>
           </div>
-          <button className="focusable" onClick={openOrganize} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", color: "var(--blue)", fontSize: "14px", fontWeight: 500, padding: 0 }}>
-            <SparklesIcon size={13} color="var(--blue)" /> Organiser ma journée
+          <button className="focusable" onClick={openOrganize} style={{ display: "flex", alignItems: "center", gap: "7px", background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.3)", borderRadius: "8px", padding: "9px 16px", color: "#fff", fontSize: "14px", fontWeight: 600 }}>
+            <SparklesIcon size={14} color="#fff" /> Organiser ma journée
           </button>
         </div>
 
         {totalWithDone > 0 && (
           <div style={{ marginTop: "18px" }}>
-            <div style={{ height: "3px", width: "260px", background: "var(--panel2)", borderRadius: "2px", overflow: "hidden" }}>
-              <div style={{ width: `${(doneToday / totalWithDone) * 100}%`, height: "100%", background: "var(--blue)", borderRadius: "2px" }} />
+            <div style={{ height: "3px", width: "260px", background: "rgba(255,255,255,0.25)", borderRadius: "2px", overflow: "hidden" }}>
+              <div style={{ width: `${(doneToday / totalWithDone) * 100}%`, height: "100%", background: "#fff", borderRadius: "2px" }} />
             </div>
           </div>
         )}
