@@ -22,7 +22,11 @@ export default async function handler(req, res) {
     }),
   });
   const tokens = await tokenRes.json();
-  if (!tokenRes.ok) return res.status(500).send("Échec de connexion à Google Calendar.");
+  if (!tokenRes.ok) {
+    return res
+      .status(500)
+      .send(`Échec de connexion à Google Calendar : ${tokens.error || "erreur inconnue"} — ${tokens.error_description || "pas de détail"}`);
+  }
 
   const admin = supabaseAdmin();
   const { data: existing } = await admin
