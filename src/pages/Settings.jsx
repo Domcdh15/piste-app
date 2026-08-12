@@ -497,7 +497,7 @@ const STANDARD_PRICE = 19;
 // Doit rester synchronisé avec api/_lib/plans.js (dupliqué côté client, ce fichier
 // n'est pas accessible dans le bundle serverless).
 const PLAN_TIERS = [
-  { name: "Solo", maxPrice: 19, seats: 1, overagePrice: 12, aiQuota: 100 },
+  { name: "Solo", maxPrice: 19, seats: 1, overagePrice: 12, aiQuota: 300 },
   { name: "Équipe", maxPrice: 39, seats: 3, overagePrice: 12, aiQuota: 300 },
   { name: "Business", maxPrice: 79, seats: 10, overagePrice: 10, aiQuota: 1000 },
   { name: "Sur mesure", maxPrice: Infinity, seats: 20, overagePrice: 8, aiQuota: 3000 },
