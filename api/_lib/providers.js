@@ -2,7 +2,7 @@ const PROVIDERS = {
   google: {
     authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
     tokenUrl: "https://oauth2.googleapis.com/token",
-    scope: "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.send",
+    scope: "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.settings.basic",
     extraAuthParams: { access_type: "offline", prompt: "consent" },
     clientIdEnv: "GOOGLE_CLIENT_ID",
     clientSecretEnv: "GOOGLE_CLIENT_SECRET",
@@ -217,4 +217,37 @@ export async function sendEmail(provider, accessToken, { to, subject, body, from
   }
 
   throw new Error("Fournisseur d'envoi inconnu");
+}
+
+// Applique la signature directement dans les paramètres Gmail du compte connecté (nécessite
+// le scope gmail.settings.basic) — pas d'équivalent public côté Microsoft Graph pour Outlook.
+export async function setGmailSignature(accessToken, signatureText) {
+  const listRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!listRes.ok) {
+    const err = await listRes.json().catch(() => ({}));
+    throw new Error(err?.error?.message || "gmail_sendas_list_failed");
+  }
+  const { sendAs = [] } = await listRes.json();
+  const primary = sendAs.find((s) => s.isPrimary) || sendAs[0];
+  if (!primary) throw new Error("Aucune adresse d'envoi trouvée sur ce compte Gmail");
+
+  const signatureHtml = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#202124;white-space:pre-line;">${signatureText
+    .split("\n")
+    .map((line) => line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"))
+    .join("<br>")}</div>`;
+
+  const patchRes = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs/${encodeURIComponent(primary.sendAsEmail)}`,
+    {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ signature: signatureHtml }),
+    }
+  );
+  if (!patchRes.ok) {
+    const err = await patchRes.json().catch(() => ({}));
+    throw new Error(err?.error?.message || "gmail_signature_update_failed");
+  }
 }

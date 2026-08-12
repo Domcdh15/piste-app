@@ -1,5 +1,5 @@
 import { supabaseAdmin, getUserFromToken, bearerToken } from "../_lib/supabase.js";
-import { ensureFreshToken, sendEmail, listRecentMessages } from "../_lib/providers.js";
+import { ensureFreshToken, sendEmail, listRecentMessages, setGmailSignature } from "../_lib/providers.js";
 
 function buildVacationReply(s) {
   const lines = [(s.vacation_message || "").trim() || "Je suis actuellement absent(e)."];
@@ -67,7 +67,28 @@ export default async function handler(req, res) {
   if (!user) return res.status(401).json({ error: "Non authentifié" });
 
   if (req.method === "POST") {
-    const { action, provider, to, subject, body } = req.body || {};
+    const { action, provider, to, subject, body, signature } = req.body || {};
+
+    if (action === "set_gmail_signature") {
+      if (!signature) return res.status(400).json({ error: "Signature manquante" });
+
+      const admin = supabaseAdmin();
+      const { data: conn } = await admin.from("calendar_connections").select("*").eq("user_id", user.id).eq("provider", "google").maybeSingle();
+      if (!conn) return res.status(400).json({ error: "Aucune connexion Gmail — connecte ton compte dans Intégrations." });
+
+      try {
+        const accessToken = await ensureFreshToken(admin, conn);
+        await setGmailSignature(accessToken, signature);
+        return res.status(200).json({ ok: true });
+      } catch (e) {
+        const insufficientScope = /insufficient|scope|permission/i.test(e.message || "");
+        return res.status(500).json({
+          error: insufficientScope
+            ? "Permission manquante — déconnecte puis reconnecte Google Calendar dans Intégrations pour autoriser la synchronisation de signature."
+            : "La synchronisation a échoué. Réessaie.",
+        });
+      }
+    }
 
     if (action === "send_email") {
       if (!["google", "microsoft"].includes(provider)) return res.status(400).json({ error: "Fournisseur invalide" });

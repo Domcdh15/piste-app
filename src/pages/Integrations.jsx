@@ -11,7 +11,7 @@ function badgeColor(label) {
 const CATEGORIES = ["Toutes", "Agenda", "CRM", "Email", "Productivité"];
 
 const CATALOG = [
-  { key: "google", label: "Google Calendar", category: "Agenda", desc: "Synchronisez vos rendez-vous et envoyez vos relances directement depuis Gmail.", real: true, permissions: "Lecture de l'agenda (calendar.readonly) et envoi d'email (gmail.send)" },
+  { key: "google", label: "Google Calendar", category: "Agenda", desc: "Synchronisez vos rendez-vous et envoyez vos relances directement depuis Gmail.", real: true, permissions: "Lecture de l'agenda (calendar.readonly), envoi d'email (gmail.send) et synchronisation de signature (gmail.settings.basic)" },
   { key: "microsoft", label: "Outlook Calendar", category: "Agenda", desc: "Synchronisez vos événements et envoyez vos relances directement depuis Outlook.", real: true, permissions: "Lecture de l'agenda (Calendars.Read) et envoi d'email (Mail.Send)" },
   { key: "hubspot", label: "HubSpot", category: "CRM", desc: "Synchronisez vos contacts, entreprises et opportunités avec Closia." },
   { key: "salesforce", label: "Salesforce", category: "CRM", desc: "Centralisez vos comptes, contacts et opportunités Salesforce dans Closia." },

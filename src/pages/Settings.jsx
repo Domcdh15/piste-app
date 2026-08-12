@@ -192,25 +192,32 @@ export default function Settings({ session, prospects, settings, reloadSettings,
       </Section>
 
       <Section title="Signature email">
-        <Field label="Nom complet">
-          <input value={local.sig_name || ""} onChange={(e) => set({ sig_name: e.target.value })} style={inputSm} placeholder="ex : Camille Martin" />
-        </Field>
-        <Field label="Poste">
-          <input value={local.sig_job_title || ""} onChange={(e) => set({ sig_job_title: e.target.value })} style={inputSm} placeholder="ex : Responsable commercial" />
-        </Field>
-        <Field label="Entreprise">
-          <input value={local.sig_company || ""} onChange={(e) => set({ sig_company: e.target.value })} style={inputSm} placeholder="ex : Closia" />
-        </Field>
-        <Field label="Téléphone (facultatif)" last>
-          <input value={local.sig_phone || ""} onChange={(e) => set({ sig_phone: e.target.value })} style={inputSm} placeholder="ex : 06 12 34 56 78" />
-        </Field>
-        {buildSignatureBlock(local) && (
-          <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "0.5px solid var(--hairline)" }}>
-            <div style={{ fontSize: "10px", color: "var(--text-faint)", marginBottom: "6px" }}>APERÇU</div>
-            <div style={{ fontSize: "12px", color: "var(--text-dim)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{buildSignatureBlock(local)}</div>
-          </div>
+        <Toggle label="Activer la signature" checked={local.sig_enabled !== false} onChange={(v) => set({ sig_enabled: v })} />
+        {local.sig_enabled !== false && (
+          <>
+            <Field label="Nom complet">
+              <input value={local.sig_name || ""} onChange={(e) => set({ sig_name: e.target.value })} style={inputSm} placeholder="ex : Camille Martin" />
+            </Field>
+            <Field label="Poste">
+              <input value={local.sig_job_title || ""} onChange={(e) => set({ sig_job_title: e.target.value })} style={inputSm} placeholder="ex : Responsable commercial" />
+            </Field>
+            <Field label="Entreprise">
+              <input value={local.sig_company || ""} onChange={(e) => set({ sig_company: e.target.value })} style={inputSm} placeholder="ex : Closia" />
+            </Field>
+            <Field label="Téléphone (facultatif)" last>
+              <input value={local.sig_phone || ""} onChange={(e) => set({ sig_phone: e.target.value })} style={inputSm} placeholder="ex : 06 12 34 56 78" />
+            </Field>
+            {buildSignatureBlock(local) && (
+              <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "0.5px solid var(--hairline)" }}>
+                <div style={{ fontSize: "10px", color: "var(--text-faint)", marginBottom: "6px" }}>APERÇU</div>
+                <div style={{ fontSize: "12px", color: "var(--text-dim)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{buildSignatureBlock(local)}</div>
+              </div>
+            )}
+            <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>Ajoutée automatiquement à la fin des emails générés par l'IA.</div>
+
+            <SignatureMailSync local={local} session={session} mailConnected={mailConnected} />
+          </>
         )}
-        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>Ajoutée automatiquement à la fin des emails générés par l'IA.</div>
       </Section>
 
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
@@ -701,6 +708,57 @@ function ChangePlanSection({ currentTier, isTeamBilling, session, reloadSettings
       ) : (
         <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>
           Vous êtes déjà sur notre tarif le plus élevé standard. Pour un besoin au-delà de {currentTier.seats} utilisateurs, contactez-nous pour un tarif sur mesure.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SignatureMailSync({ local, session, mailConnected }) {
+  const [syncing, setSyncing] = useState(false);
+  const [result, setResult] = useState(null);
+
+  const signature = buildSignatureBlock(local);
+
+  async function syncToGmail() {
+    setSyncing(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/calendar/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "set_gmail_signature", provider: "google", signature }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "échec");
+      setResult({ ok: true });
+    } catch (e) {
+      setResult({ error: e.message && e.message !== "échec" ? e.message : "La synchronisation a échoué. Réessaie." });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  if (!mailConnected?.google && !mailConnected?.microsoft) return null;
+
+  return (
+    <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "0.5px solid var(--hairline)" }}>
+      <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "8px" }}>SYNCHRONISER AVEC VOTRE BOÎTE MAIL</div>
+      {mailConnected.google ? (
+        <>
+          <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "10px" }}>
+            Applique cette signature directement dans Gmail — elle apparaîtra automatiquement quand tu réponds à un email, même en dehors de Closia.
+          </div>
+          <button className="focusable" onClick={syncToGmail} disabled={syncing || !signature} style={{ fontSize: "12px", fontWeight: 600, padding: "8px 14px", borderRadius: "8px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", opacity: syncing || !signature ? 0.6 : 1 }}>
+            {syncing ? "Synchronisation..." : "Appliquer à Gmail"}
+          </button>
+          {!signature && <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginTop: "8px" }}>Remplis au moins un champ de signature ci-dessus avant de synchroniser.</div>}
+          {result?.ok && <div style={{ fontSize: "11.5px", color: "#527a61", marginTop: "8px" }}>Signature appliquée à ton compte Gmail ✓</div>}
+          {result?.error && <div style={{ fontSize: "11.5px", color: "var(--red)", marginTop: "8px" }}>{result.error}</div>}
+        </>
+      ) : (
+        <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>
+          Microsoft ne permet pas d'appliquer une signature automatiquement dans Outlook via son API — cette signature reste utilisée dans les emails générés par Closia uniquement.
         </div>
       )}
     </div>
