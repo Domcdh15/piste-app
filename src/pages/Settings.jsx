@@ -842,24 +842,44 @@ function SignatureMailSync({ local, session, mailConnected }) {
 }
 
 function SupportPanel({ session }) {
+  const [ticket, setTicket] = useState(undefined);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
-  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    supabase
+      .from("support_requests")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => setTicket(data || null));
+  }, [session.user.id]);
 
   async function send() {
     if (!message.trim()) return;
     setSending(true);
-    setResult(null);
-    const { error } = await supabase.from("support_requests").insert({
-      user_id: session.user.id,
-      user_email: session.user.email,
-      message: message.trim(),
-    });
-    setSending(false);
-    if (error) {
-      setResult({ error: "L'envoi a échoué. Réessaie dans un instant." });
+    setError("");
+    const entry = { from: "client", body: message.trim(), at: new Date().toISOString() };
+
+    if (ticket) {
+      const messages = [...(ticket.messages || []), entry];
+      const { error: err } = await supabase.from("support_requests").update({ messages, status: "open" }).eq("id", ticket.id);
+      setSending(false);
+      if (err) return setError("L'envoi a échoué. Réessaie.");
+      setTicket({ ...ticket, messages, status: "open" });
+      setMessage("");
     } else {
-      setResult({ ok: true });
+      const { data, error: err } = await supabase
+        .from("support_requests")
+        .insert({ user_id: session.user.id, user_email: session.user.email, message: message.trim(), messages: [entry] })
+        .select()
+        .single();
+      setSending(false);
+      if (err) return setError("L'envoi a échoué. Réessaie.");
+      setTicket(data);
       setMessage("");
     }
   }
@@ -867,13 +887,37 @@ function SupportPanel({ session }) {
   return (
     <>
       <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "12px" }}>
-        Une question, un bug, besoin d'aide ? Décris ton problème ci-dessous, l'équipe Closia te répond directement par email.
+        Une question, un bug, besoin d'aide ? Écris ici, l'équipe Closia te répond directement.
       </div>
+
+      {ticket?.messages?.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "14px", maxWidth: "420px" }}>
+          {ticket.messages.map((m, i) => (
+            <div
+              key={i}
+              style={{
+                alignSelf: m.from === "admin" ? "flex-start" : "flex-end",
+                background: m.from === "admin" ? "var(--panel2)" : "var(--blue-dim)",
+                color: m.from === "admin" ? "var(--text)" : "var(--blue)",
+                border: `0.5px solid ${m.from === "admin" ? "var(--hairline)" : "#147ff555"}`,
+                borderRadius: "10px",
+                padding: "8px 12px",
+                fontSize: "12.5px",
+                maxWidth: "85%",
+              }}
+            >
+              <div style={{ fontSize: "10px", fontWeight: 700, opacity: 0.6, marginBottom: "3px" }}>{m.from === "admin" ? "Équipe Closia" : "Toi"}</div>
+              {m.body}
+            </div>
+          ))}
+        </div>
+      )}
+
       <textarea
         value={message}
         onChange={(e) => setMessage(e.target.value)}
-        placeholder="Décris ta question ou le problème rencontré..."
-        style={{ ...inputSm, width: "100%", maxWidth: "420px", height: "90px", resize: "vertical", fontFamily: "inherit" }}
+        placeholder={ticket ? "Ajouter un message..." : "Décris ta question ou le problème rencontré..."}
+        style={{ ...inputSm, width: "100%", maxWidth: "420px", height: "70px", resize: "vertical", fontFamily: "inherit" }}
       />
       <div style={{ marginTop: "10px" }}>
         <button
@@ -885,8 +929,7 @@ function SupportPanel({ session }) {
           {sending ? "Envoi..." : "Envoyer au support"}
         </button>
       </div>
-      {result?.ok && <div style={{ fontSize: "11.5px", color: "#527a61", marginTop: "8px" }}>Message envoyé ✓ — on te répond à {session.user.email}.</div>}
-      {result?.error && <div style={{ fontSize: "11.5px", color: "var(--red)", marginTop: "8px" }}>{result.error}</div>}
+      {error && <div style={{ fontSize: "11.5px", color: "var(--red)", marginTop: "8px" }}>{error}</div>}
     </>
   );
 }
