@@ -255,6 +255,10 @@ export default function Settings({ session, prospects, settings, reloadSettings,
         </button>
       </Section>
 
+      <Section title="Support">
+        <SupportPanel session={session} />
+      </Section>
+
       {(mailConnected.google || mailConnected.microsoft) && (
         <Section title="Mode absence">
           <Toggle
@@ -834,6 +838,56 @@ function SignatureMailSync({ local, session, mailConnected }) {
         </div>
       )}
     </div>
+  );
+}
+
+function SupportPanel({ session }) {
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
+
+  async function send() {
+    if (!message.trim()) return;
+    setSending(true);
+    setResult(null);
+    const { error } = await supabase.from("support_requests").insert({
+      user_id: session.user.id,
+      user_email: session.user.email,
+      message: message.trim(),
+    });
+    setSending(false);
+    if (error) {
+      setResult({ error: "L'envoi a échoué. Réessaie dans un instant." });
+    } else {
+      setResult({ ok: true });
+      setMessage("");
+    }
+  }
+
+  return (
+    <>
+      <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "12px" }}>
+        Une question, un bug, besoin d'aide ? Décris ton problème ci-dessous, l'équipe Closia te répond directement par email.
+      </div>
+      <textarea
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        placeholder="Décris ta question ou le problème rencontré..."
+        style={{ ...inputSm, width: "100%", maxWidth: "420px", height: "90px", resize: "vertical", fontFamily: "inherit" }}
+      />
+      <div style={{ marginTop: "10px" }}>
+        <button
+          className="focusable"
+          onClick={send}
+          disabled={sending || !message.trim()}
+          style={{ fontSize: "12px", fontWeight: 600, padding: "8px 14px", borderRadius: "8px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", opacity: sending || !message.trim() ? 0.6 : 1 }}
+        >
+          {sending ? "Envoi..." : "Envoyer au support"}
+        </button>
+      </div>
+      {result?.ok && <div style={{ fontSize: "11.5px", color: "#527a61", marginTop: "8px" }}>Message envoyé ✓ — on te répond à {session.user.email}.</div>}
+      {result?.error && <div style={{ fontSize: "11.5px", color: "var(--red)", marginTop: "8px" }}>{result.error}</div>}
+    </>
   );
 }
 

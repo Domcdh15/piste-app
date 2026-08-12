@@ -47,6 +47,7 @@ export default async function handler(req, res) {
   }
 
   const { data: leads } = await admin.from("leads").select("*").order("created_at", { ascending: false });
+  const { data: supportRequests } = await admin.from("support_requests").select("*").order("created_at", { ascending: false });
 
   const { data: settingsRows } = await admin.from("user_settings").select("*");
   const settingsByUserId = Object.fromEntries((settingsRows || []).map((s) => [s.user_id, s]));
@@ -100,5 +101,5 @@ export default async function handler(req, res) {
     member_count: memberCountByTeamId[t.id] || 0,
   }));
 
-  res.status(200).json({ leads: leads || [], users, teams });
+  res.status(200).json({ leads: leads || [], supportRequests: supportRequests || [], users, teams });
 }

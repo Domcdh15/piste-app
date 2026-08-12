@@ -1,6 +1,6 @@
 import { getUserFromToken, bearerToken, supabaseAdmin, isAdminUser, applyAdminCors } from "../_lib/supabase.js";
 
-const EDITABLE_TABLES = ["prospects", "tasks", "activities", "user_settings", "teams"];
+const EDITABLE_TABLES = ["prospects", "tasks", "activities", "user_settings", "teams", "support_requests"];
 
 export default async function handler(req, res) {
   if (applyAdminCors(req, res)) return;
