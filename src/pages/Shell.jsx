@@ -10,8 +10,28 @@ import Settings from "./Settings.jsx";
 import Integrations from "./Integrations.jsx";
 import EquipePage from "./EquipePage.jsx";
 
+const VALID_TABS = ["today", "planning", "pipeline", "chauds", "a-sauver", "assistant", "activities", "settings", "integrations", "equipe"];
+
+function tabFromHash() {
+  const tab = window.location.hash.slice(1);
+  return VALID_TABS.includes(tab) ? tab : "today";
+}
+
 export default function Shell({ session, team, reloadTeam }) {
-  const [activeTab, setActiveTab] = useState("today");
+  const [activeTab, setActiveTabState] = useState(tabFromHash);
+
+  function setActiveTab(tab) {
+    setActiveTabState(tab);
+    if (VALID_TABS.includes(tab)) window.location.hash = tab;
+  }
+
+  useEffect(() => {
+    function onHashChange() {
+      setActiveTabState(tabFromHash());
+    }
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
   const [prospects, setProspects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [jumpToProspectId, setJumpToProspectId] = useState(null);
