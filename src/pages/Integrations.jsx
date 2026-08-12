@@ -179,9 +179,9 @@ export default function Integrations({ session, onBack }) {
       <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "18px", textAlign: "center" }}>
         <div className="display" style={{ fontWeight: 700, fontSize: "14px", marginBottom: "4px" }}>Besoin d'aide pour connecter votre outil ?</div>
         <div style={{ color: "var(--text-dim)", fontSize: "12.5px", marginBottom: "12px" }}>Écrivez-nous, on vous répond rapidement.</div>
-        <a href="mailto:support@clos-ia.fr" className="focusable" style={{ display: "inline-block", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "8px 16px", fontSize: "13px", fontWeight: 600, textDecoration: "none" }}>
+        <button onClick={onBack} className="focusable" style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "8px 16px", fontSize: "13px", fontWeight: 600 }}>
           Contacter le support
-        </a>
+        </button>
       </div>
 
       {confirmKey && (
