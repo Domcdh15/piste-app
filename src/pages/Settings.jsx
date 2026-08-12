@@ -228,7 +228,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
 
       {isAdmin && (
         <Section title="Abonnement & facturation">
-          <BillingPanel local={local} session={session} team={team} />
+          <BillingPanel local={local} session={session} team={team} reloadSettings={reloadSettings} reloadTeam={reloadTeam} />
         </Section>
       )}
 
@@ -505,7 +505,7 @@ function planTierFor(price) {
   return PLAN_TIERS.find((t) => price <= t.maxPrice) || PLAN_TIERS[PLAN_TIERS.length - 1];
 }
 
-function BillingPanel({ local, session, team }) {
+function BillingPanel({ local, session, team, reloadSettings, reloadTeam }) {
   if (!local) return <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Chargement...</div>;
 
   const memberCount = team?.members?.length || 1;
@@ -557,6 +557,14 @@ function BillingPanel({ local, session, team }) {
       {status === "active" && <div style={{ fontSize: "12px", color: "#527a61", marginBottom: "16px" }}>Abonnement actif</div>}
       {status === "cancelled" && <div style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "16px" }}>Abonnement résilié</div>}
 
+      <ChangePlanSection
+        currentTier={planTierFor(price)}
+        isTeamBilling={isTeamBilling}
+        session={session}
+        reloadSettings={reloadSettings}
+        reloadTeam={reloadTeam}
+      />
+
       {isTeamBilling && (
         <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px", marginBottom: "14px" }}>
           <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "10px" }}>VOTRE ABONNEMENT</div>
@@ -601,6 +609,74 @@ function BillingPanel({ local, session, team }) {
           <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Aucune facture pour l'instant.</div>
         )}
       </div>
+    </div>
+  );
+}
+
+function ChangePlanSection({ currentTier, isTeamBilling, session, reloadSettings, reloadTeam }) {
+  const [confirming, setConfirming] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const tierIndex = PLAN_TIERS.indexOf(currentTier);
+  const nextTier = PLAN_TIERS[tierIndex + 1];
+  const canUpgrade = nextTier && Number.isFinite(nextTier.maxPrice);
+
+  async function confirmUpgrade() {
+    setSaving(true);
+    setError("");
+    try {
+      if (isTeamBilling) {
+        const res = await fetch("/api/team", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ action: "change_plan", planPrice: nextTier.maxPrice }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "échec");
+        reloadTeam?.();
+      } else {
+        const { error: err } = await supabase.from("user_settings").update({ plan_price: nextTier.maxPrice }).eq("user_id", session.user.id);
+        if (err) throw err;
+        reloadSettings?.();
+      }
+      setConfirming(false);
+    } catch (e) {
+      setError("Le changement d'abonnement a échoué. Réessaie.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px", marginBottom: "14px" }}>
+      <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "10px" }}>CHANGER D'ABONNEMENT</div>
+      {canUpgrade ? (
+        confirming ? (
+          <div>
+            <div style={{ fontSize: "12.5px", color: "var(--text)", marginBottom: "10px" }}>
+              Passer de {currentTier.name} à <strong>{nextTier.name}</strong> — {formatEuros(nextTier.maxPrice)}/mois. Le nouveau tarif sera appliqué sur votre prochaine facture.
+            </div>
+            {error && <div style={{ fontSize: "11.5px", color: "var(--red)", marginBottom: "8px" }}>{error}</div>}
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button className="btn-primary focusable" onClick={confirmUpgrade} disabled={saving}>
+                {saving ? "Confirmation..." : `Confirmer le passage à ${nextTier.name}`}
+              </button>
+              <button className="focusable" onClick={() => setConfirming(false)} disabled={saving} style={{ fontSize: "13px", padding: "0 16px", height: "40px", borderRadius: "8px", background: "transparent", color: "var(--text-dim)", border: "0.5px solid var(--hairline-strong)" }}>
+                Annuler
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button className="btn-secondary focusable" onClick={() => setConfirming(true)}>
+            Passer à {nextTier.name} — {formatEuros(nextTier.maxPrice)}/mois
+          </button>
+        )
+      ) : (
+        <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>
+          Vous êtes déjà sur notre tarif le plus élevé standard. Pour un besoin au-delà de {currentTier.seats} utilisateurs, contactez-nous pour un tarif sur mesure.
+        </div>
+      )}
     </div>
   );
 }

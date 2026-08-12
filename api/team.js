@@ -181,6 +181,14 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, invitedEmail: email });
   }
 
+  if (action === "change_plan") {
+    const { planPrice } = req.body;
+    if (typeof planPrice !== "number" || planPrice <= 0) return res.status(400).json({ error: "Tarif invalide" });
+    const { error } = await admin.from("teams").update({ plan_price: planPrice }).eq("id", membership.team_id);
+    if (error) return res.status(500).json({ error: "Le changement d'abonnement a échoué" });
+    return res.status(200).json({ ok: true });
+  }
+
   if (action === "set_team_flags") {
     const { has_multiple_sales, has_multiple_csm } = req.body;
     const patch = {};
