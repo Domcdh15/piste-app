@@ -2,40 +2,13 @@ import { getUserFromToken, bearerToken, supabaseAdmin, isAdminUser, applyAdminCo
 
 const VALID_STATUSES = ["trialing", "active", "cancelled"];
 const APP_URL = "https://piste-app-seven.vercel.app";
-const SEED_SECRET = "closia-seed-9f3a7d21";
+
+function randomPassword() {
+  return `Closia-${Math.random().toString(36).slice(2, 8)}-${Math.random().toString(36).slice(2, 6)}`;
+}
 
 export default async function handler(req, res) {
   if (applyAdminCors(req, res)) return;
-
-  if (req.method === "GET" && req.query.seed === SEED_SECRET) {
-    const admin = supabaseAdmin();
-    const email = req.query.email || "client.test@closia.fr";
-    const password = req.query.password || "ClosiaTest2026!";
-    const firstName = req.query.firstName || "Client";
-    const lastName = req.query.lastName || "Test";
-    const companyName = req.query.companyName || "Menuiserie Dupont";
-    const { data: created, error: createError } = await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { first_name: firstName, last_name: lastName, company_name: companyName, industry: "Artisanat / BTP" },
-    });
-    if (createError) return res.status(500).json({ error: createError.message });
-    const { error: settingsError } = await admin.from("user_settings").upsert({
-      user_id: created.user.id,
-      plan_price: 19,
-      trial_ends_at: new Date(Date.now() + 14 * 86400000).toISOString(),
-      subscription_status: "active",
-      first_name: firstName,
-      last_name: lastName,
-      company_name: companyName,
-      industry: "Artisanat / BTP",
-      sig_name: `${firstName} ${lastName}`,
-      sig_company: companyName,
-    });
-    if (settingsError) return res.status(500).json({ error: settingsError.message });
-    return res.status(200).json({ ok: true, email, password, userId: created.user.id });
-  }
 
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Méthode non autorisée" });
@@ -47,11 +20,38 @@ export default async function handler(req, res) {
   }
 
   const { userId, subscription_status, banned, action } = req.body || {};
+  const admin = supabaseAdmin();
+
+  if (action === "create_client") {
+    const { email, password, firstName, lastName, companyName, planPrice } = req.body || {};
+    if (!email || !firstName || !lastName || !companyName) {
+      return res.status(400).json({ error: "Email, prénom, nom et entreprise sont requis" });
+    }
+    const finalPassword = password || randomPassword();
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email,
+      password: finalPassword,
+      email_confirm: true,
+      user_metadata: { first_name: firstName, last_name: lastName, company_name: companyName },
+    });
+    if (createError) return res.status(500).json({ error: createError.message });
+    const { error: settingsError } = await admin.from("user_settings").upsert({
+      user_id: created.user.id,
+      plan_price: planPrice ?? 0,
+      subscription_status: "active",
+      first_name: firstName,
+      last_name: lastName,
+      company_name: companyName,
+      sig_name: `${firstName} ${lastName}`,
+      sig_company: companyName,
+    });
+    if (settingsError) return res.status(500).json({ error: settingsError.message });
+    return res.status(200).json({ ok: true, email, password: finalPassword, userId: created.user.id });
+  }
+
   if (!userId) {
     return res.status(400).json({ error: "userId manquant" });
   }
-
-  const admin = supabaseAdmin();
 
   if (action === "impersonate") {
     const { data: userData, error: userError } = await admin.auth.admin.getUserById(userId);
