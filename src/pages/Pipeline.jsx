@@ -237,23 +237,26 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
   const showOwners = team && (team.team?.has_multiple_sales || team.team?.has_multiple_csm);
 
   return (
-    <div style={{ padding: "40px 40px 64px", maxWidth: "980px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "4px", gap: "12px", flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
-          <span className="display" style={{ fontWeight: 600, fontSize: "17px" }}>{priorityLabel}</span>
-          <span className="mono" style={{ fontSize: "13px", color: "var(--text-faint)" }}>{openList.length}</span>
+    <div>
+      <div style={{ background: "var(--banner-cyan)", color: "#fff", padding: "40px 40px 32px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
+            <span className="h2" style={{ color: "#fff" }}>{priorityLabel}</span>
+            <span className="mono" style={{ fontSize: "13px", color: "rgba(255,255,255,0.75)" }}>{openList.length}</span>
+          </div>
+          <div style={{ display: "flex", gap: "18px", alignItems: "center" }}>
+            <button className="focusable" onClick={() => setShowOptimize((s) => !s)} style={{ display: "flex", alignItems: "center", gap: "5px", background: "none", border: "none", color: "#fff", opacity: showOptimize ? 1 : 0.85, fontSize: "12.5px", fontWeight: 500, padding: 0 }}>
+              <SparklesIcon size={12} color="#fff" /> Optimiser
+            </button>
+            <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.3)", borderRadius: "8px", color: "#fff", fontSize: "12.5px", fontWeight: 600, padding: "7px 14px" }}>
+              {showForm ? "Annuler" : "+ Opportunité"}
+            </button>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: "18px", alignItems: "center" }}>
-          <button className="focusable" onClick={() => setShowOptimize((s) => !s)} style={{ display: "flex", alignItems: "center", gap: "5px", background: "none", border: "none", color: showOptimize ? "var(--blue)" : "var(--text-dim)", fontSize: "12.5px", fontWeight: 500, padding: 0 }}>
-            <SparklesIcon size={12} color={showOptimize ? "var(--blue)" : "var(--text-dim)"} /> Optimiser
-          </button>
-          <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "none", border: "none", color: "var(--blue)", fontSize: "12.5px", fontWeight: 500, padding: 0 }}>
-            {showForm ? "Annuler" : "+ Opportunité"}
-          </button>
-        </div>
+        <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "12.5px", marginTop: "6px" }}>{formatEuros(totalValue)} de pipeline</div>
       </div>
-      <div style={{ color: "var(--text-faint)", fontSize: "12.5px", marginBottom: "24px" }}>{formatEuros(totalValue)} de pipeline</div>
 
+      <div style={{ padding: "28px 40px 64px", maxWidth: "980px" }}>
       {(atRiskCount > 0 || noActionCount > 0) && (
         <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", padding: "10px 2px", borderTop: "0.5px solid var(--hairline)", borderBottom: "0.5px solid var(--hairline)", marginBottom: "20px", fontSize: "12.5px" }}>
           <span style={{ color: "var(--red)" }}>{atRiskCount} deal{atRiskCount > 1 ? "s" : ""} à risque</span>
@@ -279,7 +282,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
                 fontSize: "12.5px",
                 fontWeight: 500,
                 background: quickFilter === f.key ? "var(--blue-dim)" : "transparent",
-                color: quickFilter === f.key ? "var(--blue-300)" : "var(--text-dim)",
+                color: quickFilter === f.key ? "var(--blue)" : "var(--text-dim)",
                 border: quickFilter === f.key ? "none" : "0.5px solid var(--hairline)",
               }}
             >
@@ -349,6 +352,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
       ) : (
         <OpportunityList groups={stageGroups} nextTaskByProspect={nextTaskByProspect} onOpen={setPanelId} onToggleStar={toggleStar} team={team} showOwners={showOwners} />
       )}
+      </div>
     </div>
   );
 }
@@ -1413,7 +1417,7 @@ function Modal({ children, onClose }) {
       onClick={onClose}
       style={{ position: "fixed", inset: 0, background: "rgba(10,17,40,0.6)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: "20px" }}
     >
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "rgba(16,27,61,0.85)", backdropFilter: "blur(16px)", border: "1px solid var(--hairline-strong)", borderRadius: "var(--radius-lg)", padding: "22px", maxWidth: "480px", width: "100%", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "rgba(255,255,255,0.88)", backdropFilter: "blur(16px)", border: "1px solid var(--hairline-strong)", borderRadius: "var(--radius-lg)", padding: "22px", maxWidth: "480px", width: "100%", maxHeight: "85vh", overflowY: "auto", boxShadow: "var(--shadow-md)" }}>
         {children}
       </div>
     </div>

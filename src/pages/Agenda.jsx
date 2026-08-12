@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { callAI, parseJsonLoose, formatEuros, formatShortDate, Avatar, SparklesIcon, PhoneIcon, MailIcon, VideoIcon, PinIcon, CalendarIcon, CheckIcon, AlertIcon, PageTitle } from "../lib/ui.jsx";
+import { callAI, parseJsonLoose, formatEuros, formatShortDate, Avatar, SparklesIcon, PhoneIcon, MailIcon, VideoIcon, PinIcon, CalendarIcon, CheckIcon, AlertIcon } from "../lib/ui.jsx";
 
 const VIEWS = ["Liste", "Jour", "Semaine"];
 
@@ -185,9 +185,21 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
   }
 
   return (
-    <div style={{ padding: "28px 32px 48px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px", flexWrap: "wrap", gap: "10px" }}>
-        <PageTitle icon={CalendarIcon} color="var(--blue)">Agenda</PageTitle>
+    <div>
+      <div style={{ background: "var(--banner-cyan)", color: "#fff", padding: "40px 32px 32px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "12px", flexWrap: "wrap" }}>
+          <div>
+            <div className="h2" style={{ color: "#fff" }}>Agenda</div>
+            <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "13px", marginTop: "4px" }}>{rangeLabel(view, refDate)}</div>
+          </div>
+          <button className="focusable" onClick={() => setShowAddForm((s) => !s)} style={{ background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.3)", borderRadius: "8px", color: "#fff", fontSize: "13px", fontWeight: 600, padding: "9px 16px" }}>
+            {showAddForm ? "Annuler" : "+ Ajouter une action"}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ padding: "24px 32px 48px" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
         <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
           {view !== "Liste" && (
             <>
@@ -203,13 +215,8 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
               </button>
             ))}
           </div>
-          <button className="focusable" onClick={() => setShowAddForm((s) => !s)} style={{ ...navBtn, background: "var(--blue-dim)", color: "var(--blue)", fontWeight: 600 }}>
-            {showAddForm ? "Annuler" : "+ Ajouter une action"}
-          </button>
         </div>
       </div>
-
-      <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "14px" }}>{rangeLabel(view, refDate)}</div>
 
       {view === "Liste" && (
         <DaySummaryBar overdueCount={overdueTasks.length} todayCount={todayTasks.length} onOrganize={() => setShowOrganize((s) => !s)} organizing={showOrganize} />
@@ -275,6 +282,7 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
         {panelTask && (
           <TaskDetailPanel task={panelTask} prospect={prospectById[panelTask.prospect_id]} onClose={() => setPanelTask(null)} onDone={() => { toggleTaskDone(panelTask); setPanelTask(null); }} onReport={(d) => reportTask(panelTask, d)} onOpenProspect={onOpenProspect} />
         )}
+      </div>
       </div>
     </div>
   );

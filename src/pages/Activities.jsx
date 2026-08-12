@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { Avatar, formatShortDate, formatEuros, callAI, parseJsonLoose, STATUS_META, computeDealScore, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, ListIcon, UsersIcon, LinkedinIcon, AlertIcon, PageTitle } from "../lib/ui.jsx";
+import { Avatar, formatShortDate, formatEuros, callAI, parseJsonLoose, STATUS_META, computeDealScore, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, UsersIcon, LinkedinIcon, AlertIcon } from "../lib/ui.jsx";
 
 const PERIOD_DAYS = { "7": 7, "30": 30, "90": 90 };
 const PERIODS = [["7", "7 jours"], ["30", "30 jours"], ["90", "Trimestre"]];
@@ -103,13 +103,15 @@ export default function Activities({ prospects, onOpenProspect, session, team, s
   }, [prospects]);
 
   return (
-    <div style={{ padding: "28px 32px 60px", maxWidth: "900px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px", flexWrap: "wrap", gap: "10px" }}>
-        <PageTitle icon={ListIcon} color="var(--blue)">Activité & Données</PageTitle>
+    <div>
+      <div style={{ background: "var(--banner-cyan)", color: "#fff", padding: "40px 32px 32px" }}>
+        <div className="h2" style={{ color: "#fff" }}>Activité &amp; Données</div>
       </div>
+
+      <div style={{ padding: "24px 32px 60px", maxWidth: "900px" }}>
       <div style={{ display: "flex", gap: "4px", background: "var(--panel2)", borderRadius: "8px", padding: "3px", marginBottom: "22px", width: "fit-content" }}>
         {[["activite", "Activité"], ["performance", "Performance"]].map(([key, label]) => (
-          <button key={key} className="focusable" onClick={() => setTab(key)} style={{ padding: "7px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 500, background: tab === key ? "var(--bg)" : "transparent", color: tab === key ? "var(--blue)" : "var(--text-dim)", boxShadow: tab === key ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
+          <button key={key} className="focusable" onClick={() => setTab(key)} style={{ padding: "7px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 500, background: tab === key ? "var(--panel)" : "transparent", color: tab === key ? "var(--blue)" : "var(--text-dim)", boxShadow: tab === key ? "var(--shadow-sm)" : "none" }}>
             {label}
           </button>
         ))}
@@ -129,6 +131,7 @@ export default function Activities({ prospects, onOpenProspect, session, team, s
       ) : (
         <PerformanceTab prospects={prospects} activities={activities} feedItems={feedItems} session={session} teamStats={teamStats} settings={settings} />
       )}
+      </div>
     </div>
   );
 }

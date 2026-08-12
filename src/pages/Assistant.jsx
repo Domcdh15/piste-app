@@ -78,9 +78,12 @@ export default function Assistant({ session, prospects, onOpenProspect, settings
   }
 
   return (
-    <div style={{ background: BG, minHeight: "100%", padding: "28px 32px 60px" }}>
-      <div style={{ maxWidth: "920px" }}>
-        <Header />
+    <div style={{ background: BG, minHeight: "100%" }}>
+      <div style={{ background: "var(--banner-cyan)", color: "#fff", padding: "40px 32px 32px" }}>
+        <div className="h2" style={{ color: "#fff" }}>Assistant IA</div>
+        <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.85)", marginTop: "4px" }}>Votre copilote commercial pour analyser vos opportunités et passer à l'action.</div>
+      </div>
+      <div style={{ maxWidth: "920px", padding: "24px 32px 60px" }}>
 
         {view.type === "home" ? (
           <>
@@ -105,14 +108,7 @@ export default function Assistant({ session, prospects, onOpenProspect, settings
 
 function Header() {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px", marginBottom: "24px" }}>
-      <div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <SparklesIcon size={18} color={AI} />
-          <span className="display" style={{ fontWeight: 700, fontSize: "20px", color: TEXT }}>Assistant IA</span>
-        </div>
-        <div style={{ fontSize: "13px", color: TEXT2, marginTop: "4px" }}>Votre copilote commercial pour analyser vos opportunités et passer à l'action.</div>
-      </div>
+    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "24px" }}>
       <div style={{ textAlign: "right" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: TEXT2, justifyContent: "flex-end" }}>
           <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: "#16a34a" }} />

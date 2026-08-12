@@ -1,26 +1,27 @@
 :root {
-  /* surfaces — Deep Navy system */
-  --bg: #0a1128;
-  --panel: #101b3d;
-  --panel2: #1e293b;
-  --hairline: rgba(255, 255, 255, 0.08);
-  --hairline-strong: rgba(255, 255, 255, 0.16);
+  /* surfaces — warm off-white / beige */
+  --bg: #f7f5f0;
+  --panel: #ffffff;
+  --panel2: #f1efe7;
+  --hairline: #e7e3d8;
+  --hairline-strong: #d8d3c3;
 
   /* ink */
-  --text: #ffffff;
-  --text-dim: #cbd5e1;
-  --text-faint: #64748b;
+  --text: #14171f;
+  --text-dim: #5b6472;
+  --text-faint: #98a2ac;
 
-  /* identity accent — Electric Blue → Bright Cyan ramp, "la donnée qui devient relation" */
-  --blue: #00c2ff;
-  --blue-deep: #2e6ff2;
+  /* identity accent — Electric Blue (readable on light) → Bright Cyan (bands, gradients) */
+  --blue: #2e6ff2;
+  --blue-deep: #1d4ed8;
   --blue-500: #2e6ff2;
-  --blue-400: #38bdf8;
-  --blue-300: #7ddfff;
-  --blue-dim: rgba(0, 194, 255, 0.12);
+  --blue-400: #00a8e0;
+  --blue-300: #5ec4ff;
+  --blue-dim: #e8f0fe;
+  --banner-cyan: #00c2ff;
   --gradient-cta: linear-gradient(90deg, #2e6ff2, #00c2ff);
   --gradient-flow: linear-gradient(135deg, #0a1128 0%, #2e6ff2 45%, #00c2ff 75%, #ffffff 100%);
-  --glow-cyan: 0 0 24px rgba(0, 194, 255, 0.35);
+  --glow-cyan: 0 0 24px rgba(0, 194, 255, 0.28);
 
   /* AI accent, kept distinct and rare */
   --violet: #8b5cf6;
@@ -59,8 +60,8 @@
   --radius-badge: 8px;
   --radius-pill: 999px;
 
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.24);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.32);
+  --shadow-sm: 0 2px 8px rgba(20, 23, 31, 0.08);
+  --shadow-md: 0 8px 24px rgba(20, 23, 31, 0.12);
 }
 
 * {
