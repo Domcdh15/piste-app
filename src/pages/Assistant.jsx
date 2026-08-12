@@ -17,7 +17,6 @@ import {
   appendSignature,
 } from "../lib/ui.jsx";
 
-const BG = "#F8FAFC";
 const CARD = "#FFFFFF";
 const TEXT = "#0F172A";
 const TEXT2 = "#64748B";
@@ -78,7 +77,7 @@ export default function Assistant({ session, prospects, onOpenProspect, settings
   }
 
   return (
-    <div style={{ background: BG, minHeight: "100%" }}>
+    <div style={{ background: "var(--bg)", minHeight: "100%" }}>
       <div style={{ background: "var(--banner-cyan)", color: "#fff", padding: "40px 32px 32px" }}>
         <div className="h2" style={{ color: "#fff" }}>Assistant IA</div>
         <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.85)", marginTop: "4px" }}>Votre copilote commercial pour analyser vos opportunités et passer à l'action.</div>
