@@ -41,6 +41,10 @@ function randomPassword() {
   return `Closia-${Math.random().toString(36).slice(2, 8)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
+async function logAudit(admin, targetUserId, action, detail) {
+  await admin.from("admin_audit_log").insert({ target_user_id: targetUserId, action, detail: detail || null });
+}
+
 export default async function handler(req, res) {
   if (applyAdminCors(req, res)) return;
 
@@ -101,6 +105,7 @@ export default async function handler(req, res) {
     }
 
     const emailSent = setPasswordLink ? await sendInviteEmail(admin, email, firstName, setPasswordLink) : false;
+    await logAudit(admin, created.user.id, "Compte créé", `Formule ${tierName}, gratuit`);
 
     return res.status(200).json({ ok: true, email, password: finalPassword, userId: created.user.id, setPasswordLink, emailSent, tier: tierName });
   }
@@ -120,7 +125,20 @@ export default async function handler(req, res) {
     }
     const setPasswordLink = `${APP_URL}/?recovery_token=${linkData.properties.hashed_token}`;
     const emailSent = await sendInviteEmail(admin, userData.user.email, userData.user.user_metadata?.first_name || "", setPasswordLink);
+    await logAudit(admin, userId, "Lien de mot de passe généré", emailSent ? "Envoyé automatiquement par email" : "Copié manuellement");
     return res.status(200).json({ ok: true, setPasswordLink, emailSent });
+  }
+
+  if (action === "change_plan") {
+    const { tier, customPrice } = req.body || {};
+    const tierName = COMPED_TIER_NAMES[tier] || tier;
+    const planTier = PLAN_TIERS.find((t) => t.name === tierName);
+    if (!planTier) return res.status(400).json({ error: "Formule invalide" });
+    const newPrice = customPrice != null && customPrice !== "" ? Number(customPrice) : planTier.maxPrice;
+    const { error } = await admin.from("user_settings").update({ plan_price: newPrice, is_comped: newPrice === 0 }).eq("user_id", userId);
+    if (error) return res.status(500).json({ error: "Le changement de formule a échoué" });
+    await logAudit(admin, userId, "Formule changée", `${tierName} — ${newPrice}€/mois`);
+    return res.status(200).json({ ok: true });
   }
 
   if (action === "impersonate") {
@@ -161,6 +179,7 @@ export default async function handler(req, res) {
     }
     const { error } = await admin.from("user_settings").update({ subscription_status }).eq("user_id", userId);
     if (error) return res.status(500).json({ error: "La mise à jour du statut a échoué" });
+    await logAudit(admin, userId, "Statut changé", subscription_status);
   }
 
   if (banned !== undefined) {
@@ -168,6 +187,7 @@ export default async function handler(req, res) {
       ban_duration: banned ? "876000h" : "none",
     });
     if (error) return res.status(500).json({ error: "La mise à jour du compte a échoué" });
+    await logAudit(admin, userId, banned ? "Compte suspendu" : "Compte réactivé");
   }
 
   res.status(200).json({ ok: true });

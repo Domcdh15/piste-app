@@ -17,12 +17,14 @@ export default async function handler(req, res) {
 
   if (req.query.clientId) {
     const clientId = req.query.clientId;
-    const [prospects, tasks, activities, settings, membership] = await Promise.all([
+    const [prospects, tasks, activities, settings, membership, auditLog, clientTickets] = await Promise.all([
       admin.from("prospects").select("*").eq("user_id", clientId).order("created_at", { ascending: false }),
       admin.from("tasks").select("*").eq("user_id", clientId).order("due_at", { ascending: true, nullsFirst: false }),
       admin.from("activities").select("*").eq("user_id", clientId).order("created_at", { ascending: false }).limit(100),
       admin.from("user_settings").select("*").eq("user_id", clientId).maybeSingle(),
       admin.from("team_members").select("*").eq("user_id", clientId).maybeSingle(),
+      admin.from("admin_audit_log").select("*").eq("target_user_id", clientId).order("created_at", { ascending: false }).limit(50),
+      admin.from("support_requests").select("*").eq("user_id", clientId).order("created_at", { ascending: false }),
     ]);
 
     let team = null;
@@ -43,6 +45,8 @@ export default async function handler(req, res) {
       settings: settings.data || null,
       team,
       teamMembers,
+      auditLog: auditLog.data || [],
+      supportRequests: clientTickets.data || [],
     });
   }
 
