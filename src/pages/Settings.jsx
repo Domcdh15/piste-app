@@ -494,11 +494,13 @@ export function TeamPanel({ session, team, reloadTeam }) {
 
 const STANDARD_PRICE = 19;
 
+// Doit rester synchronisé avec api/_lib/plans.js (dupliqué côté client, ce fichier
+// n'est pas accessible dans le bundle serverless).
 const PLAN_TIERS = [
-  { name: "Solo", maxPrice: 19, seats: 1, overagePrice: 12 },
-  { name: "Équipe", maxPrice: 39, seats: 3, overagePrice: 12 },
-  { name: "Business", maxPrice: 79, seats: 10, overagePrice: 10 },
-  { name: "Sur mesure", maxPrice: Infinity, seats: 20, overagePrice: 8 },
+  { name: "Solo", maxPrice: 19, seats: 1, overagePrice: 12, aiQuota: 100 },
+  { name: "Équipe", maxPrice: 39, seats: 3, overagePrice: 12, aiQuota: 300 },
+  { name: "Business", maxPrice: 79, seats: 10, overagePrice: 10, aiQuota: 1000 },
+  { name: "Sur mesure", maxPrice: Infinity, seats: 20, overagePrice: 8, aiQuota: 3000 },
 ];
 
 function planTierFor(price) {
@@ -586,6 +588,30 @@ function BillingPanel({ local, session, team, reloadSettings, reloadTeam }) {
           })()}
         </div>
       )}
+
+      <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px", marginBottom: "14px" }}>
+        <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "10px" }}>USAGE IA CE MOIS</div>
+        {(() => {
+          const tier = planTierFor(price);
+          const resetAt = local.ai_calls_reset_at ? new Date(local.ai_calls_reset_at) : null;
+          const stillInPeriod = resetAt && resetAt > new Date();
+          const used = stillInPeriod ? (local.ai_calls_used || 0) : 0;
+          const pct = Math.min(100, Math.round((used / tier.aiQuota) * 100));
+          return (
+            <>
+              <div style={{ fontSize: "13px", color: "var(--text)", marginBottom: "6px" }}>
+                <span className="mono" style={{ fontWeight: 700 }}>{used} / {tier.aiQuota}</span> générations utilisées ({tier.name})
+              </div>
+              <div style={{ height: "4px", background: "var(--panel2)", borderRadius: "2px", overflow: "hidden", marginBottom: "6px" }}>
+                <div style={{ width: `${pct}%`, height: "100%", background: pct >= 90 ? "var(--red)" : "var(--blue)", borderRadius: "2px" }} />
+              </div>
+              <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>
+                {stillInPeriod ? `Réinitialisation le ${resetAt.toLocaleDateString("fr-FR")}.` : "Aucune génération ce mois-ci."}
+              </div>
+            </>
+          );
+        })()}
+      </div>
 
       <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px", marginBottom: "14px" }}>
         <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "10px" }}>MOYEN DE PAIEMENT</div>

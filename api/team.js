@@ -1,18 +1,8 @@
 import { getUserFromToken, bearerToken, supabaseAdmin } from "./_lib/supabase.js";
+import { planTierFor } from "./_lib/plans.js";
 
 const ROLES = ["admin", "sales", "customer_success"];
 const APP_URL = "https://piste-app-seven.vercel.app";
-
-const PLAN_TIERS = [
-  { name: "Solo", maxPrice: 19, seats: 1, overagePrice: 12 },
-  { name: "Équipe", maxPrice: 39, seats: 3, overagePrice: 12 },
-  { name: "Business", maxPrice: 79, seats: 10, overagePrice: 10 },
-  { name: "Sur mesure", maxPrice: Infinity, seats: 20, overagePrice: 8 },
-];
-
-function planTierFor(price) {
-  return PLAN_TIERS.find((t) => price <= t.maxPrice) || PLAN_TIERS[PLAN_TIERS.length - 1];
-}
 
 async function memberLabel(admin, userId) {
   if (!userId) return "Non attribué";

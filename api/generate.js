@@ -1,6 +1,5 @@
 import { getUserFromToken, bearerToken, supabaseAdmin } from "./_lib/supabase.js";
-
-const MONTHLY_LIMIT = 500;
+import { planTierFor, planPriceForUser } from "./_lib/plans.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -18,11 +17,12 @@ export default async function handler(req, res) {
   }
 
   const admin = supabaseAdmin();
-  const { data: settings } = await admin
-    .from("user_settings")
-    .select("ai_calls_used, ai_calls_reset_at")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const [{ data: settings }, price] = await Promise.all([
+    admin.from("user_settings").select("ai_calls_used, ai_calls_reset_at").eq("user_id", user.id).maybeSingle(),
+    planPriceForUser(admin, user.id),
+  ]);
+  const tier = planTierFor(price);
+  const monthlyLimit = tier.aiQuota;
 
   const now = new Date();
   const resetAt = settings?.ai_calls_reset_at ? new Date(settings.ai_calls_reset_at) : null;
@@ -30,9 +30,9 @@ export default async function handler(req, res) {
   const currentUsage = needsReset ? 0 : settings?.ai_calls_used || 0;
   const nextResetAt = needsReset ? new Date(now.getTime() + 30 * 86400000).toISOString() : settings.ai_calls_reset_at;
 
-  if (currentUsage >= MONTHLY_LIMIT) {
+  if (currentUsage >= monthlyLimit) {
     return res.status(429).json({
-      error: `Limite de ${MONTHLY_LIMIT} générations IA atteinte pour ce mois. Réessaie après le ${new Date(nextResetAt).toLocaleDateString("fr-FR")}.`,
+      error: `Limite de ${monthlyLimit} générations IA (forfait ${tier.name}) atteinte pour ce mois. Réessaie après le ${new Date(nextResetAt).toLocaleDateString("fr-FR")}, ou passe à un forfait supérieur dans Paramètres.`,
     });
   }
 
@@ -68,7 +68,7 @@ export default async function handler(req, res) {
       ai_calls_reset_at: nextResetAt,
     });
 
-    res.status(200).json({ text, aiCallsUsed: currentUsage + 1, aiCallsLimit: MONTHLY_LIMIT });
+    res.status(200).json({ text, aiCallsUsed: currentUsage + 1, aiCallsLimit: monthlyLimit });
   } catch (e) {
     res.status(500).json({ error: "Erreur serveur" });
   }
