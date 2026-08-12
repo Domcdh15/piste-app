@@ -55,6 +55,7 @@ export const EMAIL_TEMPLATES = [
 
 export function buildSignatureBlock(settings) {
   if (!settings || settings.sig_enabled === false) return "";
+  if (settings.sig_custom_text && settings.sig_custom_text.trim()) return settings.sig_custom_text.trim();
   return [settings.sig_name, settings.sig_job_title, settings.sig_company, settings.sig_phone].filter((v) => v && v.trim()).join("\n");
 }
 

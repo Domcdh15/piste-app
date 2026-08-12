@@ -195,6 +195,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
         <Toggle label="Activer la signature" checked={local.sig_enabled !== false} onChange={(v) => set({ sig_enabled: v })} />
         {local.sig_enabled !== false && (
           <>
+            <GmailSignatureImport local={local} set={set} session={session} mailConnected={mailConnected} />
             <Field label="Nom complet">
               <input value={local.sig_name || ""} onChange={(e) => set({ sig_name: e.target.value })} style={inputSm} placeholder="ex : Camille Martin" />
             </Field>
@@ -204,8 +205,16 @@ export default function Settings({ session, prospects, settings, reloadSettings,
             <Field label="Entreprise">
               <input value={local.sig_company || ""} onChange={(e) => set({ sig_company: e.target.value })} style={inputSm} placeholder="ex : Closia" />
             </Field>
-            <Field label="Téléphone (facultatif)" last>
+            <Field label="Téléphone (facultatif)">
               <input value={local.sig_phone || ""} onChange={(e) => set({ sig_phone: e.target.value })} style={inputSm} placeholder="ex : 06 12 34 56 78" />
+            </Field>
+            <Field label="Signature personnalisée (facultatif)" last>
+              <textarea
+                value={local.sig_custom_text || ""}
+                onChange={(e) => set({ sig_custom_text: e.target.value })}
+                style={{ ...inputSm, width: "320px", height: "80px", resize: "vertical", fontFamily: "inherit" }}
+                placeholder="Si rempli, remplace les champs ci-dessus."
+              />
             </Field>
             {buildSignatureBlock(local) && (
               <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "0.5px solid var(--hairline)" }}>
@@ -710,6 +719,69 @@ function ChangePlanSection({ currentTier, isTeamBilling, session, reloadSettings
           Vous êtes déjà sur notre tarif le plus élevé standard. Pour un besoin au-delà de {currentTier.seats} utilisateurs, contactez-nous pour un tarif sur mesure.
         </div>
       )}
+    </div>
+  );
+}
+
+function GmailSignatureImport({ local, set, session, mailConnected }) {
+  const [loading, setLoading] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [error, setError] = useState("");
+  const [dismissed, setDismissed] = useState(false);
+
+  if (!mailConnected?.google || local.sig_custom_text || dismissed) return null;
+
+  async function fetchSignature() {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/calendar/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "get_gmail_signature", provider: "google" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "échec");
+      if (!data.signature) {
+        setError("Aucune signature trouvée dans les paramètres de ton compte Gmail.");
+      } else {
+        setPreview(data.signature);
+      }
+    } catch (e) {
+      setError(e.message && e.message !== "échec" ? e.message : "La récupération a échoué. Réessaie.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (preview) {
+    return (
+      <div style={{ marginBottom: "14px", padding: "12px", borderRadius: "8px", background: "var(--panel2)", border: "0.5px solid var(--hairline)" }}>
+        <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "8px" }}>SIGNATURE TROUVÉE DANS GMAIL</div>
+        <div style={{ fontSize: "12px", color: "var(--text-dim)", whiteSpace: "pre-line", lineHeight: 1.5, marginBottom: "10px" }}>{preview}</div>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            className="focusable"
+            onClick={() => { set({ sig_custom_text: preview }); setPreview(null); }}
+            style={{ fontSize: "12px", fontWeight: 600, padding: "7px 12px", borderRadius: "8px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555" }}
+          >
+            Utiliser cette signature
+          </button>
+          <button className="focusable" onClick={() => { setPreview(null); setDismissed(true); }} style={{ ...btnGhost, padding: "7px 12px", fontSize: "12px" }}>
+            Ignorer
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginBottom: "14px", padding: "12px", borderRadius: "8px", background: "var(--panel2)", border: "0.5px solid var(--hairline)" }}>
+      <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "10px" }}>Tu as déjà une signature configurée dans Gmail ? Tu peux la reprendre directement ici.</div>
+      <button className="focusable" onClick={fetchSignature} disabled={loading} style={{ ...btnGhost, padding: "7px 12px", fontSize: "12px", opacity: loading ? 0.6 : 1 }}>
+        {loading ? "Recherche..." : "Importer ma signature Gmail"}
+      </button>
+      {error && <div style={{ fontSize: "11.5px", color: "var(--red)", marginTop: "8px" }}>{error}</div>}
     </div>
   );
 }

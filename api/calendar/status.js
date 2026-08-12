@@ -1,5 +1,5 @@
 import { supabaseAdmin, getUserFromToken, bearerToken } from "../_lib/supabase.js";
-import { ensureFreshToken, sendEmail, listRecentMessages, setGmailSignature } from "../_lib/providers.js";
+import { ensureFreshToken, sendEmail, listRecentMessages, setGmailSignature, getGmailSignature } from "../_lib/providers.js";
 
 function buildVacationReply(s) {
   const lines = [(s.vacation_message || "").trim() || "Je suis actuellement absent(e)."];
@@ -86,6 +86,25 @@ export default async function handler(req, res) {
           error: insufficientScope
             ? "Permission manquante — déconnecte puis reconnecte Google Calendar dans Intégrations pour autoriser la synchronisation de signature."
             : "La synchronisation a échoué. Réessaie.",
+        });
+      }
+    }
+
+    if (action === "get_gmail_signature") {
+      const admin = supabaseAdmin();
+      const { data: conn } = await admin.from("calendar_connections").select("*").eq("user_id", user.id).eq("provider", "google").maybeSingle();
+      if (!conn) return res.status(400).json({ error: "Aucune connexion Gmail — connecte ton compte dans Intégrations." });
+
+      try {
+        const accessToken = await ensureFreshToken(admin, conn);
+        const signature = await getGmailSignature(accessToken);
+        return res.status(200).json({ ok: true, signature });
+      } catch (e) {
+        const insufficientScope = /insufficient|scope|permission/i.test(e.message || "");
+        return res.status(500).json({
+          error: insufficientScope
+            ? "Permission manquante — déconnecte puis reconnecte Google Calendar dans Intégrations pour autoriser la lecture de signature."
+            : "La récupération a échoué. Réessaie.",
         });
       }
     }

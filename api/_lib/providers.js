@@ -251,3 +251,35 @@ export async function setGmailSignature(accessToken, signatureText) {
     throw new Error(err?.error?.message || "gmail_signature_update_failed");
   }
 }
+
+// Convertit la signature HTML renvoyée par Gmail en texte brut simple, pour l'utiliser
+// comme point de départ éditable côté Closia (import, pas de rendu HTML fidèle).
+function htmlSignatureToText(html) {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(div|p)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line, i, arr) => line || (i > 0 && arr[i - 1]))
+    .join("\n")
+    .trim();
+}
+
+export async function getGmailSignature(accessToken) {
+  const listRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/settings/sendAs", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!listRes.ok) {
+    const err = await listRes.json().catch(() => ({}));
+    throw new Error(err?.error?.message || "gmail_sendas_list_failed");
+  }
+  const { sendAs = [] } = await listRes.json();
+  const primary = sendAs.find((s) => s.isPrimary) || sendAs[0];
+  if (!primary?.signature) return "";
+  return htmlSignatureToText(primary.signature);
+}
