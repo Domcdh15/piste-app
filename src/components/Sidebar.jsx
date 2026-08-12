@@ -10,6 +10,16 @@ const NAV_ITEMS = [
   { key: "activities", label: "Activités", Icon: ListIcon },
 ];
 
+// La sidebar reste volontairement en navy, distincte du reste de l'app (passé en beige clair) —
+// ses propres tons neutres sont donc définis ici plutôt que via les tokens globaux (tunés pour fond clair).
+const SB_BG = "#0A1128";
+const SB_BORDER = "rgba(255,255,255,0.08)";
+const SB_TEXT = "#FFFFFF";
+const SB_TEXT_DIM = "rgba(255,255,255,0.62)";
+const SB_TEXT_FAINT = "rgba(255,255,255,0.4)";
+const SB_ACCENT = "#00C2FF";
+const SB_ACCENT_DIM = "rgba(0,194,255,0.14)";
+
 export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
   const [todayCount, setTodayCount] = useState(null);
   const [hovered, setHovered] = useState(null);
@@ -39,8 +49,8 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
         top: 0,
         alignSelf: "flex-start",
         overflowY: "auto",
-        background: "var(--bg)",
-        borderRight: "0.5px solid var(--hairline)",
+        background: SB_BG,
+        borderRight: `0.5px solid ${SB_BORDER}`,
         display: "flex",
         flexDirection: "column",
         padding: "24px 14px",
@@ -48,7 +58,7 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
     >
       <div style={{ display: "flex", alignItems: "center", gap: "9px", padding: "0 8px", marginBottom: "26px" }}>
         <Logo size={24} />
-        <span className="display" style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "0.06em", color: "var(--text)" }}>CLOSIA</span>
+        <span className="display" style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "0.06em", color: SB_TEXT }}>CLOSIA</span>
       </div>
 
       <nav style={{ display: "flex", flexDirection: "column", gap: "3px", flex: 1 }}>
@@ -72,16 +82,15 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
                 borderRadius: "8px",
                 fontSize: "13.5px",
                 fontWeight: active ? 600 : 500,
-                background: active ? "var(--blue-dim)" : isHovered ? "var(--panel2)" : "transparent",
-                color: active ? "var(--blue)" : "var(--text-dim)",
+                background: active ? SB_ACCENT_DIM : isHovered ? "rgba(255,255,255,0.06)" : "transparent",
+                color: active ? SB_ACCENT : SB_TEXT_DIM,
                 textAlign: "left",
                 border: "none",
-                borderLeft: active ? "2px solid var(--blue)" : "2px solid transparent",
-                boxShadow: active ? "inset 0 0 0 1px rgba(0,194,255,0.15)" : "none",
+                borderLeft: active ? `2px solid ${SB_ACCENT}` : "2px solid transparent",
                 transition: "background 150ms ease, color 150ms ease",
               }}
             >
-              <Icon size={15} color={active ? "var(--blue)" : "var(--text-faint)"} />
+              <Icon size={15} color={active ? SB_ACCENT : SB_TEXT_FAINT} />
               <span style={{ flex: 1 }}>{item.label}</span>
               {count != null && count > 0 && (
                 <span
@@ -89,8 +98,8 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
                   style={{
                     fontSize: "10.5px",
                     fontWeight: 600,
-                    color: active ? "var(--blue)" : "var(--text-faint)",
-                    background: active ? "#fff" : "var(--panel2)",
+                    color: active ? SB_ACCENT : SB_TEXT_FAINT,
+                    background: active ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.06)",
                     borderRadius: "var(--radius-pill)",
                     padding: "1px 6px",
                   }}
@@ -103,7 +112,7 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
         })}
       </nav>
 
-      <div style={{ height: "0.5px", background: "var(--hairline)", margin: "14px 12px" }} />
+      <div style={{ height: "0.5px", background: SB_BORDER, margin: "14px 12px" }} />
 
       <button
         className="focusable"
@@ -118,14 +127,14 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
           borderRadius: "8px",
           fontSize: "13.5px",
           fontWeight: activeTab === "settings" ? 600 : 500,
-          background: activeTab === "settings" ? "var(--blue-dim)" : hovered === "settings" ? "var(--panel2)" : "transparent",
-          color: activeTab === "settings" ? "var(--blue)" : "var(--text-dim)",
+          background: activeTab === "settings" ? SB_ACCENT_DIM : hovered === "settings" ? "rgba(255,255,255,0.06)" : "transparent",
+          color: activeTab === "settings" ? SB_ACCENT : SB_TEXT_DIM,
           textAlign: "left",
           border: "none",
-          borderLeft: activeTab === "settings" ? "2px solid var(--blue)" : "2px solid transparent",
+          borderLeft: activeTab === "settings" ? `2px solid ${SB_ACCENT}` : "2px solid transparent",
         }}
       >
-        <GearIcon size={15} color={activeTab === "settings" ? "var(--blue)" : "var(--text-faint)"} />
+        <GearIcon size={15} color={activeTab === "settings" ? SB_ACCENT : SB_TEXT_FAINT} />
         Paramètres
       </button>
     </div>
