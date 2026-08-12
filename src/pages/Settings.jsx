@@ -191,43 +191,45 @@ export default function Settings({ session, prospects, settings, reloadSettings,
         <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>Le ton et le niveau de détail s'appliquent aux emails générés par l'IA. L'initiative détermine si Closia propose spontanément une tâche de suivi après une note.</div>
       </Section>
 
-      <Section title="Signature email">
-        <Toggle label="Activer la signature" checked={local.sig_enabled !== false} onChange={(v) => set({ sig_enabled: v })} />
-        {local.sig_enabled !== false && (
-          <>
-            <GmailSignatureImport local={local} set={set} session={session} mailConnected={mailConnected} />
-            <Field label="Nom complet">
-              <input value={local.sig_name || ""} onChange={(e) => set({ sig_name: e.target.value })} style={inputSm} placeholder="ex : Camille Martin" />
-            </Field>
-            <Field label="Poste">
-              <input value={local.sig_job_title || ""} onChange={(e) => set({ sig_job_title: e.target.value })} style={inputSm} placeholder="ex : Responsable commercial" />
-            </Field>
-            <Field label="Entreprise">
-              <input value={local.sig_company || ""} onChange={(e) => set({ sig_company: e.target.value })} style={inputSm} placeholder="ex : Closia" />
-            </Field>
-            <Field label="Téléphone (facultatif)">
-              <input value={local.sig_phone || ""} onChange={(e) => set({ sig_phone: e.target.value })} style={inputSm} placeholder="ex : 06 12 34 56 78" />
-            </Field>
-            <Field label="Signature personnalisée (facultatif)" last>
-              <textarea
-                value={local.sig_custom_text || ""}
-                onChange={(e) => set({ sig_custom_text: e.target.value })}
-                style={{ ...inputSm, width: "320px", height: "80px", resize: "vertical", fontFamily: "inherit" }}
-                placeholder="Si rempli, remplace les champs ci-dessus."
-              />
-            </Field>
-            {buildSignatureBlock(local) && (
-              <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "0.5px solid var(--hairline)" }}>
-                <div style={{ fontSize: "10px", color: "var(--text-faint)", marginBottom: "6px" }}>APERÇU</div>
-                <div style={{ fontSize: "12px", color: "var(--text-dim)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{buildSignatureBlock(local)}</div>
-              </div>
-            )}
-            <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>Ajoutée automatiquement à la fin des emails générés par l'IA.</div>
+      {false && (
+        <Section title="Signature email">
+          <Toggle label="Activer la signature" checked={local.sig_enabled !== false} onChange={(v) => set({ sig_enabled: v })} />
+          {local.sig_enabled !== false && (
+            <>
+              <GmailSignatureImport local={local} set={set} session={session} mailConnected={mailConnected} />
+              <Field label="Nom complet">
+                <input value={local.sig_name || ""} onChange={(e) => set({ sig_name: e.target.value })} style={inputSm} placeholder="ex : Camille Martin" />
+              </Field>
+              <Field label="Poste">
+                <input value={local.sig_job_title || ""} onChange={(e) => set({ sig_job_title: e.target.value })} style={inputSm} placeholder="ex : Responsable commercial" />
+              </Field>
+              <Field label="Entreprise">
+                <input value={local.sig_company || ""} onChange={(e) => set({ sig_company: e.target.value })} style={inputSm} placeholder="ex : Closia" />
+              </Field>
+              <Field label="Téléphone (facultatif)">
+                <input value={local.sig_phone || ""} onChange={(e) => set({ sig_phone: e.target.value })} style={inputSm} placeholder="ex : 06 12 34 56 78" />
+              </Field>
+              <Field label="Signature personnalisée (facultatif)" last>
+                <textarea
+                  value={local.sig_custom_text || ""}
+                  onChange={(e) => set({ sig_custom_text: e.target.value })}
+                  style={{ ...inputSm, width: "320px", height: "80px", resize: "vertical", fontFamily: "inherit" }}
+                  placeholder="Si rempli, remplace les champs ci-dessus."
+                />
+              </Field>
+              {buildSignatureBlock(local) && (
+                <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "0.5px solid var(--hairline)" }}>
+                  <div style={{ fontSize: "10px", color: "var(--text-faint)", marginBottom: "6px" }}>APERÇU</div>
+                  <div style={{ fontSize: "12px", color: "var(--text-dim)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{buildSignatureBlock(local)}</div>
+                </div>
+              )}
+              <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>Ajoutée automatiquement à la fin des emails générés par l'IA.</div>
 
-            <SignatureMailSync local={local} session={session} mailConnected={mailConnected} />
-          </>
-        )}
-      </Section>
+              <SignatureMailSync local={local} session={session} mailConnected={mailConnected} />
+            </>
+          )}
+        </Section>
+      )}
 
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
         <button className="focusable" onClick={save} disabled={saving} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", opacity: saving ? 0.6 : 1 }}>

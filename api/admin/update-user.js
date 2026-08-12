@@ -99,6 +99,20 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "userId manquant" });
   }
 
+  if (action === "generate_password_link") {
+    const { data: userData, error: userError } = await admin.auth.admin.getUserById(userId);
+    if (userError || !userData?.user?.email) {
+      return res.status(404).json({ error: "Compte introuvable" });
+    }
+    const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({ type: "recovery", email: userData.user.email });
+    if (linkError || !linkData?.properties?.hashed_token) {
+      return res.status(500).json({ error: "La génération du lien a échoué" });
+    }
+    const setPasswordLink = `${APP_URL}/?recovery_token=${linkData.properties.hashed_token}`;
+    const emailSent = await sendInviteEmail(admin, userData.user.email, userData.user.user_metadata?.first_name || "", setPasswordLink);
+    return res.status(200).json({ ok: true, setPasswordLink, emailSent });
+  }
+
   if (action === "impersonate") {
     const { data: userData, error: userError } = await admin.auth.admin.getUserById(userId);
     if (userError || !userData?.user?.email) {
