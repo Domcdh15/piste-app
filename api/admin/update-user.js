@@ -1,7 +1,13 @@
 import { getUserFromToken, bearerToken, supabaseAdmin, isAdminUser, applyAdminCors } from "../_lib/supabase.js";
+import { PLAN_TIERS } from "../_lib/plans.js";
 
 const VALID_STATUSES = ["trialing", "active", "cancelled"];
 const APP_URL = "https://piste-app-seven.vercel.app";
+
+// Un compte gratuit (is_comped) garde le prix "représentatif" de sa formule en base,
+// pour hériter des bons quotas IA/sièges via planTierFor — l'UI l'affiche comme "Gratuit"
+// plutôt que ce montant.
+const COMPED_TIER_NAMES = { solo: "Solo", equipe: "Équipe", business: "Business" };
 
 function randomPassword() {
   return `Closia-${Math.random().toString(36).slice(2, 8)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -23,10 +29,13 @@ export default async function handler(req, res) {
   const admin = supabaseAdmin();
 
   if (action === "create_client") {
-    const { email, password, firstName, lastName, companyName, planPrice } = req.body || {};
+    const { email, password, firstName, lastName, companyName, tier } = req.body || {};
     if (!email || !firstName || !lastName || !companyName) {
       return res.status(400).json({ error: "Email, prénom, nom et entreprise sont requis" });
     }
+    const tierName = COMPED_TIER_NAMES[tier] || "Solo";
+    const planTier = PLAN_TIERS.find((t) => t.name === tierName);
+
     const finalPassword = password || randomPassword();
     const { data: created, error: createError } = await admin.auth.admin.createUser({
       email,
@@ -37,7 +46,8 @@ export default async function handler(req, res) {
     if (createError) return res.status(500).json({ error: createError.message });
     const { error: settingsError } = await admin.from("user_settings").upsert({
       user_id: created.user.id,
-      plan_price: planPrice ?? 0,
+      plan_price: planTier.maxPrice,
+      is_comped: true,
       subscription_status: "active",
       first_name: firstName,
       last_name: lastName,
@@ -46,7 +56,14 @@ export default async function handler(req, res) {
       sig_company: companyName,
     });
     if (settingsError) return res.status(500).json({ error: settingsError.message });
-    return res.status(200).json({ ok: true, email, password: finalPassword, userId: created.user.id });
+
+    let setPasswordLink = null;
+    const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({ type: "recovery", email });
+    if (!linkError && linkData?.properties?.hashed_token) {
+      setPasswordLink = `${APP_URL}/?recovery_token=${linkData.properties.hashed_token}`;
+    }
+
+    return res.status(200).json({ ok: true, email, password: finalPassword, userId: created.user.id, setPasswordLink, tier: tierName });
   }
 
   if (!userId) {

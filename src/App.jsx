@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
-import Login from "./pages/Login.jsx";
+import Login, { SetPassword } from "./pages/Login.jsx";
 import Shell from "./pages/Shell.jsx";
 
 export default function App() {
   const [session, setSession] = useState(undefined);
   const [team, setTeam] = useState(null);
+  const [passwordSetupMode, setPasswordSetupMode] = useState(false);
 
   async function loadTeam(currentSession) {
     if (!currentSession) {
@@ -24,12 +25,22 @@ export default function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const tokenHash = params.get("impersonate_token");
-    if (tokenHash) {
+    const impersonateToken = params.get("impersonate_token");
+    const recoveryToken = params.get("recovery_token");
+
+    if (impersonateToken) {
       window.history.replaceState({}, "", window.location.pathname);
-      supabase.auth.verifyOtp({ token_hash: tokenHash, type: "magiclink" }).then(({ data, error }) => {
+      supabase.auth.verifyOtp({ token_hash: impersonateToken, type: "magiclink" }).then(({ data, error }) => {
         const s = error ? null : data.session;
         setSession(s);
+        loadTeam(s);
+      });
+    } else if (recoveryToken) {
+      window.history.replaceState({}, "", window.location.pathname);
+      supabase.auth.verifyOtp({ token_hash: recoveryToken, type: "recovery" }).then(({ data, error }) => {
+        const s = error ? null : data.session;
+        setSession(s);
+        setPasswordSetupMode(!error);
         loadTeam(s);
       });
     } else {
@@ -39,8 +50,9 @@ export default function App() {
       });
     }
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
+      if (event === "PASSWORD_RECOVERY") setPasswordSetupMode(true);
       loadTeam(newSession);
     });
 
@@ -54,6 +66,8 @@ export default function App() {
       </div>
     );
   }
+
+  if (session && passwordSetupMode) return <SetPassword onDone={() => setPasswordSetupMode(false)} />;
 
   return session ? <Shell session={session} team={team} reloadTeam={() => loadTeam(session)} /> : <Login />;
 }

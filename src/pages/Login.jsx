@@ -249,6 +249,52 @@ export default function Login() {
   );
 }
 
+export function SetPassword({ onDone }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    if (password.length < 8) return setError("8 caractères minimum.");
+    if (password !== confirm) return setError("Les mots de passe ne correspondent pas.");
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+    if (error) return setError("Une erreur est survenue. Réessaie.");
+    onDone();
+  }
+
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
+      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "var(--radius-lg, 16px)", boxShadow: "var(--shadow-md, 0 8px 24px rgba(15,23,42,.08))", padding: "32px", width: "100%", maxWidth: "380px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+          <Logo size={44} />
+          <div>
+            <div className="display" style={{ fontWeight: 700, fontSize: "22px", letterSpacing: "0.04em" }}>Closia</div>
+            <div style={{ color: "var(--blue)", fontSize: "12px", fontWeight: 500 }}>L'assistant du commercial</div>
+          </div>
+        </div>
+        <div style={{ color: "var(--text-dim)", fontSize: "13px", marginBottom: "24px" }}>Choisis ton mot de passe pour activer ton compte.</div>
+        <form onSubmit={submit}>
+          <Field label="Nouveau mot de passe">
+            <input className="focusable" type="password" required autoFocus value={password} onChange={(e) => setPassword(e.target.value)} placeholder="8 caractères minimum" style={inputStyle} />
+          </Field>
+          <Field label="Confirmer le mot de passe" style={{ marginTop: "14px" }}>
+            <input className="focusable" type="password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="••••••••" style={inputStyle} />
+          </Field>
+          {error && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "12px" }}>{error}</div>}
+          <button className="focusable" type="submit" disabled={loading} style={{ ...primaryBtnStyle, marginTop: "20px", opacity: loading ? 0.7 : 1 }}>
+            {loading ? "..." : "Activer mon compte"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function Field({ label, children, style }) {
   return (
     <div style={{ flex: 1, ...style }}>

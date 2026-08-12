@@ -91,6 +91,7 @@ export default async function handler(req, res) {
       team_role: membership?.role || null,
       team_member_count: memberCount,
       plan_price: useTeamBilling ? (team.plan_price ?? null) : (s.plan_price ?? DEFAULT_PRICE),
+      is_comped: !useTeamBilling && !!s.is_comped,
       trial_ends_at: useTeamBilling ? team.trial_ends_at : (s.trial_ends_at || null),
       subscription_status: useTeamBilling ? team.subscription_status : (s.subscription_status || null),
     };

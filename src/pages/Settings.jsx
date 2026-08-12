@@ -539,7 +539,9 @@ function BillingPanel({ local, session, team, reloadSettings, reloadTeam }) {
   const daysLeft = trialEndsAt ? Math.max(0, Math.ceil((trialEndsAt - new Date()) / 86400000)) : null;
 
   const accountCreatedAt = new Date(session.user.created_at);
-  const price = isTeamBilling ? (billingSource.plan_price ?? null) : (billingSource.plan_price ?? STANDARD_PRICE);
+  const isComped = !isTeamBilling && !!local.is_comped;
+  const tierPrice = isTeamBilling ? (billingSource.plan_price ?? null) : (billingSource.plan_price ?? STANDARD_PRICE);
+  const price = isComped ? 0 : tierPrice;
 
   if (isTeamBilling && price === null) {
     return (
@@ -580,7 +582,7 @@ function BillingPanel({ local, session, team, reloadSettings, reloadTeam }) {
       {status === "cancelled" && <div style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "16px" }}>Abonnement résilié</div>}
 
       <ChangePlanSection
-        currentTier={planTierFor(price)}
+        currentTier={planTierFor(tierPrice)}
         isTeamBilling={isTeamBilling}
         session={session}
         reloadSettings={reloadSettings}
@@ -591,7 +593,7 @@ function BillingPanel({ local, session, team, reloadSettings, reloadTeam }) {
         <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px", marginBottom: "14px" }}>
           <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "10px" }}>VOTRE ABONNEMENT</div>
           {(() => {
-            const tier = planTierFor(price);
+            const tier = planTierFor(tierPrice);
             const over = memberCount > tier.seats;
             return (
               <>
@@ -612,7 +614,7 @@ function BillingPanel({ local, session, team, reloadSettings, reloadTeam }) {
       <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px", marginBottom: "14px" }}>
         <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "10px" }}>USAGE IA CE MOIS</div>
         {(() => {
-          const tier = planTierFor(price);
+          const tier = planTierFor(tierPrice);
           const resetAt = local.ai_calls_reset_at ? new Date(local.ai_calls_reset_at) : null;
           const stillInPeriod = resetAt && resetAt > new Date();
           const used = stillInPeriod ? (local.ai_calls_used || 0) : 0;
