@@ -1,8 +1,35 @@
 import { getUserFromToken, bearerToken, supabaseAdmin, isAdminUser, applyAdminCors } from "../_lib/supabase.js";
+import { ensureFreshToken, sendEmail } from "../_lib/providers.js";
 import { PLAN_TIERS } from "../_lib/plans.js";
 
 const VALID_STATUSES = ["trialing", "active", "cancelled"];
 const APP_URL = "https://piste-app-seven.vercel.app";
+
+// Boîte mail utilisée pour envoyer automatiquement les liens d'invitation client —
+// doit être un compte Closia avec Gmail connecté dans Intégrations (sinon fallback
+// silencieux : le lien est simplement renvoyé pour copier-coller manuel).
+const SENDER_EMAIL = "domitille.debouy@clos-ia.fr";
+
+async function sendInviteEmail(admin, toEmail, firstName, setPasswordLink) {
+  try {
+    const { data: usersPage } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const sender = usersPage?.users?.find((u) => u.email === SENDER_EMAIL);
+    if (!sender) return false;
+
+    const { data: conn } = await admin.from("calendar_connections").select("*").eq("user_id", sender.id).eq("provider", "google").maybeSingle();
+    if (!conn) return false;
+
+    const accessToken = await ensureFreshToken(admin, conn);
+    await sendEmail("google", accessToken, {
+      to: toEmail,
+      subject: "Bienvenue sur Closia — active ton compte",
+      body: `Bonjour ${firstName},\n\nTon compte Closia est prêt. Clique sur le lien ci-dessous pour choisir ton mot de passe et accéder à ton espace :\n\n${setPasswordLink}\n\nÀ bientôt,\nL'équipe Closia`,
+    });
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 
 // Un compte gratuit (is_comped) garde le prix "représentatif" de sa formule en base,
 // pour hériter des bons quotas IA/sièges via planTierFor — l'UI l'affiche comme "Gratuit"
@@ -63,7 +90,9 @@ export default async function handler(req, res) {
       setPasswordLink = `${APP_URL}/?recovery_token=${linkData.properties.hashed_token}`;
     }
 
-    return res.status(200).json({ ok: true, email, password: finalPassword, userId: created.user.id, setPasswordLink, tier: tierName });
+    const emailSent = setPasswordLink ? await sendInviteEmail(admin, email, firstName, setPasswordLink) : false;
+
+    return res.status(200).json({ ok: true, email, password: finalPassword, userId: created.user.id, setPasswordLink, emailSent, tier: tierName });
   }
 
   if (!userId) {
