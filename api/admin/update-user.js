@@ -9,6 +9,7 @@ const APP_URL = "https://piste-app-seven.vercel.app";
 // doit être un compte Closia avec Gmail connecté dans Intégrations (sinon fallback
 // silencieux : le lien est simplement renvoyé pour copier-coller manuel).
 const SENDER_EMAIL = "domitille.debouy@clos-ia.fr";
+const PRO_ACCOUNT_USER_ID = "ca0b4c82-cd8c-4589-a593-2d9189445432";
 
 async function sendInviteEmail(admin, toEmail, firstName, setPasswordLink) {
   try {
@@ -83,6 +84,15 @@ export default async function handler(req, res) {
       sig_company: companyName,
     });
     if (settingsError) return res.status(500).json({ error: settingsError.message });
+
+    await admin.from("prospects").insert({
+      user_id: PRO_ACCOUNT_USER_ID,
+      name: `${firstName} ${lastName}`,
+      company: companyName,
+      email,
+      stage: "Gagné",
+      notes: `Client Closia — formule ${tierName} (gratuit, compte créé depuis le back office).`,
+    });
 
     let setPasswordLink = null;
     const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({ type: "recovery", email });
