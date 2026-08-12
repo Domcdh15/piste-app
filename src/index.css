@@ -1,41 +1,44 @@
 :root {
-  /* surfaces */
-  --bg: #f8fafd;
-  --panel: #ffffff;
-  --panel2: #f8fafc;
-  --hairline: #e2e8f0;
-  --hairline-strong: #d0d5dd;
+  /* surfaces — Deep Navy system */
+  --bg: #0a1128;
+  --panel: #101b3d;
+  --panel2: #1e293b;
+  --hairline: rgba(255, 255, 255, 0.08);
+  --hairline-strong: rgba(255, 255, 255, 0.16);
 
   /* ink */
-  --text: #0f172a;
-  --text-dim: #475467;
-  --text-faint: #98a2b3;
+  --text: #ffffff;
+  --text-dim: #cbd5e1;
+  --text-faint: #64748b;
 
-  /* identity accent — a blue ramp used to create visual rhythm, kept to ~10% of the UI */
-  --blue: #147ff5;
-  --blue-deep: #0e63c4;
-  --blue-500: #3b8cff;
-  --blue-400: #5ea2ff;
-  --blue-300: #8cc0ff;
-  --blue-dim: #eaf3ff;
+  /* identity accent — Electric Blue → Bright Cyan ramp, "la donnée qui devient relation" */
+  --blue: #00c2ff;
+  --blue-deep: #2e6ff2;
+  --blue-500: #2e6ff2;
+  --blue-400: #38bdf8;
+  --blue-300: #7ddfff;
+  --blue-dim: rgba(0, 194, 255, 0.12);
+  --gradient-cta: linear-gradient(90deg, #2e6ff2, #00c2ff);
+  --gradient-flow: linear-gradient(135deg, #0a1128 0%, #2e6ff2 45%, #00c2ff 75%, #ffffff 100%);
+  --glow-cyan: 0 0 24px rgba(0, 194, 255, 0.35);
 
   /* AI accent, kept distinct and rare */
-  --violet: #7c3aed;
-  --violet-dim: #f5f3ff;
-  --violet-border: #ddd6fe;
+  --violet: #8b5cf6;
+  --violet-dim: rgba(139, 92, 246, 0.14);
+  --violet-border: rgba(139, 92, 246, 0.4);
 
   /* status */
-  --amber: #d97706;
-  --amber-dim: #fef3e2;
-  --gold: #d97706;
-  --gold-deep: #b45309;
-  --gold-dim: #fef3e2;
-  --success: #16a34a;
-  --success-dim: #f0fdf4;
-  --warning: #d97706;
-  --warning-dim: #fef3e2;
-  --red: #dc2626;
-  --red-dim: #fef2f2;
+  --amber: #f5a623;
+  --amber-dim: rgba(245, 166, 35, 0.14);
+  --gold: #f5a623;
+  --gold-deep: #f5a623;
+  --gold-dim: rgba(245, 166, 35, 0.14);
+  --success: #22c55e;
+  --success-dim: rgba(34, 197, 94, 0.14);
+  --warning: #f5a623;
+  --warning-dim: rgba(245, 166, 35, 0.14);
+  --red: #f5455c;
+  --red-dim: rgba(245, 69, 92, 0.14);
 
   /* spacing scale */
   --space-1: 4px;
@@ -49,14 +52,15 @@
   --space-9: 96px;
 
   /* radius */
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
-  --radius-xl: 12px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 16px;
+  --radius-xl: 16px;
+  --radius-badge: 8px;
   --radius-pill: 999px;
 
-  --shadow-sm: 0 1px 2px rgba(24, 25, 24, 0.05);
-  --shadow-md: 0 4px 20px rgba(24, 25, 24, 0.07);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.24);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.32);
 }
 
 * {
@@ -89,23 +93,26 @@ button {
 }
 
 .display {
-  font-family: "Inter", sans-serif;
+  font-family: "Plus Jakarta Sans", "Inter", sans-serif;
   letter-spacing: -0.01em;
 }
 
 .h1 {
+  font-family: "Plus Jakarta Sans", "Inter", sans-serif;
   font-size: 32px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   line-height: 1.2;
 }
 .h2 {
+  font-family: "Plus Jakarta Sans", "Inter", sans-serif;
   font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1.25;
 }
 .h3 {
+  font-family: "Plus Jakarta Sans", "Inter", sans-serif;
   font-size: 18px;
   font-weight: 600;
   line-height: 1.3;
@@ -121,34 +128,35 @@ button {
   height: 40px;
   padding: 0 16px;
   border-radius: var(--radius-sm);
+  font-family: "Plus Jakarta Sans", "Inter", sans-serif;
   font-size: 14px;
   font-weight: 600;
   border: none;
   text-decoration: none;
   white-space: nowrap;
-  transition: background 150ms ease, transform 150ms ease, border-color 150ms ease;
+  transition: filter 150ms ease, transform 150ms ease, border-color 150ms ease;
 }
 .btn-primary {
-  background: var(--blue);
+  background: var(--gradient-cta);
   color: #fff;
 }
 .btn-primary:hover:not(:disabled) {
-  background: var(--blue-deep);
+  filter: brightness(1.08);
   transform: translateY(-1px);
 }
 .btn-primary:active:not(:disabled) {
-  transform: translateY(0);
+  transform: scale(0.98);
 }
 .btn-primary:disabled {
   opacity: 0.6;
 }
 .btn-secondary {
-  background: #fff;
-  color: var(--text);
-  border: 1px solid var(--hairline-strong);
+  background: transparent;
+  color: var(--blue);
+  border: 1.5px solid var(--blue);
 }
 .btn-secondary:hover:not(:disabled) {
-  background: var(--panel2);
+  background: var(--blue-dim);
   transform: translateY(-1px);
 }
 .btn-ghost {
@@ -180,8 +188,8 @@ button {
 }
 
 ::selection {
-  background: var(--blue-dim);
-  color: var(--blue-deep);
+  background: rgba(0, 194, 255, 0.25);
+  color: var(--text);
 }
 
 .row-hover {

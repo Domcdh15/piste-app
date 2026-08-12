@@ -279,7 +279,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
                 fontSize: "12.5px",
                 fontWeight: 500,
                 background: quickFilter === f.key ? "var(--blue-dim)" : "transparent",
-                color: quickFilter === f.key ? "var(--blue-deep)" : "var(--text-dim)",
+                color: quickFilter === f.key ? "var(--blue-300)" : "var(--text-dim)",
                 border: quickFilter === f.key ? "none" : "0.5px solid var(--hairline)",
               }}
             >
@@ -492,7 +492,7 @@ function ProspectSidePanel({ prospect, nextTask, onClose, onOpenFull }) {
 
   return (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(24,25,24,0.2)", zIndex: 40 }} />
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,17,40,0.55)", backdropFilter: "blur(4px)", zIndex: 40 }} />
       <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: "400px", maxWidth: "92vw", background: "var(--panel)", borderLeft: "0.5px solid var(--hairline)", boxShadow: "var(--shadow-md)", zIndex: 41, overflowY: "auto", padding: "28px 24px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
           <div>
@@ -1411,9 +1411,9 @@ function Modal({ children, onClose }) {
   return (
     <div
       onClick={onClose}
-      style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: "20px" }}
+      style={{ position: "fixed", inset: 0, background: "rgba(10,17,40,0.6)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: "20px" }}
     >
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "14px", padding: "22px", maxWidth: "480px", width: "100%", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 50px rgba(15,23,42,0.25)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "rgba(16,27,61,0.85)", backdropFilter: "blur(16px)", border: "1px solid var(--hairline-strong)", borderRadius: "var(--radius-lg)", padding: "22px", maxWidth: "480px", width: "100%", maxHeight: "85vh", overflowY: "auto", boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
         {children}
       </div>
     </div>
