@@ -416,25 +416,25 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
 
   return (
     <div>
-      <div className="hero-band" style={{ color: "var(--text)", padding: "40px 40px 32px" }}>
+      <div className="hero-band" style={{ color: "#fff", padding: "40px 40px 32px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px", flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
-            <span className="h2" style={{ color: "var(--text)" }}>{priorityLabel}</span>
-            <span className="mono" style={{ fontSize: "13px", color: "var(--text-faint)" }}>{openList.length}</span>
+            <span className="h2" style={{ color: "#fff" }}>{priorityLabel}</span>
+            <span className="mono" style={{ fontSize: "13px", color: "rgba(255,255,255,0.75)" }}>{openList.length}</span>
           </div>
           <div style={{ display: "flex", gap: "18px", alignItems: "center" }}>
-            <button className="focusable" onClick={() => setShowOptimize((s) => !s)} style={{ display: "flex", alignItems: "center", gap: "5px", background: "none", border: "none", color: "var(--text-dim)", opacity: showOptimize ? 1 : 0.85, fontSize: "12.5px", fontWeight: 500, padding: 0 }}>
-              <SparklesIcon size={12} color="var(--blue)" /> Optimiser
+            <button className="focusable" onClick={() => setShowOptimize((s) => !s)} style={{ display: "flex", alignItems: "center", gap: "5px", background: "none", border: "none", color: "#fff", opacity: showOptimize ? 1 : 0.85, fontSize: "12.5px", fontWeight: 500, padding: 0 }}>
+              <SparklesIcon size={12} color="#fff" /> Optimiser
             </button>
-            <button className="focusable" onClick={() => setShowImport(true)} style={{ background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "12.5px", fontWeight: 600, padding: "7px 14px" }}>
+            <button className="focusable" onClick={() => setShowImport(true)} style={{ background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.3)", borderRadius: "8px", color: "#fff", fontSize: "12.5px", fontWeight: 600, padding: "7px 14px" }}>
               Importer CSV
             </button>
-            <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "12.5px", fontWeight: 600, padding: "7px 14px" }}>
+            <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.3)", borderRadius: "8px", color: "#fff", fontSize: "12.5px", fontWeight: 600, padding: "7px 14px" }}>
               {showForm ? "Annuler" : "+ Opportunité"}
             </button>
           </div>
         </div>
-        <div style={{ color: "var(--text-dim)", fontSize: "12.5px", marginTop: "6px" }}>{formatEuros(totalValue)} de pipeline</div>
+        <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "12.5px", marginTop: "6px" }}>{formatEuros(totalValue)} de pipeline</div>
       </div>
 
       <div style={{ padding: "28px 40px 64px", maxWidth: "980px" }}>

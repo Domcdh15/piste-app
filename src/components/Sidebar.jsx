@@ -12,7 +12,7 @@ const NAV_ITEMS = [
 
 // La sidebar reste volontairement en navy, distincte du reste de l'app (passé en beige clair) —
 // ses propres tons neutres sont donc définis ici plutôt que via les tokens globaux (tunés pour fond clair).
-const SB_BG = "linear-gradient(180deg, #2e9fe0 0%, #1d4ed8 50%, #0f1f4a 100%)";
+const SB_BG = "var(--gradient-identity)";
 const SB_BORDER = "rgba(255,255,255,0.08)";
 const SB_TEXT = "#FFFFFF";
 const SB_TEXT_DIM = "rgba(255,255,255,0.62)";

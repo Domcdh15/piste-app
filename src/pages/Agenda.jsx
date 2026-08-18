@@ -186,13 +186,13 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
 
   return (
     <div>
-      <div className="hero-band" style={{ color: "var(--text)", padding: "40px 32px 32px" }}>
+      <div className="hero-band" style={{ color: "#fff", padding: "40px 32px 32px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "12px", flexWrap: "wrap" }}>
           <div>
-            <div className="h2" style={{ color: "var(--text)" }}>Agenda</div>
-            <div style={{ color: "var(--text-dim)", fontSize: "13px", marginTop: "4px" }}>{rangeLabel(view, refDate)}</div>
+            <div className="h2" style={{ color: "#fff" }}>Agenda</div>
+            <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "13px", marginTop: "4px" }}>{rangeLabel(view, refDate)}</div>
           </div>
-          <button className="focusable" onClick={() => setShowAddForm((s) => !s)} style={{ background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", fontWeight: 600, padding: "9px 16px" }}>
+          <button className="focusable" onClick={() => setShowAddForm((s) => !s)} style={{ background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.3)", borderRadius: "8px", color: "#fff", fontSize: "13px", fontWeight: 600, padding: "9px 16px" }}>
             {showAddForm ? "Annuler" : "+ Ajouter une action"}
           </button>
         </div>
