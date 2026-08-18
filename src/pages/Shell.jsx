@@ -9,6 +9,7 @@ import Activities from "./Activities.jsx";
 import Settings from "./Settings.jsx";
 import Integrations from "./Integrations.jsx";
 import EquipePage from "./EquipePage.jsx";
+import AssistantBubble from "../components/AssistantBubble.jsx";
 
 const VALID_TABS = ["today", "planning", "pipeline", "chauds", "a-sauver", "assistant", "activities", "settings", "integrations", "equipe"];
 
@@ -158,6 +159,7 @@ export default function Shell({ session, team, reloadTeam }) {
         {activeTab === "integrations" && <Integrations session={session} onBack={() => setActiveTab("settings")} />}
         {activeTab === "equipe" && <EquipePage session={session} team={team} reloadTeam={reloadTeam} />}
       </div>
+      <AssistantBubble session={session} />
     </div>
   );
 }

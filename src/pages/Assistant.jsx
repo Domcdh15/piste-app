@@ -203,6 +203,7 @@ function AttentionCards({ prospects, onOpenProspect, onOpenFlow }) {
         `Aucune activité depuis ${daysSince(risk.last_contact_at) ?? "longtemps"} jour${daysSince(risk.last_contact_at) > 1 ? "s" : ""}.`,
       ],
       recommendation: "Closia recommande : relancer aujourd'hui.",
+      reason: `Deal de ${formatEuros(risk.deal_value || 0)} sans aucune activité depuis ${daysSince(risk.last_contact_at) ?? "longtemps"} jour${daysSince(risk.last_contact_at) > 1 ? "s" : ""} — le risque de perte augmente avec le temps sans contact.`,
       actions: [
         { label: "Analyser", onClick: () => onOpenFlow("analyse", risk.id) },
         { label: "Relancer", onClick: () => onOpenFlow("relance", risk.id) },
@@ -218,6 +219,7 @@ function AttentionCards({ prospects, onOpenProspect, onOpenFlow }) {
         `La proposition a été envoyée il y a ${daysSince(relance.last_contact_at) ?? "quelques"} jour${daysSince(relance.last_contact_at) > 1 ? "s" : ""}.`,
       ],
       recommendation: "Closia recommande : envoyer une relance courte.",
+      reason: `Proposition envoyée il y a ${daysSince(relance.last_contact_at) ?? "quelques"} jour${daysSince(relance.last_contact_at) > 1 ? "s" : ""} sans retour — une relance courte remet le sujet devant le prospect avant qu'il ne passe à autre chose.`,
       actions: [{ label: "Générer", onClick: () => onOpenFlow("relance", relance.id) }],
     },
     rdvProspect && {
@@ -230,6 +232,7 @@ function AttentionCards({ prospects, onOpenProspect, onOpenFlow }) {
         formatShortDate(rdvTask.due_at),
       ],
       recommendation: "Closia a préparé le contexte pour ce rendez-vous.",
+      reason: `Rendez-vous prévu ${formatShortDate(rdvTask.due_at)} — arriver préparé (enjeux, objections, historique) augmente les chances de faire avancer ce deal.`,
       actions: [{ label: "Préparer le RDV", onClick: () => onOpenFlow("rdv", rdvProspect.id) }],
     },
   ].filter(Boolean);
@@ -255,7 +258,9 @@ function AttentionCards({ prospects, onOpenProspect, onOpenFlow }) {
               {c.lines.map((l, i) => (
                 <div key={i} style={{ fontSize: "12px", color: TEXT2, marginBottom: "2px" }}>{l}</div>
               ))}
-              <div style={{ fontSize: "12px", color: ACCENT, marginTop: "8px", marginBottom: "12px" }}>{c.recommendation}</div>
+              <div style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em", color: TEXT2, marginTop: "10px", marginBottom: "3px" }}>POURQUOI CETTE ACTION ?</div>
+              <div style={{ fontSize: "12px", color: TEXT2, lineHeight: 1.5, marginBottom: "6px" }}>{c.reason}</div>
+              <div style={{ fontSize: "12px", color: ACCENT, marginBottom: "12px" }}>{c.recommendation}</div>
               <div style={{ display: "flex", gap: "6px", marginTop: "auto" }}>
                 {c.actions.map((a) => (
                   <button key={a.label} className="focusable" onClick={a.onClick} style={{ flex: 1, background: ACCENT_DIM, color: ACCENT, border: "none", borderRadius: "6px", padding: "7px 10px", fontSize: "12px", fontWeight: 600 }}>
