@@ -50,6 +50,7 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
         alignSelf: "flex-start",
         overflowY: "auto",
         background: SB_BG,
+        backgroundAttachment: "fixed",
         borderRight: `0.5px solid ${SB_BORDER}`,
         display: "flex",
         flexDirection: "column",
