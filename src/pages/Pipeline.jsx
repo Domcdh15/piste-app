@@ -875,8 +875,23 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px" }}>
         <div className="display" style={{ fontWeight: 600, fontSize: "23px", overflow: "hidden", textOverflow: "ellipsis" }}>{prospect.company}</div>
-        <button className="star-toggle focusable" onClick={toggleStar} title={starred ? "Retirer la priorité" : "Marquer prioritaire"} style={{ background: "none", border: "none", padding: 0, fontSize: "22px", lineHeight: 1, color: starred ? "var(--blue)" : "var(--text-faint)" }}>
-          {starred ? "★" : "☆"}
+        <button
+          className="star-toggle focusable"
+          onClick={toggleStar}
+          title={starred ? "Retirer la priorité" : "Marquer prioritaire"}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            background: starred ? "var(--blue-dim)" : "var(--panel2)",
+            border: `0.5px solid ${starred ? "#147ff555" : "var(--hairline)"}`,
+            borderRadius: "999px",
+            padding: "5px 12px 5px 10px",
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ fontSize: "15px", lineHeight: 1, color: starred ? "var(--blue)" : "var(--text-faint)" }}>{starred ? "★" : "☆"}</span>
+          <span style={{ fontSize: "12px", fontWeight: 600, color: starred ? "var(--blue)" : "var(--text-dim)" }}>{starred ? "Prioritaire" : "Marquer prioritaire"}</span>
         </button>
       </div>
 
