@@ -186,7 +186,7 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
 
   return (
     <div>
-      <div style={{ background: "var(--banner-cyan)", color: "#fff", padding: "40px 32px 32px" }}>
+      <div className="hero-band" style={{ background: "var(--banner-cyan)", color: "#fff", padding: "40px 32px 32px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "12px", flexWrap: "wrap" }}>
           <div>
             <div className="h2" style={{ color: "#fff" }}>Agenda</div>

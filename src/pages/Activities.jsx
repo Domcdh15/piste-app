@@ -104,7 +104,7 @@ export default function Activities({ prospects, onOpenProspect, session, team, s
 
   return (
     <div>
-      <div style={{ background: "var(--banner-cyan)", color: "#fff", padding: "40px 32px 32px" }}>
+      <div className="hero-band" style={{ background: "var(--banner-cyan)", color: "#fff", padding: "40px 32px 32px" }}>
         <div className="h2" style={{ color: "#fff" }}>Activité &amp; Données</div>
       </div>
 

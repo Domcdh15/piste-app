@@ -202,7 +202,7 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
 
   return (
     <div>
-      <div style={{ background: "var(--banner-cyan)", color: "#fff", padding: "40px 40px 32px" }}>
+      <div className="hero-band" style={{ background: "var(--banner-cyan)", color: "#fff", padding: "40px 40px 32px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: "16px" }}>
           <div>
             <div className="h1" style={{ color: "#fff" }}>

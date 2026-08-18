@@ -75,7 +75,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
 
   return (
     <div>
-      <div style={{ background: "var(--banner-cyan)", color: "#fff", padding: "40px 32px 32px" }}>
+      <div className="hero-band" style={{ background: "var(--banner-cyan)", color: "#fff", padding: "40px 32px 32px" }}>
         <div className="h2" style={{ color: "#fff" }}>Paramètres</div>
       </div>
 

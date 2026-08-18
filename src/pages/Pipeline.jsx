@@ -416,7 +416,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
 
   return (
     <div>
-      <div style={{ background: "var(--banner-cyan)", color: "#fff", padding: "40px 40px 32px" }}>
+      <div className="hero-band" style={{ background: "var(--banner-cyan)", color: "#fff", padding: "40px 40px 32px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px", flexWrap: "wrap" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
             <span className="h2" style={{ color: "#fff" }}>{priorityLabel}</span>
