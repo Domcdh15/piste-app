@@ -56,10 +56,14 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
         padding: "24px 14px",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "9px", padding: "0 8px", marginBottom: "26px" }}>
-        <Logo size={24} />
-        <span className="display" style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "0.06em", color: SB_TEXT }}>CLOSIA</span>
-      </div>
+      <button
+        className="focusable"
+        onClick={() => setActiveTab("today")}
+        style={{ display: "flex", alignItems: "center", gap: "10px", padding: "6px 8px", marginBottom: "26px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
+      >
+        <Logo size={34} />
+        <span className="display" style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "0.06em", color: SB_TEXT }}>CLOSIA</span>
+      </button>
 
       <nav style={{ display: "flex", flexDirection: "column", gap: "3px", flex: 1 }}>
         {NAV_ITEMS.map((item) => {
