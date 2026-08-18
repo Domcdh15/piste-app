@@ -53,6 +53,183 @@ const ACTIVITY_LABEL = {
   reassignation: "Réattribution",
 };
 
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else inQuotes = false;
+      } else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === ",") {
+      row.push(field);
+      field = "";
+    } else if (c === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+    } else if (c === "\r") {
+      // ignore, \n gère déjà la fin de ligne
+    } else field += c;
+  }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows.filter((r) => r.some((v) => v.trim() !== ""));
+}
+
+const CSV_FIELDS = [
+  { key: "", label: "Ignorer" },
+  { key: "name", label: "Nom" },
+  { key: "company", label: "Entreprise" },
+  { key: "email", label: "Email" },
+  { key: "phone", label: "Téléphone" },
+  { key: "job_title", label: "Poste" },
+  { key: "deal_value", label: "Montant (€)" },
+];
+
+const CSV_AUTO_MAP = {
+  name: ["nom", "name", "contact"],
+  company: ["entreprise", "company", "société", "societe"],
+  email: ["email", "e-mail", "mail"],
+  phone: ["téléphone", "telephone", "phone", "tel"],
+  job_title: ["poste", "fonction", "job", "job title", "titre"],
+  deal_value: ["montant", "valeur", "deal", "amount", "value"],
+};
+
+function guessCsvField(header) {
+  const h = header.trim().toLowerCase();
+  for (const [key, aliases] of Object.entries(CSV_AUTO_MAP)) {
+    if (aliases.includes(h)) return key;
+  }
+  return "";
+}
+
+function ImportCsvModal({ session, onClose, onImported }) {
+  const [parsed, setParsed] = useState(null);
+  const [mapping, setMapping] = useState({});
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState(null);
+
+  function handleFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rows = parseCSV(String(reader.result));
+      if (rows.length < 2) return;
+      const headers = rows[0];
+      const dataRows = rows.slice(1);
+      const initialMapping = {};
+      headers.forEach((h, i) => {
+        initialMapping[i] = guessCsvField(h);
+      });
+      setParsed({ headers, dataRows });
+      setMapping(initialMapping);
+      setResult(null);
+    };
+    reader.readAsText(file, "UTF-8");
+  }
+
+  async function handleImport() {
+    if (!parsed) return;
+    setImporting(true);
+    const records = parsed.dataRows
+      .map((r) => {
+        const rec = { user_id: session.user.id, stage: "À contacter", status: "attente", priority: 50 };
+        Object.entries(mapping).forEach(([idx, field]) => {
+          if (!field) return;
+          const val = (r[idx] || "").trim();
+          if (field === "deal_value") rec.deal_value = Number(val.replace(/[^\d.,-]/g, "").replace(",", ".")) || 0;
+          else rec[field] = val;
+        });
+        if (!rec.name) rec.name = rec.company || rec.email || "Sans nom";
+        return rec;
+      })
+      .filter((r) => r.name || r.email || r.company);
+
+    const { error } = await supabase.from("prospects").insert(records);
+    setImporting(false);
+    if (error) {
+      setResult({ error: "L'import a échoué. Vérifie le fichier et réessaie." });
+    } else {
+      setResult({ ok: true, count: records.length });
+      onImported?.();
+    }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(20,23,31,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }} onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: "var(--panel)", borderRadius: "14px", padding: "28px", width: "580px", maxWidth: "92vw", maxHeight: "85vh", overflowY: "auto" }}
+      >
+        <div style={{ fontSize: "16px", fontWeight: 700, marginBottom: "6px" }}>Importer des prospects (CSV)</div>
+        <div style={{ fontSize: "12.5px", color: "var(--text-dim)", marginBottom: "16px" }}>
+          Exporte ta liste depuis ton CRM actuel (ou Excel) en CSV, puis importe-la ici.
+        </div>
+
+        {!parsed ? (
+          <input type="file" accept=".csv" onChange={handleFile} />
+        ) : (
+          <>
+            <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "10px" }}>
+              {parsed.dataRows.length} lignes détectées. Vérifie la correspondance des colonnes :
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
+              {parsed.headers.map((h, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div style={{ flex: 1, fontSize: "12.5px", color: "var(--text)", fontWeight: 500 }}>{h || `Colonne ${i + 1}`}</div>
+                  <select value={mapping[i] || ""} onChange={(e) => setMapping((m) => ({ ...m, [i]: e.target.value }))} style={selectStyle}>
+                    {CSV_FIELDS.map((f) => (
+                      <option key={f.key} value={f.key}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+
+            {result?.ok ? (
+              <div style={{ fontSize: "13px", color: "#527a61", marginBottom: "12px" }}>{result.count} prospects importés ✓</div>
+            ) : result?.error ? (
+              <div style={{ fontSize: "13px", color: "var(--red)", marginBottom: "12px" }}>{result.error}</div>
+            ) : null}
+
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                className="focusable"
+                onClick={handleImport}
+                disabled={importing}
+                style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", opacity: importing ? 0.6 : 1 }}
+              >
+                {importing ? "Import..." : `Importer ${parsed.dataRows.length} prospects`}
+              </button>
+              <button
+                className="focusable"
+                onClick={onClose}
+                style={{ background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px 16px", fontSize: "13px" }}
+              >
+                {result?.ok ? "Fermer" : "Annuler"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function truncate(text, max) {
   if (!text) return "";
   return text.length > max ? text.slice(0, max).trim() + "…" : text;
@@ -125,6 +302,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
   const [quickFilter, setQuickFilter] = useState("toutes");
   const [panelId, setPanelId] = useState(null);
   const [showOptimize, setShowOptimize] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   useEffect(() => {
     supabase.from("tasks").select("*").eq("done", false).order("due_at", { ascending: true, nullsFirst: false }).then(({ data }) => setOpenTasks(data || []));
@@ -248,6 +426,9 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
             <button className="focusable" onClick={() => setShowOptimize((s) => !s)} style={{ display: "flex", alignItems: "center", gap: "5px", background: "none", border: "none", color: "#fff", opacity: showOptimize ? 1 : 0.85, fontSize: "12.5px", fontWeight: 500, padding: 0 }}>
               <SparklesIcon size={12} color="#fff" /> Optimiser
             </button>
+            <button className="focusable" onClick={() => setShowImport(true)} style={{ background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.3)", borderRadius: "8px", color: "#fff", fontSize: "12.5px", fontWeight: 600, padding: "7px 14px" }}>
+              Importer CSV
+            </button>
             <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.3)", borderRadius: "8px", color: "#fff", fontSize: "12.5px", fontWeight: 600, padding: "7px 14px" }}>
               {showForm ? "Annuler" : "+ Opportunité"}
             </button>
@@ -353,6 +534,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
         <OpportunityList groups={stageGroups} nextTaskByProspect={nextTaskByProspect} onOpen={setPanelId} onToggleStar={toggleStar} team={team} showOwners={showOwners} />
       )}
       </div>
+      {showImport && <ImportCsvModal session={session} onClose={() => setShowImport(false)} onImported={reload} />}
     </div>
   );
 }
