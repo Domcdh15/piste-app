@@ -78,9 +78,9 @@ export default function Assistant({ session, prospects, onOpenProspect, settings
 
   return (
     <div style={{ background: "var(--bg)", minHeight: "100%" }}>
-      <div className="hero-band" style={{ background: "var(--banner-cyan)", color: "#fff", padding: "40px 32px 32px" }}>
-        <div className="h2" style={{ color: "#fff" }}>Assistant IA</div>
-        <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.85)", marginTop: "4px" }}>Votre copilote commercial pour analyser vos opportunités et passer à l'action.</div>
+      <div className="hero-band" style={{ color: "var(--text)", padding: "40px 32px 32px" }}>
+        <div className="h2" style={{ color: "var(--text)" }}>Assistant IA</div>
+        <div style={{ fontSize: "13px", color: "var(--text-dim)", marginTop: "4px" }}>Votre copilote commercial pour analyser vos opportunités et passer à l'action.</div>
       </div>
       <div style={{ maxWidth: "920px", padding: "24px 32px 60px" }}>
 
