@@ -85,19 +85,12 @@ export default function Login() {
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", position: "relative", overflow: "hidden" }}>
-      <svg viewBox="0 0 900 700" preserveAspectRatio="none" aria-hidden="true" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.5, pointerEvents: "none" }}>
-        <path d="M -40 640 C 200 620 260 460 420 420 C 580 380 620 220 780 160 C 850 134 900 90 960 40" stroke="url(#loginMomentum)" strokeWidth="2" fill="none" strokeDasharray="1 11" strokeLinecap="round" />
-        <circle cx="120" cy="600" r="4" fill="var(--hairline)" />
-        <circle cx="420" cy="420" r="5" fill="var(--text-faint)" />
-        <circle cx="700" cy="190" r="7" fill="var(--gold)" />
-        <defs>
-          <linearGradient id="loginMomentum" x1="0" y1="1" x2="1" y2="0">
-            <stop offset="0" stopColor="var(--hairline)" />
-            <stop offset="0.6" stopColor="var(--blue)" stopOpacity="0.5" />
-            <stop offset="1" stopColor="var(--gold)" />
-          </linearGradient>
-        </defs>
-      </svg>
+      <img
+        src="/wave-divider.png"
+        alt=""
+        aria-hidden="true"
+        style={{ position: "absolute", top: "10%", left: "-8%", width: "116%", opacity: 0.4, pointerEvents: "none" }}
+      />
       <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "var(--radius-lg, 16px)", boxShadow: "var(--shadow-md, 0 8px 24px rgba(15,23,42,.08))", padding: "32px", width: "100%", maxWidth: "380px", position: "relative", zIndex: 1 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
           <Logo size={44} />
