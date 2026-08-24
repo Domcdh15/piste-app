@@ -10,15 +10,9 @@ const NAV_ITEMS = [
   { key: "activities", label: "Activités", Icon: ListIcon },
 ];
 
-// La sidebar reste volontairement en navy, distincte du reste de l'app (passé en beige clair) —
-// ses propres tons neutres sont donc définis ici plutôt que via les tokens globaux (tunés pour fond clair).
-const SB_BG = "var(--gradient-identity)";
-const SB_BORDER = "rgba(255,255,255,0.08)";
-const SB_TEXT = "#FFFFFF";
-const SB_TEXT_DIM = "rgba(255,255,255,0.62)";
-const SB_TEXT_FAINT = "rgba(255,255,255,0.4)";
-const SB_ACCENT = "#00C2FF";
-const SB_ACCENT_DIM = "rgba(0,194,255,0.14)";
+const SB_BORDER = "var(--hairline)";
+const SB_TEXT_DIM = "var(--text-dim)";
+const SB_TEXT_FAINT = "var(--text-faint)";
 
 export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
   const [todayCount, setTodayCount] = useState(null);
@@ -42,31 +36,30 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
   return (
     <div
       style={{
-        width: "224px",
-        minWidth: "224px",
+        width: "252px",
+        minWidth: "252px",
         height: "100vh",
         position: "sticky",
         top: 0,
         alignSelf: "flex-start",
         overflowY: "auto",
-        background: SB_BG,
-        backgroundAttachment: "fixed",
+        background: "var(--panel)",
         borderRight: `0.5px solid ${SB_BORDER}`,
         display: "flex",
         flexDirection: "column",
-        padding: "24px 14px",
+        padding: "26px 16px",
       }}
     >
       <button
         className="focusable"
         onClick={() => setActiveTab("today")}
-        style={{ display: "flex", alignItems: "center", gap: "10px", padding: "6px 8px", marginBottom: "26px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
+        style={{ display: "flex", alignItems: "center", gap: "10px", padding: "6px 8px", marginBottom: "34px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
       >
-        <Logo size={34} />
-        <span className="display" style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "0.06em", color: SB_TEXT }}>CLOSIA</span>
+        <Logo size={30} />
+        <span className="display" style={{ fontSize: "15.5px", fontWeight: 700, letterSpacing: "0.02em", color: "var(--text)" }}>Closia</span>
       </button>
 
-      <nav style={{ display: "flex", flexDirection: "column", gap: "3px", flex: 1 }}>
+      <nav style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1 }}>
         {NAV_ITEMS.map((item) => {
           const active = activeTab === item.key;
           const isHovered = hovered === item.key;
@@ -80,33 +73,36 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
               onMouseEnter={() => setHovered(item.key)}
               onMouseLeave={() => setHovered(null)}
               style={{
+                position: "relative",
                 display: "flex",
                 alignItems: "center",
-                gap: "10px",
-                padding: "8px 12px",
-                borderRadius: "8px",
+                gap: "11px",
+                padding: "9px 12px 9px 16px",
+                borderRadius: "10px",
                 fontSize: "13.5px",
                 fontWeight: active ? 600 : 500,
-                background: active ? SB_ACCENT_DIM : isHovered ? "rgba(255,255,255,0.06)" : "transparent",
-                color: active ? SB_ACCENT : SB_TEXT_DIM,
+                background: active ? "var(--blue-dim)" : isHovered ? "var(--panel2)" : "transparent",
+                color: active ? "var(--blue)" : SB_TEXT_DIM,
                 textAlign: "left",
                 border: "none",
-                borderLeft: active ? `2px solid ${SB_ACCENT}` : "2px solid transparent",
                 transition: "background 150ms ease, color 150ms ease",
               }}
             >
-              <Icon size={15} color={active ? SB_ACCENT : SB_TEXT_FAINT} />
+              {active && (
+                <span style={{ position: "absolute", left: 0, top: "20%", bottom: "20%", width: "3px", borderRadius: "0 3px 3px 0", background: "var(--blue)" }} />
+              )}
+              <Icon size={15} color={active ? "var(--blue)" : SB_TEXT_FAINT} />
               <span style={{ flex: 1 }}>{item.label}</span>
               {count != null && count > 0 && (
                 <span
                   className="mono"
                   style={{
                     fontSize: "10.5px",
-                    fontWeight: 600,
-                    color: active ? SB_ACCENT : SB_TEXT_FAINT,
-                    background: active ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.06)",
+                    fontWeight: 700,
+                    color: active ? "var(--blue)" : SB_TEXT_FAINT,
+                    background: active ? "rgba(36,107,254,0.12)" : "var(--panel2)",
                     borderRadius: "var(--radius-pill)",
-                    padding: "1px 6px",
+                    padding: "1px 7px",
                   }}
                 >
                   {count}
@@ -117,7 +113,7 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
         })}
       </nav>
 
-      <div style={{ height: "0.5px", background: SB_BORDER, margin: "14px 12px" }} />
+      <div style={{ height: "0.5px", background: SB_BORDER, margin: "18px 4px" }} />
 
       <button
         className="focusable"
@@ -125,21 +121,24 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
         onMouseEnter={() => setHovered("settings")}
         onMouseLeave={() => setHovered(null)}
         style={{
+          position: "relative",
           display: "flex",
           alignItems: "center",
-          gap: "10px",
-          padding: "8px 12px",
-          borderRadius: "8px",
+          gap: "11px",
+          padding: "9px 12px 9px 16px",
+          borderRadius: "10px",
           fontSize: "13.5px",
           fontWeight: activeTab === "settings" ? 600 : 500,
-          background: activeTab === "settings" ? SB_ACCENT_DIM : hovered === "settings" ? "rgba(255,255,255,0.06)" : "transparent",
-          color: activeTab === "settings" ? SB_ACCENT : SB_TEXT_DIM,
+          background: activeTab === "settings" ? "var(--blue-dim)" : hovered === "settings" ? "var(--panel2)" : "transparent",
+          color: activeTab === "settings" ? "var(--blue)" : SB_TEXT_DIM,
           textAlign: "left",
           border: "none",
-          borderLeft: activeTab === "settings" ? `2px solid ${SB_ACCENT}` : "2px solid transparent",
         }}
       >
-        <GearIcon size={15} color={activeTab === "settings" ? SB_ACCENT : SB_TEXT_FAINT} />
+        {activeTab === "settings" && (
+          <span style={{ position: "absolute", left: 0, top: "20%", bottom: "20%", width: "3px", borderRadius: "0 3px 3px 0", background: "var(--blue)" }} />
+        )}
+        <GearIcon size={15} color={activeTab === "settings" ? "var(--blue)" : SB_TEXT_FAINT} />
         Paramètres
       </button>
     </div>

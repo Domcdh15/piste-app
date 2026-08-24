@@ -1,27 +1,28 @@
 :root {
-  /* surfaces — warm off-white / beige */
-  --bg: #f7f5f0;
+  /* surfaces — cool off-white, premium SaaS feel */
+  --bg: #f7f8fc;
   --panel: #ffffff;
-  --panel2: #f1efe7;
-  --hairline: #e7e3d8;
-  --hairline-strong: #d8d3c3;
+  --panel2: #eef1f7;
+  --hairline: #e4e8f0;
+  --hairline-strong: #d3d9e6;
 
   /* ink */
-  --text: #14171f;
-  --text-dim: #5b6472;
-  --text-faint: #98a2ac;
+  --text: #172033;
+  --text-dim: #64708a;
+  --text-faint: #8490a3;
 
-  /* identity accent — Electric Blue (readable on light) → Bright Cyan (bands, gradients) */
-  --blue: #2e6ff2;
-  --blue-deep: #1d4ed8;
-  --blue-500: #2e6ff2;
-  --blue-400: #00a8e0;
+  /* identity accent — Electric Blue */
+  --blue: #246bfe;
+  --blue-deep: #1746b8;
+  --blue-500: #246bfe;
+  --blue-400: #2e9fe0;
   --blue-300: #5ec4ff;
-  --blue-dim: #e8f0fe;
+  --blue-dim: #eaf0ff;
   --banner-cyan: #0078b8;
-  --gradient-cta: linear-gradient(90deg, #2e6ff2, #00c2ff);
-  --gradient-flow: linear-gradient(135deg, #0a1128 0%, #2e6ff2 45%, #00c2ff 75%, #ffffff 100%);
-  --gradient-identity: linear-gradient(160deg, #2e9fe0 0%, #1d4ed8 45%, #0f1f4a 100%);
+  --gradient-cta: linear-gradient(90deg, #246bfe, #00c2ff);
+  --gradient-flow: linear-gradient(135deg, #0a1128 0%, #246bfe 45%, #00c2ff 75%, #ffffff 100%);
+  --gradient-identity: linear-gradient(160deg, #2e9fe0 0%, #1746b8 45%, #0f1f4a 100%);
+  --gradient-hero-subtle: linear-gradient(135deg, #2e7cff 0%, #1746b8 100%);
   --glow-cyan: 0 0 24px rgba(0, 194, 255, 0.28);
 
   /* AI accent, kept distinct and rare */
@@ -56,13 +57,14 @@
   /* radius */
   --radius-sm: 10px;
   --radius-md: 16px;
-  --radius-lg: 16px;
-  --radius-xl: 16px;
+  --radius-lg: 18px;
+  --radius-xl: 22px;
   --radius-badge: 8px;
   --radius-pill: 999px;
 
-  --shadow-sm: 0 2px 8px rgba(20, 23, 31, 0.08);
-  --shadow-md: 0 8px 24px rgba(20, 23, 31, 0.12);
+  --shadow-sm: 0 1px 2px rgba(23, 32, 51, 0.04), 0 2px 8px rgba(23, 32, 51, 0.05);
+  --shadow-md: 0 8px 24px rgba(23, 32, 51, 0.1);
+  --shadow-hero: 0 16px 40px rgba(23, 62, 150, 0.22);
 }
 
 * {
@@ -217,4 +219,75 @@ button {
 .hero-band {
   background: var(--gradient-identity);
   background-attachment: fixed;
+}
+
+/* Système de cartes — dashboard premium */
+.dash-card {
+  background: var(--panel);
+  border: 0.5px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 180ms ease, transform 180ms ease, border-color 180ms ease;
+}
+.dash-card.hoverable:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--hairline-strong);
+  transform: translateY(-1px);
+}
+
+.hero-card {
+  position: relative;
+  overflow: hidden;
+  background: var(--gradient-hero-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-hero);
+  color: #fff;
+}
+.hero-card::before {
+  content: "";
+  position: absolute;
+  top: -80px;
+  right: -60px;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 70%);
+  pointer-events: none;
+}
+.hero-card::after {
+  content: "";
+  position: absolute;
+  bottom: -120px;
+  left: 10%;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.16) 0%, rgba(139, 92, 246, 0) 70%);
+  pointer-events: none;
+}
+
+.section-eyebrow {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.list-row {
+  transition: background 150ms ease;
+  border-radius: 10px;
+}
+.list-row:hover {
+  background: var(--panel2);
+}
+
+.assist-bubble-toggle {
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.assist-bubble-toggle:hover {
+  transform: translateY(-2px) scale(1.04);
+}
+.assist-bubble-toggle:active {
+  transform: scale(0.96);
 }

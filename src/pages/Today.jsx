@@ -200,34 +200,56 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
 
   const priorityCount = totalActions + overdueTasks.length;
 
-  return (
-    <div>
-      <div className="hero-band" style={{ color: "#fff", padding: "40px 40px 32px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: "16px" }}>
-          <div>
-            <div className="h1" style={{ color: "#fff" }}>
-              Bonjour{firstName ? ` ${firstName}` : ""}
-            </div>
-            <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "14px", marginTop: "6px" }}>
-              {todayLabel()} · {priorityCount} élément{priorityCount > 1 ? "s" : ""} prioritaire{priorityCount > 1 ? "s" : ""}
-              {overdueTasks.length > 0 && <span style={{ color: "#ffd9d4" }}> · {overdueTasks.length} en retard</span>}
-            </div>
-          </div>
-          <button className="focusable" onClick={openOrganize} style={{ display: "flex", alignItems: "center", gap: "7px", background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.3)", borderRadius: "8px", padding: "9px 16px", color: "#fff", fontSize: "14px", fontWeight: 600 }}>
-            <SparklesIcon size={14} color="#fff" /> Organiser ma journée
-          </button>
-        </div>
+  let heroMessage;
+  if (priorityCount === 0 && attentionCount === 0) {
+    heroMessage = "Votre journée est calme.";
+  } else if (priorityCount > 0 && attentionCount > 0) {
+    heroMessage = `${priorityCount} action${priorityCount > 1 ? "s" : ""} prioritaire${priorityCount > 1 ? "s" : ""} aujourd'hui, et ${attentionCount} opportunité${attentionCount > 1 ? "s" : ""} nécessite${attentionCount > 1 ? "nt" : ""} votre attention.`;
+  } else if (priorityCount > 0) {
+    heroMessage = `${priorityCount} action${priorityCount > 1 ? "s" : ""} prioritaire${priorityCount > 1 ? "s" : ""} aujourd'hui.`;
+  } else {
+    heroMessage = `${attentionCount} opportunité${attentionCount > 1 ? "s" : ""} nécessite${attentionCount > 1 ? "nt" : ""} votre attention.`;
+  }
 
-        {totalWithDone > 0 && (
-          <div style={{ marginTop: "18px" }}>
-            <div style={{ height: "3px", width: "260px", background: "rgba(255,255,255,0.25)", borderRadius: "2px", overflow: "hidden" }}>
-              <div style={{ width: `${(doneToday / totalWithDone) * 100}%`, height: "100%", background: "#fff", borderRadius: "2px" }} />
+  return (
+    <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
+      <div style={{ padding: "32px 40px 0" }}>
+        <div className="hero-card" style={{ padding: "34px 38px" }}>
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: "18px" }}>
+              <div>
+                <div className="h1" style={{ color: "#fff", display: "flex", alignItems: "center", gap: "10px" }}>
+                  Bonjour{firstName ? ` ${firstName}` : ""} <span style={{ fontSize: "0.7em" }}>👋</span>
+                </div>
+                <div style={{ color: "rgba(255,255,255,0.75)", fontSize: "13.5px", marginTop: "8px", fontWeight: 500 }}>
+                  {todayLabel()}
+                </div>
+                <div style={{ color: "rgba(255,255,255,0.94)", fontSize: "15px", marginTop: "10px", maxWidth: "460px", lineHeight: 1.5 }}>
+                  {heroMessage}
+                  {overdueTasks.length > 0 && <span style={{ color: "#ffd9d4" }}> · {overdueTasks.length} en retard</span>}
+                </div>
+              </div>
+              <button
+                className="focusable"
+                onClick={openOrganize}
+                style={{ display: "flex", alignItems: "center", gap: "8px", background: "#fff", border: "none", borderRadius: "11px", padding: "11px 20px", color: "var(--blue-deep)", fontSize: "14px", fontWeight: 700, boxShadow: "0 4px 14px rgba(10,20,50,0.18)", transition: "transform 150ms ease, box-shadow 150ms ease" }}
+              >
+                <SparklesIcon size={14} color="var(--blue-deep)" /> Organiser ma journée →
+              </button>
             </div>
+
+            {totalWithDone > 0 && (
+              <div style={{ marginTop: "22px" }}>
+                <div style={{ height: "4px", width: "260px", maxWidth: "100%", background: "rgba(255,255,255,0.22)", borderRadius: "2px", overflow: "hidden" }}>
+                  <div style={{ width: `${(doneToday / totalWithDone) * 100}%`, height: "100%", background: "#fff", borderRadius: "2px", transition: "width 300ms ease" }} />
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
-      <div style={{ padding: "28px 40px 48px" }}>
+      <div style={{ padding: "24px 40px 48px" }}>
         {showOrganize && (
           <OrganizeDayPanel
             tasks={[...overdueTasks, ...todayTasks]}
@@ -237,12 +259,12 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
           />
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr)", gap: "20px", alignItems: "start", marginBottom: "24px" }}>
-          <div>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr)", gap: "16px", alignItems: "stretch", marginBottom: "16px" }}>
+          <div className="dash-card hoverable" style={{ padding: "22px 24px" }}>
             {overdueTasks.length > 0 && (
-              <div style={{ marginBottom: "28px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "4px", flexWrap: "wrap" }}>
-                  <span style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.06em", color: "var(--red)" }}>EN RETARD · {overdueTasks.length}</span>
+              <div style={{ marginBottom: "22px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px", flexWrap: "wrap" }}>
+                  <span className="section-eyebrow" style={{ color: "var(--red)" }}>EN RETARD · {overdueTasks.length}</span>
                   <button className="focusable" onClick={reportAllOverdue} style={{ marginLeft: "auto", fontSize: "12px", fontWeight: 500, color: "var(--red)", background: "none", border: "none", padding: 0 }}>
                     Reporter au prochain créneau
                   </button>
@@ -255,9 +277,9 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
               </div>
             )}
 
-            <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-faint)", marginBottom: "4px" }}>À FAIRE MAINTENANT</div>
+            <div className="section-eyebrow" style={{ marginBottom: "6px" }}>À FAIRE MAINTENANT</div>
             {todayItems.length === 0 ? (
-              <div style={{ color: "var(--text-dim)", fontSize: "13px", padding: "12px 0" }}>Rien à traiter pour le moment.<br /><span style={{ color: "var(--text-faint)" }}>Votre prochaine action apparaîtra ici.</span></div>
+              <div style={{ color: "var(--text-dim)", fontSize: "13px", padding: "14px 0 6px" }}>Rien à traiter pour le moment.<br /><span style={{ color: "var(--text-faint)" }}>Votre prochaine action apparaîtra ici.</span></div>
             ) : (
               <div>
                 {todayItems.map((item) =>
@@ -271,20 +293,20 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
             )}
           </div>
 
-          <div>
-            <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-faint)", marginBottom: "4px" }}>À SURVEILLER</div>
+          <div className="dash-card hoverable" style={{ padding: "22px 24px" }}>
+            <div className="section-eyebrow" style={{ marginBottom: "6px" }}>À SURVEILLER</div>
             {watchList.length === 0 ? (
-              <div style={{ color: "var(--text-faint)", fontSize: "12.5px", padding: "12px 0" }}>Rien à signaler.</div>
+              <div style={{ color: "var(--text-faint)", fontSize: "12.5px", padding: "14px 0 6px" }}>Rien à signaler.</div>
             ) : (
               <div>
                 {watchList.map(({ p, emoji, label, cta, action }) => (
-                  <button key={p.id} className="focusable row-hover" onClick={action} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", borderBottom: "0.5px solid var(--hairline)", borderRadius: "6px", padding: "10px 4px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "2px" }}>
-                      <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--text)" }}>{emoji} {p.company}</span>
+                  <button key={p.id} className="focusable list-row" onClick={action} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", padding: "11px 8px", marginTop: "2px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "3px" }}>
+                      <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)" }}>{emoji} {p.company}</span>
                       <span className="mono" style={{ fontSize: "12px", color: "var(--text-dim)" }}>{formatEuros(p.deal_value || 0)}</span>
                     </div>
                     <div style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "4px" }}>{label}</div>
-                    <div style={{ fontSize: "12px", color: "var(--blue)" }}>{cta} →</div>
+                    <div style={{ fontSize: "12px", color: "var(--blue)", fontWeight: 600 }}>{cta} →</div>
                   </button>
                 ))}
               </div>
@@ -292,54 +314,56 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
           </div>
         </div>
 
-        <div style={{ borderTop: "0.5px solid var(--hairline)", padding: "16px 4px", marginBottom: "20px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-            <span style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-faint)" }}>VOTRE JOURNÉE</span>
-            <button className="focusable" onClick={() => setActiveTab("planning")} style={{ fontSize: "12px", color: "var(--blue)", background: "none", border: "none", padding: 0, fontWeight: 500 }}>
-              Voir l'agenda →
-            </button>
+        <div style={{ display: "grid", gridTemplateColumns: attentionCount > 0 ? "minmax(0,1fr) minmax(0,1fr)" : "1fr", gap: "16px", alignItems: "stretch", marginBottom: "16px" }}>
+          <div className="dash-card hoverable" style={{ padding: "22px 24px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+              <span className="section-eyebrow">VOTRE JOURNÉE</span>
+              <button className="focusable" onClick={() => setActiveTab("planning")} style={{ fontSize: "12px", color: "var(--blue)", background: "none", border: "none", padding: 0, fontWeight: 600 }}>
+                Voir l'agenda →
+              </button>
+            </div>
+            {todayItems.length === 0 ? (
+              <div style={{ color: "var(--text-faint)", fontSize: "12.5px", padding: "6px 0" }}>Aucun rendez-vous prévu aujourd'hui.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
+                {todayItems.slice(0, 6).map((item, i) => {
+                  const label = item.kind === "task" ? item.data.note : item.data.title;
+                  return (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "12.5px" }}>
+                      <span className="mono" style={{ color: "var(--text-faint)", width: "42px", flexShrink: 0 }}>{formatEventTime(item.time.toISOString())}</span>
+                      <span style={{ color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-          {todayItems.length === 0 ? (
-            <div style={{ color: "var(--text-faint)", fontSize: "12.5px" }}>Rien de planifié.</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "7px" }}>
-              {todayItems.slice(0, 6).map((item, i) => {
-                const label = item.kind === "task" ? item.data.note : item.data.title;
-                return (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "12.5px" }}>
-                    <span className="mono" style={{ color: "var(--text-faint)", width: "42px", flexShrink: 0 }}>{formatEventTime(item.time.toISOString())}</span>
-                    <span style={{ color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
-                  </div>
-                );
-              })}
+
+          {attentionCount > 0 && (
+            <div className="dash-card hoverable" style={{ padding: "22px 24px", background: "linear-gradient(180deg, rgba(139,92,246,0.05) 0%, rgba(139,92,246,0) 60%)", border: "0.5px solid var(--violet-border)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+                <SparklesIcon size={12} color="var(--violet)" />
+                <span className="section-eyebrow" style={{ color: "var(--violet)" }}>RECOMMANDATION</span>
+              </div>
+              <div style={{ fontSize: "13px", color: "var(--text)", lineHeight: 1.6, marginBottom: "12px" }}>
+                Vous avez {totalWithDone} action{totalWithDone > 1 ? "s" : ""} prévue{totalWithDone > 1 ? "s" : ""} aujourd'hui, mais {attentionCount} deal{attentionCount > 1 ? "s" : ""} représentant {formatEuros(attentionValue)} de pipeline n'{attentionCount > 1 ? "ont" : "a"} pas reçu de suivi depuis plus de 5 jours.
+                {watchAtRisk.length > 0 && ` Je vous recommande de traiter ${watchAtRisk.slice(0, 2).map((p) => p.company).join(" et ")} en priorité.`}
+              </div>
+              <button className="focusable" onClick={openOrganize} style={{ background: "none", border: "none", color: "var(--violet)", fontSize: "13px", fontWeight: 700, padding: 0 }}>
+                Organiser ma journée →
+              </button>
             </div>
           )}
         </div>
 
-        {attentionCount > 0 && (
-          <div style={{ borderTop: "0.5px solid var(--hairline)", padding: "16px 4px", marginBottom: "20px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
-              <SparklesIcon size={12} color="var(--violet)" />
-              <span style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.06em", color: "var(--violet)" }}>RECOMMANDATION</span>
-            </div>
-            <div style={{ fontSize: "13px", color: "var(--text)", lineHeight: 1.6, marginBottom: "10px" }}>
-              Vous avez {totalWithDone} action{totalWithDone > 1 ? "s" : ""} prévue{totalWithDone > 1 ? "s" : ""} aujourd'hui, mais {attentionCount} deal{attentionCount > 1 ? "s" : ""} représentant {formatEuros(attentionValue)} de pipeline n'{attentionCount > 1 ? "ont" : "a"} pas reçu de suivi depuis plus de 5 jours.
-              {watchAtRisk.length > 0 && ` Je vous recommande de traiter ${watchAtRisk.slice(0, 2).map((p) => p.company).join(" et ")} en priorité.`}
-            </div>
-            <button className="focusable" onClick={openOrganize} style={{ background: "none", border: "none", color: "var(--blue)", fontSize: "13px", fontWeight: 500, padding: 0 }}>
-              Organiser ma journée →
-            </button>
-          </div>
-        )}
-
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+        <div className="dash-card hoverable" style={{ padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
           <div>
-            <span style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-faint)" }}>VOTRE ACTIVITÉ</span>
-            <div style={{ fontSize: "12.5px", color: "var(--text-dim)", marginTop: "4px" }}>
+            <span className="section-eyebrow">VOTRE ACTIVITÉ</span>
+            <div className="mono" style={{ fontSize: "12.5px", color: "var(--text-dim)", marginTop: "4px" }}>
               {doneToday} action{doneToday > 1 ? "s" : ""} terminée{doneToday > 1 ? "s" : ""} · {nbAppels} appel{nbAppels > 1 ? "s" : ""} · {nbRelances} email{nbRelances > 1 ? "s" : ""} · {nbRdv} RDV
             </div>
           </div>
-          <button className="focusable" onClick={() => setActiveTab("activities")} style={{ fontSize: "12px", color: "var(--blue)", background: "none", border: "none", padding: 0, fontWeight: 500 }}>
+          <button className="focusable" onClick={() => setActiveTab("activities")} style={{ fontSize: "12px", color: "var(--blue)", background: "none", border: "none", padding: 0, fontWeight: 600 }}>
             Voir l'activité →
           </button>
         </div>

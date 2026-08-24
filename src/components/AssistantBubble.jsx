@@ -46,7 +46,7 @@ export default function AssistantBubble({ session }) {
             zIndex: 200,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--gradient-identity)", color: "#fff" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--gradient-hero-subtle)", color: "#fff" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 700, fontSize: "13.5px" }}>
               <SparklesIcon size={14} color="#fff" /> Assistant Closia
             </div>
@@ -112,19 +112,19 @@ export default function AssistantBubble({ session }) {
       )}
 
       <button
-        className="focusable"
+        className="focusable assist-bubble-toggle"
         onClick={() => setOpen((o) => !o)}
         title="Assistant Closia"
         style={{
           position: "fixed",
           bottom: "24px",
           right: "24px",
-          width: "52px",
-          height: "52px",
+          width: "54px",
+          height: "54px",
           borderRadius: "50%",
-          background: "var(--gradient-identity)",
+          background: "var(--gradient-hero-subtle)",
           border: "none",
-          boxShadow: "var(--shadow-md, 0 8px 24px rgba(20,23,31,.16))",
+          boxShadow: "0 8px 22px rgba(23,70,184,0.32), 0 0 0 6px rgba(36,107,254,0.08)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
