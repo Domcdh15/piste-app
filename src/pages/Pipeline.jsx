@@ -300,6 +300,8 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
   const [search, setSearch] = useState("");
   const [openTasks, setOpenTasks] = useState([]);
   const [quickFilter, setQuickFilter] = useState("toutes");
+  const [sortField, setSortField] = useState(null);
+  const [sortDir, setSortDir] = useState("desc");
   const [panelId, setPanelId] = useState(null);
   const [showOptimize, setShowOptimize] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -341,11 +343,6 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
   async function handleUpdateProspect(id, changes) {
     const { error } = await supabase.from("prospects").update(changes).eq("id", id);
     if (!error) reload();
-  }
-
-  function toggleStar(p) {
-    const starred = (p.priority || 0) >= 75;
-    handleUpdateProspect(p.id, { priority: starred ? 50 : 100 });
   }
 
   async function handleDeleteProspect(id) {
@@ -390,7 +387,19 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
     return true;
   });
 
-  const stageGroups = groupByStage(quickFiltered);
+  function toggleSort(field) {
+    if (sortField !== field) {
+      setSortField(field);
+      setSortDir(field === "priority" ? "desc" : "asc");
+      return;
+    }
+    const firstDir = field === "priority" ? "desc" : "asc";
+    if (sortDir === firstDir) setSortDir(firstDir === "asc" ? "desc" : "asc");
+    else setSortField(null);
+  }
+
+  const sortComparator = buildSortComparator(sortField, sortDir, nextTaskByProspect);
+  const stageGroups = groupByStage(quickFiltered, sortComparator);
   const priorityLabel =
     presetFilter === "chauds" ? "Prospects chauds" : presetFilter === "a-sauver" ? "Deals à sauver" : "Opportunités";
 
@@ -483,6 +492,12 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
         />
       </div>
 
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+        <span style={{ fontSize: "11.5px", color: "var(--text-faint)", fontWeight: 500 }}>Trier par</span>
+        <SortToggleButton label="Priorité" active={sortField === "priority"} dir={sortDir} onClick={() => toggleSort("priority")} />
+        <SortToggleButton label="Prochaine action" active={sortField === "nextAction"} dir={sortDir} onClick={() => toggleSort("nextAction")} />
+      </div>
+
       {panelId && (() => {
         const panelProspect = prospects.find((p) => p.id === panelId);
         return panelProspect ? (
@@ -535,7 +550,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
       ) : quickFiltered.length === 0 ? (
         <div style={{ color: "var(--text-dim)", padding: "20px 2px", fontSize: "13px" }}>Aucun résultat pour cette recherche ou ce filtre.</div>
       ) : (
-        <OpportunityList groups={stageGroups} nextTaskByProspect={nextTaskByProspect} onOpen={setPanelId} onToggleStar={toggleStar} team={team} showOwners={showOwners} />
+        <OpportunityList groups={stageGroups} nextTaskByProspect={nextTaskByProspect} onOpen={setPanelId} team={team} showOwners={showOwners} sortField={sortField} />
       )}
       </div>
       {showImport && <ImportCsvModal session={session} onClose={() => setShowImport(false)} onImported={reload} />}
@@ -546,14 +561,30 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
 const STAGE_GROUP_ORDER = [...OPEN_STAGES, "Gagné", "Perdu"];
 const STAGE_GROUP_LABEL = { "Gagné": "Clients" };
 
-function groupByStage(list) {
+function groupByStage(list, comparator) {
   return STAGE_GROUP_ORDER.map((stage) => ({
     stage,
     label: (STAGE_GROUP_LABEL[stage] || stage).toUpperCase(),
-    items: list
-      .filter((p) => p.stage === stage)
-      .sort((a, b) => (b.priority || 0) - (a.priority || 0) || (b.deal_value || 0) - (a.deal_value || 0)),
+    items: list.filter((p) => p.stage === stage).sort(comparator),
   })).filter((g) => g.items.length > 0);
+}
+
+const DEFAULT_SORT = (a, b) => (b.priority || 0) - (a.priority || 0) || (b.deal_value || 0) - (a.deal_value || 0);
+
+function buildSortComparator(field, dir, nextTaskByProspect) {
+  if (!field) return DEFAULT_SORT;
+  const mult = dir === "asc" ? 1 : -1;
+  if (field === "priority") {
+    return (a, b) => mult * ((a.priority || 0) - (b.priority || 0)) || DEFAULT_SORT(a, b);
+  }
+  if (field === "nextAction") {
+    return (a, b) => {
+      const da = nextTaskByProspect[a.id]?.due_at ? new Date(nextTaskByProspect[a.id].due_at).getTime() : Infinity;
+      const db = nextTaskByProspect[b.id]?.due_at ? new Date(nextTaskByProspect[b.id].due_at).getTime() : Infinity;
+      return mult * (da - db) || DEFAULT_SORT(a, b);
+    };
+  }
+  return DEFAULT_SORT;
 }
 
 const QUICK_FILTERS = [
@@ -563,7 +594,31 @@ const QUICK_FILTERS = [
   { key: "clients", label: "Clients" },
 ];
 
-function OpportunityList({ groups, nextTaskByProspect, onOpen, onToggleStar, team, showOwners }) {
+function SortToggleButton({ label, active, dir, onClick }) {
+  return (
+    <button
+      className="focusable"
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "5px",
+        background: active ? "var(--blue-dim)" : "transparent",
+        color: active ? "var(--blue)" : "var(--text-dim)",
+        border: active ? "none" : "0.5px solid var(--hairline)",
+        borderRadius: "var(--radius-pill)",
+        padding: "4px 10px",
+        fontSize: "12px",
+        fontWeight: 500,
+      }}
+    >
+      {label}
+      <span style={{ fontSize: "9px", opacity: active ? 1 : 0.5 }}>{active && dir === "asc" ? "▲" : "▼"}</span>
+    </button>
+  );
+}
+
+function OpportunityList({ groups, nextTaskByProspect, onOpen, team, showOwners, sortField }) {
   return (
     <div>
       {groups.map((g) => (
@@ -578,9 +633,9 @@ function OpportunityList({ groups, nextTaskByProspect, onOpen, onToggleStar, tea
               p={p}
               nextTask={nextTaskByProspect[p.id]}
               onClick={() => onOpen(p.id)}
-              onToggleStar={() => onToggleStar(p)}
               team={team}
               showOwners={showOwners}
+              sortField={sortField}
             />
           ))}
         </div>
@@ -589,8 +644,18 @@ function OpportunityList({ groups, nextTaskByProspect, onOpen, onToggleStar, tea
   );
 }
 
-function OpportunityRow({ p, onClick, onToggleStar, team, showOwners }) {
-  const starred = (p.priority || 0) >= 75;
+function priorityColor(priority) {
+  const v = priority || 50;
+  if (v >= 100) return "var(--red)";
+  if (v >= 75) return "var(--amber)";
+  if (v >= 50) return "var(--blue)";
+  return "var(--text-faint)";
+}
+
+function OpportunityRow({ p, nextTask, onClick, team, showOwners, sortField }) {
+  const priorityInfo = PRIORITY_LEVELS.find((l) => l.value === (p.priority || 50)) || PRIORITY_LEVELS[1];
+  const showNextAction = sortField === "nextAction";
+  const info = showNextAction ? nextActionInfo(p, nextTask) : null;
   return (
     <div
       role="button"
@@ -600,7 +665,7 @@ function OpportunityRow({ p, onClick, onToggleStar, team, showOwners }) {
       className="focusable row-hover"
       style={{
         display: "grid",
-        gridTemplateColumns: showOwners ? "20px minmax(0,1.3fr) minmax(0,1fr) 92px 150px 44px" : "20px minmax(0,1.3fr) minmax(0,1fr) 92px 150px",
+        gridTemplateColumns: showOwners ? "14px minmax(0,1.3fr) minmax(0,1fr) 92px 150px 44px" : "14px minmax(0,1.3fr) minmax(0,1fr) 92px 150px",
         alignItems: "center",
         gap: "12px",
         padding: "9px 4px",
@@ -610,15 +675,13 @@ function OpportunityRow({ p, onClick, onToggleStar, team, showOwners }) {
         borderRadius: "6px",
       }}
     >
-      <button
-        onClick={(e) => { e.stopPropagation(); onToggleStar(); }}
-        className="star-toggle focusable"
-        title={starred ? "Retirer la priorité" : "Marquer prioritaire"}
-        style={{ background: "none", border: "none", padding: 0, fontSize: "14px", lineHeight: 1, color: starred ? "var(--blue)" : "var(--text-faint)" }}
-      >
-        {starred ? "★" : "☆"}
-      </button>
-      <span style={{ fontWeight: 500, fontSize: "13.5px", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.company}</span>
+      <span title={`Priorité : ${priorityInfo.label}`} style={{ width: "8px", height: "8px", borderRadius: "50%", background: priorityColor(p.priority), justifySelf: "center" }} />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 500, fontSize: "13.5px", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.company}</div>
+        {showNextAction && info && (
+          <div style={{ fontSize: "11px", color: info.color, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: "1px" }}>{info.text}</div>
+        )}
+      </div>
       <span style={{ color: "var(--text-dim)", fontSize: "13px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
       <span className="mono" style={{ fontSize: "13px", color: "var(--text)", textAlign: "right" }}>{formatEuros(p.deal_value)}</span>
       <span style={{ fontSize: "12.5px", color: "var(--text-faint)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.stage === "Gagné" ? "Client" : p.stage}</span>
