@@ -103,12 +103,14 @@ export default function Activities({ prospects, onOpenProspect, session, team, s
   }, [prospects]);
 
   return (
-    <div>
-      <div className="hero-band" style={{ color: "#fff", padding: "40px 32px 32px" }}>
-        <div className="h2" style={{ color: "#fff" }}>Activité &amp; Données</div>
+    <div style={{ background: "var(--bg)", minHeight: "100%" }}>
+      <div style={{ padding: "32px 32px 0" }}>
+        <div className="hero-card" style={{ padding: "26px 32px" }}>
+          <div className="h2" style={{ position: "relative", zIndex: 1, color: "#fff" }}>Activité &amp; Données</div>
+        </div>
       </div>
 
-      <div style={{ padding: "24px 32px 60px", maxWidth: "900px" }}>
+      <div style={{ padding: "22px 32px 60px", maxWidth: "900px" }}>
       <div style={{ display: "flex", gap: "4px", background: "var(--panel2)", borderRadius: "8px", padding: "3px", marginBottom: "22px", width: "fit-content" }}>
         {[["activite", "Activité"], ["performance", "Performance"]].map(([key, label]) => (
           <button key={key} className="focusable" onClick={() => setTab(key)} style={{ padding: "7px 16px", borderRadius: "6px", fontSize: "13px", fontWeight: 500, background: tab === key ? "var(--panel)" : "transparent", color: tab === key ? "var(--blue)" : "var(--text-dim)", boxShadow: tab === key ? "var(--shadow-sm)" : "none" }}>

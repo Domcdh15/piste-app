@@ -185,20 +185,26 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
   }
 
   return (
-    <div>
-      <div className="hero-band" style={{ color: "#fff", padding: "40px 32px 32px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "12px", flexWrap: "wrap" }}>
-          <div>
-            <div className="h2" style={{ color: "#fff" }}>Agenda</div>
-            <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "13px", marginTop: "4px" }}>{rangeLabel(view, refDate)}</div>
+    <div style={{ background: "var(--bg)", minHeight: "100%" }}>
+      <div style={{ padding: "32px 32px 0" }}>
+        <div className="hero-card" style={{ padding: "26px 32px" }}>
+          <div style={{ position: "relative", zIndex: 1, display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "12px", flexWrap: "wrap" }}>
+            <div>
+              <div className="h2" style={{ color: "#fff" }}>Agenda</div>
+              <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "13px", marginTop: "4px" }}>{rangeLabel(view, refDate)}</div>
+            </div>
+            <button
+              className="focusable"
+              onClick={() => setShowAddForm((s) => !s)}
+              style={{ background: "#fff", border: "none", borderRadius: "10px", color: "var(--blue-deep)", fontSize: "13px", fontWeight: 700, padding: "10px 18px", boxShadow: "0 4px 14px rgba(10,20,50,0.18)" }}
+            >
+              {showAddForm ? "Annuler" : "+ Ajouter une action"}
+            </button>
           </div>
-          <button className="focusable" onClick={() => setShowAddForm((s) => !s)} style={{ background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.3)", borderRadius: "8px", color: "#fff", fontSize: "13px", fontWeight: 600, padding: "9px 16px" }}>
-            {showAddForm ? "Annuler" : "+ Ajouter une action"}
-          </button>
         </div>
       </div>
 
-      <div style={{ padding: "24px 32px 48px" }}>
+      <div style={{ padding: "22px 32px 48px" }}>
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
         <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
           {view !== "Liste" && (

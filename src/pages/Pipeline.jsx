@@ -415,29 +415,33 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
   const showOwners = team && (team.team?.has_multiple_sales || team.team?.has_multiple_csm);
 
   return (
-    <div>
-      <div className="hero-band" style={{ color: "#fff", padding: "40px 40px 32px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
-            <span className="h2" style={{ color: "#fff" }}>{priorityLabel}</span>
-            <span className="mono" style={{ fontSize: "13px", color: "rgba(255,255,255,0.75)" }}>{openList.length}</span>
-          </div>
-          <div style={{ display: "flex", gap: "18px", alignItems: "center" }}>
-            <button className="focusable" onClick={() => setShowOptimize((s) => !s)} style={{ display: "flex", alignItems: "center", gap: "5px", background: "none", border: "none", color: "#fff", opacity: showOptimize ? 1 : 0.85, fontSize: "12.5px", fontWeight: 500, padding: 0 }}>
-              <SparklesIcon size={12} color="#fff" /> Optimiser
-            </button>
-            <button className="focusable" onClick={() => setShowImport(true)} style={{ background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.3)", borderRadius: "8px", color: "#fff", fontSize: "12.5px", fontWeight: 600, padding: "7px 14px" }}>
-              Importer CSV
-            </button>
-            <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.3)", borderRadius: "8px", color: "#fff", fontSize: "12.5px", fontWeight: 600, padding: "7px 14px" }}>
-              {showForm ? "Annuler" : "+ Opportunité"}
-            </button>
+    <div style={{ background: "var(--bg)", minHeight: "100%" }}>
+      <div style={{ padding: "32px 40px 0" }}>
+        <div className="hero-card" style={{ padding: "26px 38px" }}>
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
+                <span className="h2" style={{ color: "#fff" }}>{priorityLabel}</span>
+                <span className="mono" style={{ fontSize: "13px", color: "rgba(255,255,255,0.75)" }}>{openList.length}</span>
+              </div>
+              <div style={{ display: "flex", gap: "14px", alignItems: "center" }}>
+                <button className="focusable" onClick={() => setShowOptimize((s) => !s)} style={{ display: "flex", alignItems: "center", gap: "5px", background: "none", border: "none", color: "#fff", opacity: showOptimize ? 1 : 0.85, fontSize: "12.5px", fontWeight: 500, padding: 0 }}>
+                  <SparklesIcon size={12} color="#fff" /> Optimiser
+                </button>
+                <button className="focusable" onClick={() => setShowImport(true)} style={{ background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.32)", borderRadius: "9px", color: "#fff", fontSize: "12.5px", fontWeight: 600, padding: "8px 14px" }}>
+                  Importer CSV
+                </button>
+                <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "#fff", border: "none", borderRadius: "9px", color: "var(--blue-deep)", fontSize: "12.5px", fontWeight: 700, padding: "8px 16px", boxShadow: "0 4px 14px rgba(10,20,50,0.18)" }}>
+                  {showForm ? "Annuler" : "+ Opportunité"}
+                </button>
+              </div>
+            </div>
+            <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "12.5px", marginTop: "8px" }}>{formatEuros(totalValue)} de pipeline</div>
           </div>
         </div>
-        <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "12.5px", marginTop: "6px" }}>{formatEuros(totalValue)} de pipeline</div>
       </div>
 
-      <div style={{ padding: "28px 40px 64px", maxWidth: "980px" }}>
+      <div style={{ padding: "22px 40px 64px", maxWidth: "980px" }}>
       {(atRiskCount > 0 || noActionCount > 0) && (
         <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", padding: "10px 2px", borderTop: "0.5px solid var(--hairline)", borderBottom: "0.5px solid var(--hairline)", marginBottom: "20px", fontSize: "12.5px" }}>
           <span style={{ color: "var(--red)" }}>{atRiskCount} deal{atRiskCount > 1 ? "s" : ""} à risque</span>
