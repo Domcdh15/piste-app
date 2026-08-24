@@ -1206,6 +1206,7 @@ const ACTION_TYPES = [
 const RDV_KEYWORDS = /\brdv\b|rendez-vous|rendez vous/i;
 const EMAIL_KEYWORDS = /\bmails?\b|\be-?mails?\b|\bcourriels?\b/i;
 const WEEKDAY_NAMES = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+const MONTH_NAMES = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 
 function mentionsRdv(actionType, text) {
   return actionType === "rdv_physique" || actionType === "appel_visio" || RDV_KEYWORDS.test(text);
@@ -1241,6 +1242,17 @@ function extractDateFromText(text) {
     const d = new Date(now.getFullYear(), parseInt(slash[2], 10) - 1, parseInt(slash[1], 10));
     if (d < now) d.setFullYear(d.getFullYear() + 1);
     return d;
+  }
+  const namedMonth = t.match(/\b(\d{1,2})(?:er)?\s+(janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[ée]cembre)\b/);
+  if (namedMonth) {
+    const day = parseInt(namedMonth[1], 10);
+    const stripAccents = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const monthIndex = MONTH_NAMES.findIndex((m) => stripAccents(m) === stripAccents(namedMonth[2]));
+    if (day >= 1 && day <= 31 && monthIndex >= 0) {
+      const d = new Date(now.getFullYear(), monthIndex, day);
+      if (d < now) d.setFullYear(d.getFullYear() + 1);
+      return d;
+    }
   }
   const dayOfMonth = t.match(/\ble\s+(\d{1,2})\b/);
   if (dayOfMonth) {
@@ -1383,10 +1395,12 @@ Note brute : "${text}"`;
     try {
       await onLogActivity(actionType, text);
       onUpdate?.({ last_contact_at: new Date().toISOString() });
+      const todayStr = new Date().toISOString().slice(0, 10);
       const prompt = `Tu es un assistant commercial. Un commercial vient de noter comment s'est passé un échange (appel, RDV ou autre) avec ce prospect. Analyse cette note et réponds UNIQUEMENT avec un objet JSON valide, sans texte avant ni après, sans balises markdown, exactement dans ce format :
-{"summary": "résumé en 1-2 phrases de ce qu'il faut faire ensuite", "pain_points": ["...", "..."], "opportunities": ["...", "..."], "suggested_tasks": [{"type": "appel_telephone", "note": "description courte", "due_in_days": 3}]}
+{"summary": "résumé en 1-2 phrases de ce qu'il faut faire ensuite", "pain_points": ["...", "..."], "opportunities": ["...", "..."], "suggested_tasks": [{"type": "appel_telephone", "note": "description courte", "due_date": "AAAA-MM-JJ"}]}
 
 Limite chaque tableau à 3 éléments maximum, en français. "type" doit être l'une de ces valeurs exactes : "appel_telephone", "appel_visio", "rdv_physique", "relance_email".
+"due_date" est une date calendaire exacte au format AAAA-MM-JJ, jamais un simple nombre de jours. Nous sommes aujourd'hui le ${todayStr}. Si la note mentionne une date précise (ex : "le 7 septembre", "vendredi prochain"), calcule et utilise cette date exacte réelle — ne confonds jamais un jour du mois avec un nombre de jours à attendre. Si aucune date n'est mentionnée, choisis une date raisonnable dans les jours qui suivent.
 
 Nom du contact : ${prospect.name}
 Entreprise : ${prospect.company}
@@ -1415,8 +1429,10 @@ ${buildHistoryContext(history)}`;
     setCreating(true);
     const tasks = (result.suggested_tasks || []).filter((_, i) => selected.includes(i));
     for (const t of tasks) {
-      const due = new Date();
-      due.setDate(due.getDate() + (Number(t.due_in_days) || 3));
+      const time = settings?.default_task_time || "17:00";
+      const parsedDate = t.due_date && /^\d{4}-\d{2}-\d{2}$/.test(t.due_date) ? new Date(`${t.due_date}T${time}`) : null;
+      const due = parsedDate && !isNaN(parsedDate) ? parsedDate : new Date();
+      if (!parsedDate) due.setDate(due.getDate() + 3);
       await supabase.from("tasks").insert({
         user_id: session.user.id,
         prospect_id: prospect.id,
