@@ -129,6 +129,11 @@ export default function Shell({ session, team, reloadTeam }) {
     }
   }
 
+  const memberCount = team?.members?.length || 1;
+  const isTeamBilling = memberCount > 1 && team?.team;
+  const billingPrice = Number((isTeamBilling ? team.team?.plan_price : settings?.plan_price) || 0);
+  const hasAssistantBubbleAccess = billingPrice > 39;
+
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} prospects={prospects} />
@@ -159,7 +164,7 @@ export default function Shell({ session, team, reloadTeam }) {
         {activeTab === "integrations" && <Integrations session={session} onBack={() => setActiveTab("settings")} />}
         {activeTab === "equipe" && <EquipePage session={session} team={team} reloadTeam={reloadTeam} />}
       </div>
-      <AssistantBubble session={session} />
+      {hasAssistantBubbleAccess && <AssistantBubble session={session} />}
     </div>
   );
 }
