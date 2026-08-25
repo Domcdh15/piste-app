@@ -30,6 +30,11 @@ import {
   ArrowLeftIcon,
   ListIcon,
   UsersIcon,
+  BriefcaseIcon,
+  PlugIcon,
+  TargetIcon,
+  STAGE_PROGRESS,
+  STAGE_META,
   inputStyle,
   selectStyle,
 } from "../lib/ui.jsx";
@@ -989,6 +994,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [quickAction, setQuickAction] = useState(null);
   const [showDevis, setShowDevis] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const [tab, setTab] = useState(initialTab && initialTab !== "historique" ? initialTab : "email");
   const [dealValueInput, setDealValueInput] = useState(prospect.deal_value ?? 0);
   const [taskVersion, setTaskVersion] = useState(0);
@@ -1031,86 +1037,186 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
 
   const showOwners = team && (team.team?.has_multiple_sales || team.team?.has_multiple_csm);
 
+  const stageMeta = STAGE_META[prospect.stage] || {};
+  const stageProgress = STAGE_PROGRESS[prospect.stage] ?? 0;
+  const isClient = prospect.stage === "Gagné";
+
   return (
-    <div style={{ padding: "28px 40px 64px", maxWidth: "1040px", margin: "0 auto" }}>
-      <button className="focusable" onClick={onBack} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: "4px 0", marginBottom: "20px", color: "var(--text-dim)", fontSize: "13px" }}>
-        <ArrowLeftIcon size={14} color="var(--text-dim)" /> {backLabel || "Retour au pipeline"}
-      </button>
-
-      {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px" }}>
-        <div className="display" style={{ fontWeight: 600, fontSize: "23px", overflow: "hidden", textOverflow: "ellipsis" }}>{prospect.company}</div>
-        <button
-          className="star-toggle focusable"
-          onClick={toggleStar}
-          title={starred ? "Retirer la priorité" : "Marquer prioritaire"}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            background: starred ? "var(--blue-dim)" : "var(--panel2)",
-            border: `0.5px solid ${starred ? "#147ff555" : "var(--hairline)"}`,
-            borderRadius: "999px",
-            padding: "5px 12px 5px 10px",
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ fontSize: "15px", lineHeight: 1, color: starred ? "var(--blue)" : "var(--text-faint)" }}>{starred ? "★" : "☆"}</span>
-          <span style={{ fontSize: "12px", fontWeight: 600, color: starred ? "var(--blue)" : "var(--text-dim)" }}>{starred ? "Prioritaire" : "Marquer prioritaire"}</span>
+    <div style={{ background: "var(--bg)", minHeight: "100%" }}>
+      <div style={{ padding: "22px 32px 0" }}>
+        <button className="focusable" onClick={onBack} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: "4px 0", marginBottom: "18px", color: "var(--text-dim)", fontSize: "13px" }}>
+          <ArrowLeftIcon size={14} color="var(--text-dim)" /> {backLabel || "Retour au pipeline"}
         </button>
-      </div>
 
-      <div style={{ marginTop: "6px", fontSize: "15px", fontWeight: 500, color: "var(--text)" }}>
-        {prospect.civility && prospect.civility !== "-" ? `${prospect.civility} ` : ""}{prospect.name}
-      </div>
-      {prospect.job_title && <div style={{ fontSize: "13px", color: "var(--text-dim)", marginTop: "1px" }}>{prospect.job_title}</div>}
+        {/* En-tête : identité à gauche, actions à droite */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "20px", flexWrap: "wrap", marginBottom: "20px" }}>
+          <div style={{ display: "flex", gap: "16px", alignItems: "center", minWidth: 0 }}>
+            <span style={{ width: "56px", height: "56px", borderRadius: "14px", background: "var(--blue-dim)", color: "var(--blue)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "18px", flexShrink: 0 }}>
+              {initialsOf(prospect.company, prospect.name)}
+            </span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                <span className="display" style={{ fontWeight: 700, fontSize: "22px" }}>{prospect.company}</span>
+                <button className="star-toggle focusable" onClick={toggleStar} title={starred ? "Retirer la priorité" : "Marquer prioritaire"} style={{ background: "none", border: "none", padding: 0, fontSize: "16px", lineHeight: 1, color: starred ? "var(--blue)" : "var(--text-faint)" }}>
+                  {starred ? "★" : "☆"}
+                </button>
+              </div>
+              <div style={{ display: "flex", gap: "8px", marginTop: "7px", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "11.5px", fontWeight: 600, background: stageMeta.dim || "var(--panel2)", color: stageMeta.color || "var(--text-dim)", borderRadius: "6px", padding: "4px 10px" }}>
+                  {isClient ? "Client" : prospect.stage}
+                </span>
+                {prospect.industry && (
+                  <span style={{ fontSize: "11.5px", fontWeight: 500, background: "var(--panel2)", color: "var(--text-dim)", borderRadius: "6px", padding: "4px 10px" }}>{prospect.industry}</span>
+                )}
+                {starred && (
+                  <span style={{ fontSize: "11.5px", fontWeight: 600, background: "var(--blue-dim)", color: "var(--blue)", borderRadius: "6px", padding: "4px 10px" }}>Prioritaire</span>
+                )}
+              </div>
+            </div>
+          </div>
 
-      {(prospect.email || prospect.phone || prospect.linkedin_url) && (
-        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px", fontSize: "13px", color: "var(--blue)" }}>
-          {[
-            prospect.email && <a key="email" href={`mailto:${prospect.email}`} style={{ color: "var(--blue)", textDecoration: "none" }}>{prospect.email}</a>,
-            prospect.phone && <a key="phone" href={`tel:${prospect.phone}`} style={{ color: "var(--blue)", textDecoration: "none" }}>{prospect.phone}</a>,
-            prospect.linkedin_url && <a key="li" href={prospect.linkedin_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)", textDecoration: "none" }}>LinkedIn</a>,
-          ].filter(Boolean).reduce((acc, el, i) => (i === 0 ? [el] : [...acc, <span key={`sep-${i}`} style={{ color: "var(--text-faint)" }}> · </span>, el]), [])}
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {prospect.phone && (
+              <button className="focusable" onClick={() => setQuickAction("call")} style={headerBtn}>
+                <PhoneIcon size={13} color="var(--text-dim)" /> Appeler
+              </button>
+            )}
+            {prospect.email && (
+              <button className="focusable" onClick={() => setQuickAction("email")} style={headerBtn}>
+                <MailIcon size={13} color="var(--text-dim)" /> Email
+              </button>
+            )}
+            <button className="focusable" onClick={() => setShowMore((m) => !m)} style={{ ...headerBtn, position: "relative" }}>
+              Plus ▾
+            </button>
+            <button className="focusable" onClick={() => setQuickAction("edit")} style={{ ...headerBtn, background: "var(--blue)", color: "#fff", border: "none" }}>
+              Modifier
+            </button>
+          </div>
         </div>
-      )}
 
-      <div style={{ fontSize: "12.5px", color: "var(--text-faint)", marginTop: "8px" }}>
-        Dernier contact : {prospect.last_contact_at ? formatShortDate(prospect.last_contact_at) : "jamais"}
-      </div>
-
-      <ProspectOwnersReadout team={team} prospect={prospect} />
-
-      {/* Quick actions */}
-      <div style={{ display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap", marginTop: "18px" }}>
-        {prospect.email ? (
-          <button className="btn-primary focusable" onClick={() => setQuickAction("email")}>
-            <MailIcon size={13} color="#fff" /> Email
-          </button>
-        ) : prospect.phone ? (
-          <button className="btn-primary focusable" onClick={() => setQuickAction("call")}>
-            <PhoneIcon size={13} color="#fff" /> Appeler
-          </button>
-        ) : null}
-        {prospect.phone && prospect.email && (
-          <button className="focusable" onClick={() => setQuickAction("call")} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
-            <PhoneIcon size={13} color="var(--text-dim)" /> Appeler
-          </button>
+        {showMore && (
+          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px 16px", marginBottom: "18px" }}>
+            <button className="focusable" onClick={() => { setQuickAction("note"); setShowMore(false); }} style={moreBtn}>Ajouter une note</button>
+            <button className="focusable" onClick={() => { setQuickAction("task"); setShowMore(false); }} style={moreBtn}>Ajouter une tâche</button>
+            <button className="focusable" onClick={() => { setQuickAction("contacted"); setShowMore(false); }} style={moreBtn}>Marquer contacté</button>
+            <button className="focusable" onClick={() => { setShowDevis(true); setShowMore(false); }} style={moreBtn}>Créer un devis</button>
+            <button className="focusable" onClick={() => { setConfirmDelete(true); setShowMore(false); }} style={{ ...moreBtn, color: "var(--red)" }}>Supprimer la fiche</button>
+          </div>
         )}
-        <button className="focusable" onClick={() => setQuickAction("note")} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
-          Ajouter une note
-        </button>
-        <button className="focusable" onClick={() => setQuickAction("task")} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
-          Ajouter une tâche
-        </button>
-        <button className="focusable" onClick={() => setQuickAction("contacted")} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
-          Marquer contacté
-        </button>
-        <button className="focusable" onClick={() => setQuickAction("edit")} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
-          Modifier
-        </button>
+
+        {confirmDelete && (
+          <div style={{ display: "flex", alignItems: "center", gap: "14px", background: "var(--red-dim)", borderRadius: "10px", padding: "12px 16px", marginBottom: "18px", fontSize: "12.5px" }}>
+            <span style={{ color: "var(--text)" }}>Supprimer définitivement cette fiche et tout son historique ?</span>
+            <button className="focusable" onClick={onDelete} style={{ marginLeft: "auto", background: "var(--red)", color: "#fff", border: "none", borderRadius: "7px", padding: "7px 14px", fontSize: "12px", fontWeight: 600 }}>Supprimer</button>
+            <button className="focusable" onClick={() => setConfirmDelete(false)} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: "12px" }}>Annuler</button>
+          </div>
+        )}
       </div>
 
+      {/* Corps : colonne principale + colonne latérale */}
+      <div style={{ padding: "0 32px 60px" }}>
+        <div className="detail-grid" style={{ gridTemplateColumns: "minmax(0,1.45fr) minmax(0,1fr)", gap: "18px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "18px", minWidth: 0 }}>
+            <Card title="Informations générales" Icon={UsersIcon} action={<CardLink onClick={() => setQuickAction("edit")}>Modifier</CardLink>}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 20px" }}>
+                <InfoField Icon={UsersIcon} label="Contact">{[prospect.civility && prospect.civility !== "-" ? prospect.civility : "", prospect.name].filter(Boolean).join(" ")}</InfoField>
+                <InfoField Icon={PinIcon} label="Adresse">
+                  {[prospect.billing_address, [prospect.billing_postal_code, prospect.billing_city].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null}
+                </InfoField>
+                <InfoField Icon={BriefcaseIcon} label="Fonction">{prospect.job_title}</InfoField>
+                <InfoField Icon={UsersIcon} label="Taille de l'entreprise">{prospect.company_size}</InfoField>
+                <InfoField Icon={PhoneIcon} label="Téléphone">
+                  {prospect.phone ? <a href={`tel:${prospect.phone}`} style={{ color: "var(--text)", textDecoration: "none" }}>{prospect.phone}</a> : null}
+                </InfoField>
+                <InfoField Icon={BriefcaseIcon} label="Secteur d'activité">{prospect.industry}</InfoField>
+                <InfoField Icon={MailIcon} label="Email">
+                  {prospect.email ? <a href={`mailto:${prospect.email}`} style={{ color: "var(--blue)", textDecoration: "none" }}>{prospect.email}</a> : null}
+                </InfoField>
+                <InfoField Icon={ListIcon} label="SIRET">{prospect.siret}</InfoField>
+                <InfoField Icon={LinkedinIcon} label="LinkedIn">
+                  {prospect.linkedin_url ? <a href={prospect.linkedin_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)", textDecoration: "none" }}>Voir le profil</a> : null}
+                </InfoField>
+                <InfoField Icon={PlugIcon} label="Site web">
+                  {prospect.website ? <a href={prospect.website.startsWith("http") ? prospect.website : `https://${prospect.website}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)", textDecoration: "none" }}>{prospect.website}</a> : null}
+                </InfoField>
+              </div>
+            </Card>
+
+            <div ref={noteRef} style={{ scrollMarginTop: "20px" }}>
+              <NoteAnalyzer prospect={prospect} history={history} session={session} onLogActivity={onLogActivity} onUpdate={onUpdate} settings={settings} onTaskCreated={bumpTasks} onOpenTab={goToTab} />
+            </div>
+
+            <Card title="Activité" Icon={ListIcon} action={<CardLink onClick={() => setQuickAction("note")}>+ Ajouter</CardLink>}>
+              <ActivityTimeline history={history} />
+            </Card>
+
+            <Card title="Outils" Icon={SparklesIcon} action={<CardLink onClick={() => setShowDevis(true)}>Créer un devis</CardLink>}>
+              <div ref={toolsRef} style={{ display: "flex", gap: "16px", marginBottom: "14px", flexWrap: "wrap", scrollMarginTop: "20px" }}>
+                {[["email", "Email"], ["echanges", "Échanges"], ["script", "Script"], ["taches", "Tâches"]].map(([key, label]) => (
+                  <button key={key} className="focusable" onClick={() => setTab(key)} style={{ background: "none", border: "none", padding: 0, fontSize: "13px", fontWeight: tab === key ? 600 : 400, color: tab === key ? "var(--blue)" : "var(--text-dim)" }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {tab === "email" && <EmailGenerator prospect={prospect} history={history} session={session} settings={settings} />}
+              {tab === "echanges" && <EmailThreadTab prospect={prospect} session={session} />}
+              {tab === "script" && <ScriptGenerator prospect={prospect} history={history} session={session} />}
+              {tab === "taches" && <TasksTab prospect={prospect} session={session} settings={settings} onChange={bumpTasks} />}
+            </Card>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "18px", minWidth: 0 }}>
+            <Card title="Opportunité" Icon={TargetIcon}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "16px" }}>
+                <div>
+                  <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>Valeur du deal</div>
+                  <div className="mono" style={{ fontSize: "22px", fontWeight: 700, color: "var(--blue)" }}>{formatEuros(prospect.deal_value)}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>Avancement</div>
+                  <div className="mono" style={{ fontSize: "22px", fontWeight: 700, color: "var(--blue)" }}>{stageProgress} %</div>
+                  <div style={{ fontSize: "10.5px", color: "var(--text-faint)" }}>selon l'étape</div>
+                </div>
+              </div>
+              <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginBottom: "8px" }}>Étape du pipeline</div>
+              <PipelineStepper stage={prospect.stage} onChange={handleStageChange} />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginTop: "16px" }}>
+                <div>
+                  <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>Source</div>
+                  <div style={{ fontSize: "13px" }}>{prospect.source || "—"}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>Ajouté le</div>
+                  <div style={{ fontSize: "13px" }}>{prospect.created_at ? formatShortDate(prospect.created_at) : "—"}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>Dernier contact</div>
+                  <div style={{ fontSize: "13px" }}>{prospect.last_contact_at ? formatShortDate(prospect.last_contact_at) : "jamais"}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>Priorité</div>
+                  <div style={{ fontSize: "13px" }}>{(PRIORITY_LEVELS.find((l) => l.value === nearestPriorityLevel(prospect.priority)) || {}).label || "—"}</div>
+                </div>
+              </div>
+            </Card>
+
+            <Card title="Prochaine action" Icon={CalendarIcon}>
+              <NextActionCard prospect={prospect} refreshKey={taskVersion} onOpenTab={goToTab} bare />
+            </Card>
+
+            <ProspectNotesCard prospect={prospect} onUpdate={onUpdate} />
+
+            <OpportunityAI prospect={prospect} history={history} session={session} onUpdate={onUpdate} />
+
+            {showOwners && (
+              <Card title="Équipe" Icon={UsersIcon}>
+                <ProspectOwnersPanel prospect={prospect} session={session} team={team} onAssigned={reload} />
+              </Card>
+            )}
+          </div>
+        </div>
+      </div>
       {showDevis && <DevisGenerator prospect={prospect} history={history} session={session} settings={settings} onClose={() => setShowDevis(false)} />}
 
       {quickAction === "email" && <QuickEmailModal prospect={prospect} session={session} settings={settings} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
@@ -1144,85 +1250,6 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
           <EditProspectForm prospect={prospect} onSave={async (changes) => { await onUpdate(changes); setQuickAction(null); }} onCancel={() => setQuickAction(null)} />
         </Modal>
       )}
-
-      <div style={{ borderTop: "0.5px solid var(--hairline)", margin: "22px 0" }} />
-
-      {/* Commercial block */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "32px", flexWrap: "wrap" }}>
-        <div>
-          <div className="mono" style={{ fontSize: "28px", fontWeight: 600, color: "var(--text)" }}>{formatEuros(prospect.deal_value)}</div>
-          <div style={{ fontSize: "13px", color: "var(--text-dim)", marginTop: "2px" }}>
-            {prospect.stage === "Gagné" ? "Client" : prospect.stage}{starred ? " · ★ Prioritaire" : ""}
-          </div>
-          <div style={{ marginTop: "10px", maxWidth: "260px" }}>
-            <PipelineStepper stage={prospect.stage} onChange={handleStageChange} />
-          </div>
-        </div>
-        <NextActionCard prospect={prospect} refreshKey={taskVersion} onOpenTab={goToTab} />
-      </div>
-
-      <div style={{ borderTop: "0.5px solid var(--hairline)", margin: "22px 0" }} />
-
-      {/* Main + secondary columns */}
-      <div className="detail-grid">
-        <div style={{ minWidth: 0 }}>
-          <div ref={noteRef} style={{ scrollMarginTop: "20px" }}>
-            <NoteAnalyzer prospect={prospect} history={history} session={session} onLogActivity={onLogActivity} onUpdate={onUpdate} settings={settings} onTaskCreated={bumpTasks} onOpenTab={goToTab} />
-          </div>
-
-          <OpportunityAI prospect={prospect} history={history} session={session} onUpdate={onUpdate} />
-
-          <div style={{ color: "var(--text-faint)", fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", marginBottom: "14px" }}>ACTIVITÉ</div>
-          <ActivityTimeline history={history} />
-
-          <div style={{ borderTop: "0.5px solid var(--hairline)", margin: "26px 0 16px" }} />
-
-          <div ref={toolsRef} style={{ color: "var(--text-faint)", fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", marginBottom: "10px", scrollMarginTop: "20px" }}>OUTILS</div>
-          <div style={{ display: "flex", gap: "16px", marginBottom: "14px", flexWrap: "wrap", alignItems: "center" }}>
-            {[["email", "Email"], ["echanges", "Échanges"], ["script", "Script"], ["taches", "Tâches"]].map(([key, label]) => (
-              <button key={key} className="focusable" onClick={() => setTab(key)} style={{ background: "none", border: "none", padding: 0, fontSize: "13px", fontWeight: tab === key ? 600 : 400, color: tab === key ? "var(--blue)" : "var(--text-dim)" }}>
-                {label}
-              </button>
-            ))}
-            <button
-              className="focusable"
-              onClick={() => setShowDevis(true)}
-              style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "6px 14px", fontSize: "12.5px", fontWeight: 600 }}
-            >
-              Créer un devis
-            </button>
-          </div>
-
-          <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "var(--radius-md)", padding: "18px" }}>
-            {tab === "email" && <EmailGenerator prospect={prospect} history={history} session={session} settings={settings} />}
-            {tab === "echanges" && <EmailThreadTab prospect={prospect} session={session} />}
-            {tab === "script" && <ScriptGenerator prospect={prospect} history={history} session={session} />}
-            {tab === "taches" && <TasksTab prospect={prospect} session={session} settings={settings} onChange={bumpTasks} />}
-          </div>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          {showOwners && (
-            <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "16px" }}>
-              <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--text-faint)", marginBottom: "8px" }}>ÉQUIPE</div>
-              <ProspectOwnersPanel prospect={prospect} session={session} team={team} onAssigned={reload} />
-            </div>
-          )}
-
-          <div style={showOwners ? { borderTop: "0.5px solid var(--hairline)", paddingTop: "16px" } : undefined}>
-            {confirmDelete ? (
-              <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-                <button className="focusable" onClick={onDelete} style={{ fontSize: "12.5px", fontWeight: 500, color: "var(--red)", background: "none", border: "none", padding: 0 }}>Confirmer la suppression</button>
-                <button className="focusable" onClick={() => setConfirmDelete(false)} style={{ fontSize: "12.5px", color: "var(--text-dim)", background: "none", border: "none", padding: 0 }}>Annuler</button>
-              </div>
-            ) : (
-              <button className="focusable" onClick={() => setConfirmDelete(true)} style={{ fontSize: "12.5px", color: "var(--text-faint)", background: "none", border: "none", padding: 0, marginTop: "10px" }}>
-                Supprimer la fiche
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -1261,7 +1288,8 @@ function PipelineStepper({ stage, onChange }) {
   );
 }
 
-function NextActionCard({ prospect, refreshKey, onOpenTab }) {
+// `bare` : rendu sans titre ni alignement à droite, pour être posé dans une carte.
+function NextActionCard({ prospect, refreshKey, onOpenTab, bare }) {
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -1295,8 +1323,8 @@ function NextActionCard({ prospect, refreshKey, onOpenTab }) {
   const VERB = { appel_telephone: "Appeler", appel_visio: "Appel visio avec", rdv_physique: "RDV avec", relance_email: "Relancer" };
 
   return (
-    <div style={{ textAlign: "right", minWidth: "200px" }}>
-      <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--text-faint)", marginBottom: "6px" }}>PROCHAINE ACTION</div>
+    <div style={bare ? { minWidth: 0 } : { textAlign: "right", minWidth: "200px" }}>
+      {!bare && <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--text-faint)", marginBottom: "6px" }}>PROCHAINE ACTION</div>}
       {task ? (
         <>
           <div style={{ fontSize: "15px", fontWeight: 600, color: "var(--text)" }}>
@@ -1306,7 +1334,7 @@ function NextActionCard({ prospect, refreshKey, onOpenTab }) {
             {formatDayTime(task.due_at)}
           </div>
           {task.note && <div style={{ fontSize: "12.5px", color: "var(--text-dim)", marginBottom: "10px" }}>{task.note}</div>}
-          <div style={{ display: "flex", gap: "14px", justifyContent: "flex-end" }}>
+          <div style={{ display: "flex", gap: "14px", justifyContent: bare ? "flex-start" : "flex-end" }}>
             <button className="focusable" onClick={() => onOpenTab?.("taches")} style={{ background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px" }}>
               Modifier
             </button>
@@ -1786,6 +1814,118 @@ function Modal({ children, onClose }) {
   );
 }
 
+const headerBtn = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "7px",
+  background: "var(--panel)",
+  color: "var(--text-dim)",
+  border: "0.5px solid var(--hairline)",
+  borderRadius: "9px",
+  padding: "9px 16px",
+  fontSize: "13px",
+  fontWeight: 600,
+};
+
+const moreBtn = {
+  background: "none",
+  border: "none",
+  padding: 0,
+  color: "var(--text-dim)",
+  fontSize: "12.5px",
+  fontWeight: 500,
+};
+
+function Card({ title, Icon, action, children, style }) {
+  return (
+    <div className="dash-card" style={{ padding: "18px 20px", ...style }}>
+      {(title || action) && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginBottom: "14px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {Icon && <Icon size={14} color="var(--blue)" />}
+            <span className="display" style={{ fontWeight: 700, fontSize: "13.5px" }}>{title}</span>
+          </div>
+          {action}
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
+function CardLink({ children, onClick }) {
+  return (
+    <button className="focusable" onClick={onClick} style={{ background: "none", border: "none", padding: 0, color: "var(--blue)", fontSize: "12px", fontWeight: 600 }}>
+      {children}
+    </button>
+  );
+}
+
+function InfoField({ Icon, label, children }) {
+  if (!children) return null;
+  return (
+    <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+      <span style={{ width: "26px", height: "26px", borderRadius: "7px", background: "var(--panel2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "1px" }}>
+        <Icon size={12} color="var(--text-faint)" />
+      </span>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>{label}</div>
+        <div style={{ fontSize: "13px", color: "var(--text)", overflowWrap: "anywhere" }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function initialsOf(company, name) {
+  const src = (company || name || "?").trim();
+  const parts = src.split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || src.slice(0, 2).toUpperCase();
+}
+
+// Notes libres sur le client — la colonne existait en base mais n'était affichée nulle part.
+function ProspectNotesCard({ prospect, onUpdate }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(prospect.notes || "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    await onUpdate({ notes: text.trim() || null });
+    setSaving(false);
+    setEditing(false);
+  }
+
+  return (
+    <Card
+      title="Notes"
+      Icon={ListIcon}
+      action={editing ? null : <CardLink onClick={() => { setText(prospect.notes || ""); setEditing(true); }}>{prospect.notes ? "Modifier" : "Ajouter"}</CardLink>}
+    >
+      {editing ? (
+        <>
+          <textarea
+            autoFocus
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Ce qu'il faut retenir sur ce client…"
+            style={{ width: "100%", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "12.5px", lineHeight: 1.5, padding: "10px 12px", minHeight: "90px", resize: "vertical", fontFamily: "Inter, sans-serif", boxSizing: "border-box" }}
+          />
+          <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+            <button className="focusable" onClick={save} disabled={saving} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "7px", padding: "7px 14px", fontSize: "12px", fontWeight: 600, opacity: saving ? 0.6 : 1 }}>
+              {saving ? "Enregistrement…" : "Enregistrer"}
+            </button>
+            <button className="focusable" onClick={() => setEditing(false)} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: "12px" }}>Annuler</button>
+          </div>
+        </>
+      ) : prospect.notes ? (
+        <div style={{ fontSize: "12.5px", color: "var(--text-dim)", lineHeight: 1.6, whiteSpace: "pre-line" }}>{prospect.notes}</div>
+      ) : (
+        <div style={{ fontSize: "12.5px", color: "var(--text-faint)" }}>Aucune note pour l'instant.</div>
+      )}
+    </Card>
+  );
+}
+
 function ModalTitle({ children, sub }) {
   return (
     <div style={{ marginBottom: "16px" }}>
@@ -2154,6 +2294,11 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
   const [email, setEmail] = useState(prospect.email || "");
   const [phone, setPhone] = useState(prospect.phone || "");
   const [linkedinUrl, setLinkedinUrl] = useState(prospect.linkedin_url || "");
+  const [website, setWebsite] = useState(prospect.website || "");
+  const [industry, setIndustry] = useState(prospect.industry || "");
+  const [companySize, setCompanySize] = useState(prospect.company_size || "");
+  const [siret, setSiret] = useState(prospect.siret || "");
+  const [source, setSource] = useState(prospect.source || "");
   const [billingAddress, setBillingAddress] = useState(prospect.billing_address || "");
   const [billingPostalCode, setBillingPostalCode] = useState(prospect.billing_postal_code || "");
   const [billingCity, setBillingCity] = useState(prospect.billing_city || "");
@@ -2172,6 +2317,11 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
       email: email.trim(),
       phone: phone.trim(),
       linkedin_url: linkedinUrl.trim(),
+      website: website.trim(),
+      industry: industry.trim(),
+      company_size: companySize.trim(),
+      siret: siret.trim(),
+      source: source.trim(),
       billing_address: billingAddress.trim(),
       billing_postal_code: billingPostalCode.trim(),
       billing_city: billingCity.trim(),
@@ -2196,6 +2346,26 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
       <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
       <input type="tel" placeholder="Téléphone" value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} />
       <input type="url" placeholder="Profil LinkedIn (URL)" value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)} style={inputStyle} />
+      <div />
+      <input placeholder="Site web" value={website} onChange={(e) => setWebsite(e.target.value)} style={inputStyle} />
+      <input placeholder="Secteur d'activité" value={industry} onChange={(e) => setIndustry(e.target.value)} style={inputStyle} />
+      <select value={companySize} onChange={(e) => setCompanySize(e.target.value)} style={inputStyle}>
+        <option value="">Taille de l'entreprise —</option>
+        <option value="1 à 9 salariés">1 à 9 salariés</option>
+        <option value="10 à 49 salariés">10 à 49 salariés</option>
+        <option value="50 à 249 salariés">50 à 249 salariés</option>
+        <option value="250 salariés et plus">250 salariés et plus</option>
+      </select>
+      <select value={source} onChange={(e) => setSource(e.target.value)} style={inputStyle}>
+        <option value="">Source —</option>
+        <option value="Recommandation">Recommandation</option>
+        <option value="Prospection">Prospection</option>
+        <option value="Site internet">Site internet</option>
+        <option value="LinkedIn">LinkedIn</option>
+        <option value="Salon / événement">Salon / événement</option>
+        <option value="Import">Import</option>
+      </select>
+      <input placeholder="SIRET" value={siret} onChange={(e) => setSiret(e.target.value)} style={inputStyle} />
       <div />
       <input placeholder="Adresse (pour les devis)" value={billingAddress} onChange={(e) => setBillingAddress(e.target.value)} style={{ ...inputStyle, gridColumn: "1 / -1" }} />
       <input placeholder="Code postal" value={billingPostalCode} onChange={(e) => setBillingPostalCode(e.target.value)} style={inputStyle} />
