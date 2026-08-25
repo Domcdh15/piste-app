@@ -2,7 +2,7 @@ const PROVIDERS = {
   google: {
     authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
     tokenUrl: "https://oauth2.googleapis.com/token",
-    scope: "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.settings.basic",
+    scope: "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.settings.basic https://www.googleapis.com/auth/gmail.readonly",
     extraAuthParams: { access_type: "offline", prompt: "consent" },
     clientIdEnv: "GOOGLE_CLIENT_ID",
     clientSecretEnv: "GOOGLE_CLIENT_SECRET",
@@ -27,13 +27,13 @@ export function providerConfig(name) {
   };
 }
 
-function startOfDayISO() {
+export function startOfDayISO() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d.toISOString();
 }
 
-function endOfDayISO() {
+export function endOfDayISO() {
   const d = new Date();
   d.setHours(23, 59, 59, 999);
   return d.toISOString();
@@ -282,4 +282,90 @@ export async function getGmailSignature(accessToken) {
   const primary = sendAs.find((s) => s.isPrimary) || sendAs[0];
   if (!primary?.signature) return "";
   return htmlSignatureToText(primary.signature);
+}
+
+// --- Lecture des échanges email (Gmail) ---------------------------------
+// Utilisé pour donner à l'IA le contexte réel des échanges avec un prospect.
+// Rien n'est stocké : les messages sont lus à la demande puis jetés.
+
+function decodeBase64Url(data) {
+  if (!data) return "";
+  try {
+    return Buffer.from(data.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+  } catch {
+    return "";
+  }
+}
+
+// Le corps d'un message Gmail peut être à la racine ou réparti dans des parts
+// imbriquées (multipart) — on privilégie le texte brut, sinon on retombe sur le HTML nettoyé.
+function extractBody(payload) {
+  if (!payload) return "";
+  if (payload.mimeType === "text/plain" && payload.body?.data) return decodeBase64Url(payload.body.data);
+
+  for (const part of payload.parts || []) {
+    const found = extractBody(part);
+    if (found) return found;
+  }
+
+  if (payload.mimeType === "text/html" && payload.body?.data) {
+    return decodeBase64Url(payload.body.data)
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/\n{3,}/g, "\n\n");
+  }
+  if (payload.body?.data) return decodeBase64Url(payload.body.data);
+  return "";
+}
+
+function headerValue(headers, name) {
+  return (headers || []).find((h) => h.name?.toLowerCase() === name.toLowerCase())?.value || "";
+}
+
+const MAX_BODY_CHARS = 1500;
+
+export async function fetchGmailThreadWith(accessToken, contactEmail, maxResults = 8) {
+  const safeEmail = contactEmail.replace(/["\\]/g, "");
+  const listUrl = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages");
+  listUrl.searchParams.set("q", `from:"${safeEmail}" OR to:"${safeEmail}"`);
+  listUrl.searchParams.set("maxResults", String(maxResults));
+
+  const listRes = await fetch(listUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!listRes.ok) {
+    const detail = await listRes.text();
+    const err = new Error("gmail_list_failed");
+    err.status = listRes.status;
+    err.detail = detail;
+    throw err;
+  }
+  const { messages = [] } = await listRes.json();
+  if (messages.length === 0) return [];
+
+  const results = await Promise.all(
+    messages.map(async (m) => {
+      const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) return null;
+      const msg = await res.json();
+      const headers = msg.payload?.headers;
+      const body = extractBody(msg.payload).trim();
+      return {
+        id: msg.id,
+        from: headerValue(headers, "From"),
+        to: headerValue(headers, "To"),
+        subject: headerValue(headers, "Subject"),
+        date: headerValue(headers, "Date"),
+        sentAt: msg.internalDate ? new Date(Number(msg.internalDate)).toISOString() : null,
+        snippet: msg.snippet || "",
+        body: body.length > MAX_BODY_CHARS ? `${body.slice(0, MAX_BODY_CHARS)}…` : body,
+      };
+    })
+  );
+
+  return results.filter(Boolean).sort((a, b) => new Date(b.sentAt || 0) - new Date(a.sentAt || 0));
 }

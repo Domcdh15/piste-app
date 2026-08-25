@@ -1,5 +1,5 @@
 import { supabaseAdmin, getUserFromToken, bearerToken } from "../_lib/supabase.js";
-import { ensureFreshToken, sendEmail, listRecentMessages, setGmailSignature, getGmailSignature } from "../_lib/providers.js";
+import { ensureFreshToken, sendEmail, listRecentMessages, setGmailSignature, getGmailSignature, fetchGmailThreadWith } from "../_lib/providers.js";
 
 function buildVacationReply(s) {
   const lines = [(s.vacation_message || "").trim() || "Je suis actuellement absent(e)."];
@@ -65,6 +65,31 @@ export default async function handler(req, res) {
 
   const user = await getUserFromToken(bearerToken(req));
   if (!user) return res.status(401).json({ error: "Non authentifié" });
+
+  // Échanges email avec un prospect — lus à la demande chez le fournisseur,
+  // jamais stockés côté Closia.
+  if (req.method === "GET" && req.query?.action === "thread") {
+    const email = (req.query.email || "").trim();
+    if (!email) return res.status(400).json({ error: "Email du contact manquant" });
+
+    const admin = supabaseAdmin();
+    const { data: conn } = await admin.from("calendar_connections").select("*").eq("user_id", user.id).eq("provider", "google").maybeSingle();
+    if (!conn) return res.status(200).json({ messages: [], notConnected: true });
+
+    try {
+      const accessToken = await ensureFreshToken(admin, conn);
+      const messages = await fetchGmailThreadWith(accessToken, email);
+      return res.status(200).json({ messages });
+    } catch (e) {
+      const insufficientScope = e.status === 403 || /insufficient|scope|permission/i.test(`${e.message} ${e.detail || ""}`);
+      return res.status(200).json({
+        messages: [],
+        error: insufficientScope
+          ? "Permission de lecture manquante — déconnecte puis reconnecte Google dans Intégrations pour autoriser la lecture des échanges."
+          : "La récupération des échanges a échoué.",
+      });
+    }
+  }
 
   if (req.method === "POST") {
     const { action, provider, to, subject, body, signature } = req.body || {};

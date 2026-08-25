@@ -11,12 +11,11 @@ function badgeColor(label) {
 const CATEGORIES = ["Toutes", "Agenda", "CRM", "Email", "Productivité"];
 
 const CATALOG = [
-  { key: "google", label: "Google Calendar", category: "Agenda", desc: "Synchronisez vos rendez-vous et envoyez vos relances directement depuis Gmail.", real: true, permissions: "Lecture de l'agenda (calendar.readonly), envoi d'email (gmail.send) et synchronisation de signature (gmail.settings.basic)" },
+  { key: "google", label: "Google Calendar & Gmail", category: "Agenda", desc: "Synchronisez vos rendez-vous, envoyez vos relances depuis Gmail, et permettez à Closia de s'appuyer sur vos échanges réels pour les rédiger.", real: true, permissions: "Lecture de l'agenda (calendar.readonly), envoi d'email (gmail.send), synchronisation de signature (gmail.settings.basic) et lecture des échanges avec vos prospects (gmail.readonly)" },
   { key: "microsoft", label: "Outlook Calendar", category: "Agenda", desc: "Synchronisez vos événements et envoyez vos relances directement depuis Outlook.", real: true, permissions: "Lecture de l'agenda (Calendars.Read) et envoi d'email (Mail.Send)" },
   { key: "hubspot", label: "HubSpot", category: "CRM", desc: "Synchronisez vos contacts, entreprises et opportunités avec Closia." },
   { key: "salesforce", label: "Salesforce", category: "CRM", desc: "Centralisez vos comptes, contacts et opportunités Salesforce dans Closia." },
   { key: "pipedrive", label: "Pipedrive", category: "CRM", desc: "Synchronisez vos prospects et opportunités avec Closia." },
-  { key: "gmail", label: "Gmail", category: "Email", desc: "Synchronisez vos échanges commerciaux et permettez à Closia d'utiliser leur contexte pour vos relances." },
   { key: "outlook_mail", label: "Outlook", category: "Email", desc: "Connectez votre boîte Outlook et centralisez vos échanges commerciaux." },
   { key: "aircall", label: "Aircall", category: "Productivité", desc: "Logger automatiquement vos appels." },
   { key: "notion", label: "Notion", category: "Productivité", desc: "Exporter comptes-rendus et notes vers Notion." },

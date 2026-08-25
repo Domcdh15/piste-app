@@ -1073,7 +1073,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
 
           <div ref={toolsRef} style={{ color: "var(--text-faint)", fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", marginBottom: "10px", scrollMarginTop: "20px" }}>OUTILS</div>
           <div style={{ display: "flex", gap: "16px", marginBottom: "14px", flexWrap: "wrap" }}>
-            {[["email", "Email"], ["script", "Script"], ["taches", "Tâches"], ["devis", "Devis"]].map(([key, label]) => (
+            {[["email", "Email"], ["echanges", "Échanges"], ["script", "Script"], ["taches", "Tâches"], ["devis", "Devis"]].map(([key, label]) => (
               <button key={key} className="focusable" onClick={() => setTab(key)} style={{ background: "none", border: "none", padding: 0, fontSize: "13px", fontWeight: tab === key ? 600 : 400, color: tab === key ? "var(--blue)" : "var(--text-dim)" }}>
                 {label}
               </button>
@@ -1082,6 +1082,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
 
           <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "var(--radius-md)", padding: "18px" }}>
             {tab === "email" && <EmailGenerator prospect={prospect} history={history} session={session} settings={settings} />}
+            {tab === "echanges" && <EmailThreadTab prospect={prospect} session={session} />}
             {tab === "script" && <ScriptGenerator prospect={prospect} history={history} session={session} />}
             {tab === "taches" && <TasksTab prospect={prospect} session={session} settings={settings} onChange={bumpTasks} />}
             {tab === "devis" && <DevisGenerator prospect={prospect} history={history} session={session} settings={settings} />}
@@ -2158,6 +2159,107 @@ function TasksTab({ prospect, session, settings, onChange }) {
   );
 }
 
+// Récupère les échanges email réels avec ce contact. Rien n'est stocké côté Closia :
+// les messages sont lus chez Gmail à la demande.
+async function fetchEmailThread(email, token) {
+  if (!email) return { messages: [] };
+  const res = await fetch(`/api/calendar/status?action=thread&email=${encodeURIComponent(email)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return { messages: [], error: "La récupération des échanges a échoué." };
+  return res.json();
+}
+
+function formatThreadDate(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+// "Jean Dupont <jean@exemple.fr>" → "Jean Dupont" ; sinon on garde l'adresse brute.
+function senderLabel(from) {
+  const name = from.match(/^\s*"?([^"<]*?)"?\s*</)?.[1]?.trim();
+  return name || from.replace(/[<>]/g, "").trim();
+}
+
+function EmailThreadTab({ prospect, session }) {
+  const [state, setState] = useState({ loading: true, messages: [], error: "", notConnected: false });
+  const [expanded, setExpanded] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!prospect.email) {
+      setState({ loading: false, messages: [], error: "", notConnected: false });
+      return;
+    }
+    setState((s) => ({ ...s, loading: true }));
+    fetchEmailThread(prospect.email, session.access_token).then((data) => {
+      if (!cancelled) setState({ loading: false, messages: data.messages || [], error: data.error || "", notConnected: !!data.notConnected });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [prospect.email, session.access_token]);
+
+  if (!prospect.email) {
+    return <div style={{ fontSize: "12.5px", color: "var(--text-faint)" }}>Ajoute une adresse email à ce contact pour retrouver vos échanges.</div>;
+  }
+  if (state.loading) return <div style={{ fontSize: "12.5px", color: "var(--text-faint)" }}>Lecture des échanges…</div>;
+  if (state.notConnected) {
+    return <div style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>Connecte ta boîte Gmail dans Paramètres → Intégrations pour retrouver ici vos échanges avec ce contact.</div>;
+  }
+  if (state.error) return <div style={{ fontSize: "12.5px", color: "var(--red)" }}>{state.error}</div>;
+  if (state.messages.length === 0) {
+    return <div style={{ fontSize: "12.5px", color: "var(--text-faint)" }}>Aucun échange trouvé avec {prospect.email}.</div>;
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>
+        {state.messages.length} échange{state.messages.length > 1 ? "s" : ""} avec {prospect.email} · lus depuis Gmail, non stockés par Closia
+      </div>
+      {state.messages.map((m) => {
+        const open = expanded === m.id;
+        return (
+          <button
+            key={m.id}
+            className="focusable"
+            onClick={() => setExpanded(open ? null : m.id)}
+            style={{
+              textAlign: "left",
+              background: "var(--panel)",
+              border: "0.5px solid var(--hairline)",
+              borderRadius: "10px",
+              padding: "11px 13px",
+              width: "100%",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", alignItems: "baseline" }}>
+              <span style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {m.subject || "(Sans objet)"}
+              </span>
+              <span className="mono" style={{ fontSize: "11px", color: "var(--text-faint)", flexShrink: 0 }}>{formatThreadDate(m.sentAt)}</span>
+            </div>
+            <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginTop: "2px" }}>{senderLabel(m.from || "")}</div>
+            <div
+              style={{
+                fontSize: "12px",
+                color: "var(--text-dim)",
+                marginTop: "6px",
+                lineHeight: 1.55,
+                whiteSpace: open ? "pre-wrap" : "nowrap",
+                overflow: open ? "visible" : "hidden",
+                textOverflow: open ? "clip" : "ellipsis",
+              }}
+            >
+              {open ? m.body || m.snippet : m.snippet}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function EmailGenerator({ prospect, history, session, settings }) {
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
@@ -2210,7 +2312,16 @@ function EmailGenerator({ prospect, history, session, settings }) {
     try {
       const tone = (settings?.ai_default_tone || "Professionnel").toLowerCase();
       const lengthGuide = { Court: "3-4 phrases maximum", Équilibré: "5 à 6 phrases maximum", Détaillé: "8 à 10 phrases" }[settings?.ai_detail_level] || "5 à 6 phrases maximum";
-      const prompt = `Tu es un assistant commercial. Rédige un email de relance en français, ton ${tone}, ${lengthGuide}. Ne mets pas d'objet, uniquement le corps de l'email, termine par une formule de politesse simple (ex : "Bonne journée,"), sans nom ni signature — la signature sera ajoutée automatiquement après. Appuie-toi sur les points forts identifiés dans l'historique pour renforcer l'argumentaire, et adresse discrètement les points faibles ou objections potentielles. Ne répète pas ce qui a déjà été dit dans les échanges précédents.
+      // Les vrais emails échangés avec le contact donnent à l'IA le contexte que
+      // les notes internes ne contiennent pas — ce qui a réellement été dit et répondu.
+      const thread = await fetchEmailThread(prospect.email, session.access_token);
+      const threadContext = (thread.messages || []).length
+        ? `\n\nEmails réellement échangés avec ce contact (du plus récent au plus ancien) :\n${thread.messages
+            .map((m) => `— ${formatThreadDate(m.sentAt)} · de ${senderLabel(m.from || "")} · objet "${m.subject || "(sans objet)"}"\n${(m.body || m.snippet || "").trim()}`)
+            .join("\n\n")}`
+        : "";
+
+      const prompt = `Tu es un assistant commercial. Rédige un email de relance en français, ton ${tone}, ${lengthGuide}. Ne mets pas d'objet, uniquement le corps de l'email, termine par une formule de politesse simple (ex : "Bonne journée,"), sans nom ni signature — la signature sera ajoutée automatiquement après. Appuie-toi sur les points forts identifiés dans l'historique pour renforcer l'argumentaire, et adresse discrètement les points faibles ou objections potentielles. Ne répète pas ce qui a déjà été dit dans les échanges précédents, et reprends le fil de la conversation réelle si des emails sont fournis.
 ${keywords.trim() ? `\nÉléments à intégrer absolument, donnés par le commercial : ${keywords.trim()}\n` : ""}
 Nom du contact : ${prospect.name}
 Entreprise : ${prospect.company}
@@ -2218,7 +2329,7 @@ Entreprise : ${prospect.company}
 Statut : ${prospect.status}
 
 Historique des échanges avec ce prospect :
-${buildHistoryContext(history)}`;
+${buildHistoryContext(history)}${threadContext}`;
       const text = await callAI(prompt, session.access_token);
       setContent(appendSignature(text, settings));
       setShowModal(false);

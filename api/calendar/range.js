@@ -1,12 +1,14 @@
 import { supabaseAdmin, getUserFromToken, bearerToken } from "../_lib/supabase.js";
-import { fetchEventsInRange, ensureFreshToken } from "../_lib/providers.js";
+import { fetchEventsInRange, ensureFreshToken, startOfDayISO, endOfDayISO } from "../_lib/providers.js";
 
+// Sans paramètres start/end, renvoie les événements du jour — l'ancien endpoint
+// /api/calendar/today, fusionné ici pour rester sous la limite de fonctions Vercel.
 export default async function handler(req, res) {
   const user = await getUserFromToken(bearerToken(req));
   if (!user) return res.status(401).json({ error: "Non authentifié" });
 
-  const { start, end } = req.query;
-  if (!start || !end) return res.status(400).json({ error: "Paramètres start/end manquants" });
+  const start = req.query.start || startOfDayISO();
+  const end = req.query.end || endOfDayISO();
 
   const admin = supabaseAdmin();
   const { data: connections } = await admin.from("calendar_connections").select("*").eq("user_id", user.id);

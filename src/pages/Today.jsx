@@ -113,7 +113,7 @@ export default function Today({ prospects, setActiveTab, session, reload, onOpen
     async function loadEvents() {
       setEventsLoading(true);
       try {
-        const res = await fetch("/api/calendar/today", { headers: { Authorization: `Bearer ${session.access_token}` } });
+        const res = await fetch("/api/calendar/range", { headers: { Authorization: `Bearer ${session.access_token}` } });
         const data = await res.json();
         setEvents(data.events || []);
       } catch (e) {
