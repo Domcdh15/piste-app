@@ -27,7 +27,7 @@ const COMING_LATER = [
   { key: "make", label: "Make", desc: "Automatisez vos workflows commerciaux." },
 ];
 
-export default function Integrations({ session, onBack, setActiveTab }) {
+export default function Integrations({ session, onBack, setActiveTab, onOpenImport }) {
   const [status, setStatus] = useState({ google: false, microsoft: false });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -154,7 +154,7 @@ export default function Integrations({ session, onBack, setActiveTab }) {
                   loading={loading}
                   onConnect={() => (t.real ? setConfirmKey(t.key) : null)}
                   onDisconnect={() => disconnect(t.key)}
-                  onImport={() => setActiveTab?.("pipeline")}
+                  onImport={() => onOpenImport?.()}
                 />
               ))}
             </div>

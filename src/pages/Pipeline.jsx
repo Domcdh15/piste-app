@@ -89,7 +89,9 @@ function parseCSV(text) {
 
 const CSV_FIELDS = [
   { key: "", label: "Ignorer" },
-  { key: "name", label: "Nom" },
+  { key: "name", label: "Nom complet" },
+  { key: "first_name", label: "Prénom" },
+  { key: "last_name", label: "Nom de famille" },
   { key: "company", label: "Entreprise" },
   { key: "email", label: "Email" },
   { key: "phone", label: "Téléphone" },
@@ -97,13 +99,16 @@ const CSV_FIELDS = [
   { key: "deal_value", label: "Montant (€)" },
 ];
 
+// Couvre les intitulés des exports HubSpot, Salesforce et Pipedrive en plus du français.
 const CSV_AUTO_MAP = {
-  name: ["nom", "name", "contact"],
-  company: ["entreprise", "company", "société", "societe"],
-  email: ["email", "e-mail", "mail"],
-  phone: ["téléphone", "telephone", "phone", "tel"],
-  job_title: ["poste", "fonction", "job", "job title", "titre"],
-  deal_value: ["montant", "valeur", "deal", "amount", "value"],
+  name: ["nom", "name", "contact", "full name", "nom complet", "person", "contact name"],
+  first_name: ["prénom", "prenom", "first name", "firstname", "given name"],
+  last_name: ["nom de famille", "last name", "lastname", "surname", "family name"],
+  company: ["entreprise", "company", "société", "societe", "company name", "organization", "organisation", "account name", "associated company"],
+  email: ["email", "e-mail", "mail", "email address", "adresse email", "work email"],
+  phone: ["téléphone", "telephone", "phone", "tel", "phone number", "mobile", "mobile phone number", "numéro de téléphone"],
+  job_title: ["poste", "fonction", "job", "job title", "titre", "title", "jobtitle"],
+  deal_value: ["montant", "valeur", "deal", "amount", "value", "deal value", "deal amount", "opportunity amount", "montant du deal"],
 };
 
 function guessCsvField(header) {
@@ -143,26 +148,58 @@ function ImportCsvModal({ session, onClose, onImported }) {
   async function handleImport() {
     if (!parsed) return;
     setImporting(true);
+
+    // Les exports HubSpot et Salesforce séparent prénom et nom : on les recombine ici.
     const records = parsed.dataRows
       .map((r) => {
         const rec = { user_id: session.user.id, stage: "À contacter", status: "attente", priority: 50 };
+        let firstName = "";
+        let lastName = "";
         Object.entries(mapping).forEach(([idx, field]) => {
           if (!field) return;
           const val = (r[idx] || "").trim();
           if (field === "deal_value") rec.deal_value = Number(val.replace(/[^\d.,-]/g, "").replace(",", ".")) || 0;
+          else if (field === "first_name") firstName = val;
+          else if (field === "last_name") lastName = val;
           else rec[field] = val;
         });
+        if (!rec.name) rec.name = [firstName, lastName].filter(Boolean).join(" ").trim();
         if (!rec.name) rec.name = rec.company || rec.email || "Sans nom";
         return rec;
       })
       .filter((r) => r.name || r.email || r.company);
 
-    const { error } = await supabase.from("prospects").insert(records);
+    // Un import relancé par erreur ne doit pas dupliquer les fiches déjà présentes.
+    const emails = records.map((r) => (r.email || "").toLowerCase()).filter(Boolean);
+    let skipped = 0;
+    let toInsert = records;
+    if (emails.length) {
+      const { data: existing } = await supabase.from("prospects").select("email").not("email", "is", null);
+      const known = new Set((existing || []).map((p) => (p.email || "").toLowerCase()).filter(Boolean));
+      if (known.size) {
+        toInsert = records.filter((r) => {
+          const e = (r.email || "").toLowerCase();
+          if (e && known.has(e)) {
+            skipped++;
+            return false;
+          }
+          return true;
+        });
+      }
+    }
+
+    if (toInsert.length === 0) {
+      setImporting(false);
+      setResult({ ok: true, count: 0, skipped });
+      return;
+    }
+
+    const { error } = await supabase.from("prospects").insert(toInsert);
     setImporting(false);
     if (error) {
       setResult({ error: "L'import a échoué. Vérifie le fichier et réessaie." });
     } else {
-      setResult({ ok: true, count: records.length });
+      setResult({ ok: true, count: toInsert.length, skipped });
       onImported?.();
     }
   }
@@ -201,7 +238,12 @@ function ImportCsvModal({ session, onClose, onImported }) {
             </div>
 
             {result?.ok ? (
-              <div style={{ fontSize: "13px", color: "#527a61", marginBottom: "12px" }}>{result.count} prospects importés ✓</div>
+              <div style={{ fontSize: "13px", color: "#527a61", marginBottom: "12px" }}>
+                {result.count} prospect{result.count > 1 ? "s" : ""} importé{result.count > 1 ? "s" : ""} ✓
+                {result.skipped > 0 && (
+                  <span style={{ color: "var(--text-dim)" }}> · {result.skipped} déjà présent{result.skipped > 1 ? "s" : ""}, ignoré{result.skipped > 1 ? "s" : ""}</span>
+                )}
+              </div>
             ) : result?.error ? (
               <div style={{ fontSize: "13px", color: "var(--red)", marginBottom: "12px" }}>{result.error}</div>
             ) : null}
@@ -292,7 +334,7 @@ function buildHistoryContext(history) {
 
 const TAB_LABELS = { today: "Aujourd'hui", planning: "Agenda", assistant: "Assistant IA", activities: "Activités", integrations: "Intégrations", settings: "Paramètres", chauds: "Chauds", "a-sauver": "À sauver", equipe: "Équipe" };
 
-export default function Pipeline({ prospects, loading, reload, session, initialSelectedId, onConsumeInitialSelection, initialShowForm, onConsumeInitialShowForm, initialTab, settings, returnTab, onBackToPrevious, team, presetFilter }) {
+export default function Pipeline({ prospects, loading, reload, session, initialSelectedId, onConsumeInitialSelection, initialShowForm, onConsumeInitialShowForm, initialShowImport, onConsumeInitialShowImport, initialTab, settings, returnTab, onBackToPrevious, team, presetFilter }) {
   const [showForm, setShowForm] = useState(!!initialShowForm);
   const [form, setForm] = useState({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", email: "", phone: "", stage: "À contacter", status: "attente", priority: 50, deal_value: "" });
   const [saving, setSaving] = useState(false);
@@ -304,7 +346,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
   const [sortDir, setSortDir] = useState("desc");
   const [panelId, setPanelId] = useState(null);
   const [showOptimize, setShowOptimize] = useState(false);
-  const [showImport, setShowImport] = useState(false);
+  const [showImport, setShowImport] = useState(!!initialShowImport);
 
   useEffect(() => {
     supabase.from("tasks").select("*").eq("done", false).order("due_at", { ascending: true, nullsFirst: false }).then(({ data }) => setOpenTasks(data || []));
@@ -313,6 +355,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
   useEffect(() => {
     if (initialSelectedId) onConsumeInitialSelection?.();
     if (initialShowForm) onConsumeInitialShowForm?.();
+    if (initialShowImport) onConsumeInitialShowImport?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
