@@ -1906,6 +1906,9 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
   const [email, setEmail] = useState(prospect.email || "");
   const [phone, setPhone] = useState(prospect.phone || "");
   const [linkedinUrl, setLinkedinUrl] = useState(prospect.linkedin_url || "");
+  const [billingAddress, setBillingAddress] = useState(prospect.billing_address || "");
+  const [billingPostalCode, setBillingPostalCode] = useState(prospect.billing_postal_code || "");
+  const [billingCity, setBillingCity] = useState(prospect.billing_city || "");
   const [priority, setPriority] = useState(nearestPriorityLevel(prospect.priority));
   const [dealValue, setDealValue] = useState(prospect.deal_value);
   const [saving, setSaving] = useState(false);
@@ -1921,6 +1924,9 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
       email: email.trim(),
       phone: phone.trim(),
       linkedin_url: linkedinUrl.trim(),
+      billing_address: billingAddress.trim(),
+      billing_postal_code: billingPostalCode.trim(),
+      billing_city: billingCity.trim(),
       priority: Number(priority),
       deal_value: Number(dealValue) || 0,
     });
@@ -1943,6 +1949,9 @@ function EditProspectForm({ prospect, onSave, onCancel }) {
       <input type="tel" placeholder="Téléphone" value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} />
       <input type="url" placeholder="Profil LinkedIn (URL)" value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)} style={inputStyle} />
       <div />
+      <input placeholder="Adresse (pour les devis)" value={billingAddress} onChange={(e) => setBillingAddress(e.target.value)} style={{ ...inputStyle, gridColumn: "1 / -1" }} />
+      <input placeholder="Code postal" value={billingPostalCode} onChange={(e) => setBillingPostalCode(e.target.value)} style={inputStyle} />
+      <input placeholder="Ville" value={billingCity} onChange={(e) => setBillingCity(e.target.value)} style={inputStyle} />
       <select value={priority} onChange={(e) => setPriority(e.target.value)} style={inputStyle}>
         {PRIORITY_LEVELS.map((l) => <option key={l.value} value={l.value}>Priorité : {l.label}</option>)}
       </select>
@@ -2501,11 +2510,156 @@ ${buildHistoryContext(history)}${threadContext}`;
   );
 }
 
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+
+// Un champ manquant est signalé plutôt que laissé vide : un devis incomplet
+// n'a pas de valeur, autant que ça saute aux yeux avant l'envoi.
+function devisField(value, placeholder) {
+  const v = (value || "").toString().trim();
+  return v ? escapeHtml(v) : `<span class="todo">${escapeHtml(placeholder)}</span>`;
+}
+
+function buildDevisNumber(settings) {
+  const n = (settings?.devis_counter || 0) + 1;
+  return `DEV-${new Date().getFullYear()}-${String(n).padStart(4, "0")}`;
+}
+
+function openDevisDocument({ prospect, settings, items, total, number }) {
+  const vatExempt = !!settings?.vat_exempt;
+  const vatRate = vatExempt ? 0 : Number(settings?.vat_rate ?? 20);
+  const vatAmount = total * (vatRate / 100);
+  const validityDays = Number(settings?.devis_validity_days ?? 30);
+  const today = new Date();
+  const validUntil = new Date(today.getTime() + validityDays * 86400000);
+  const fmt = (d) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  const euros = (n) => formatEuros(n);
+
+  const sellerName = settings?.company_name || settings?.sig_company;
+  const sellerContact = [settings?.first_name, settings?.last_name].filter(Boolean).join(" ") || settings?.sig_name;
+
+  const rows = items
+    .filter((it) => (it.description || "").trim() || Number(it.unitPrice) > 0)
+    .map(
+      (it) => `<tr>
+        <td>${escapeHtml(it.description || "—")}</td>
+        <td class="num">${Number(it.qty) || 0}</td>
+        <td class="num">${euros(Number(it.unitPrice) || 0)}</td>
+        <td class="num strong">${euros((Number(it.qty) || 0) * (Number(it.unitPrice) || 0))}</td>
+      </tr>`
+    )
+    .join("");
+
+  const html = `<!doctype html>
+<html lang="fr"><head><meta charset="utf-8" />
+<title>${escapeHtml(number)} — ${escapeHtml(prospect.company || prospect.name)}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Arial, sans-serif; color: #14171f; margin: 0; padding: 48px; background: #f4f6fb; font-size: 13px; line-height: 1.55; }
+  .sheet { background: #fff; max-width: 780px; margin: 0 auto; padding: 52px 56px; border-radius: 4px; box-shadow: 0 4px 24px rgba(20,23,31,.10); }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 32px; margin-bottom: 40px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .ref { color: #64708a; font-size: 12.5px; }
+  .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-bottom: 36px; }
+  .party { border: 0.5px solid #e4e8f0; border-radius: 8px; padding: 16px 18px; }
+  .party h2 { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: #8490a3; margin: 0 0 8px; font-weight: 700; }
+  .party .name { font-weight: 700; font-size: 14px; margin-bottom: 3px; }
+  .party div { color: #4a5468; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+  th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: #8490a3; border-bottom: 1.5px solid #14171f; padding: 0 8px 8px; }
+  td { padding: 11px 8px; border-bottom: 0.5px solid #e4e8f0; vertical-align: top; }
+  .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .strong { font-weight: 600; }
+  .totals { margin-left: auto; width: 290px; }
+  .totals div { display: flex; justify-content: space-between; padding: 7px 8px; }
+  .totals .grand { border-top: 1.5px solid #14171f; margin-top: 4px; font-weight: 700; font-size: 15.5px; }
+  .terms { margin-top: 40px; padding-top: 20px; border-top: 0.5px solid #e4e8f0; color: #4a5468; font-size: 12px; }
+  .terms h3 { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: #8490a3; margin: 0 0 8px; }
+  .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 34px; }
+  .sign-box { border: 0.5px dashed #b9c2d4; border-radius: 8px; padding: 14px 16px 44px; }
+  .sign-box span { font-size: 10.5px; color: #8490a3; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
+  .sign-box em { display: block; font-style: normal; font-size: 11px; color: #8490a3; margin-top: 3px; }
+  .todo { background: #fff4d6; color: #92600a; border-radius: 4px; padding: 1px 6px; font-size: 11.5px; font-weight: 600; }
+  .toolbar { max-width: 780px; margin: 0 auto 18px; display: flex; gap: 10px; }
+  .toolbar button { font: inherit; font-size: 13px; font-weight: 600; padding: 9px 18px; border-radius: 8px; border: none; background: #246bfe; color: #fff; cursor: pointer; }
+  .toolbar .ghost { background: #fff; color: #4a5468; border: 0.5px solid #d3d9e6; }
+  @media print { body { background: #fff; padding: 0; } .sheet { box-shadow: none; max-width: none; padding: 0; } .toolbar { display: none; } }
+</style></head>
+<body>
+  <div class="toolbar">
+    <button onclick="window.print()">Imprimer / Enregistrer en PDF</button>
+    <button class="ghost" onclick="window.close()">Fermer</button>
+  </div>
+  <div class="sheet">
+    <div class="head">
+      <div>
+        <h1>Devis</h1>
+        <div class="ref">N° ${escapeHtml(number)} · Émis le ${fmt(today)}</div>
+        <div class="ref">Valable jusqu'au ${fmt(validUntil)}</div>
+      </div>
+    </div>
+
+    <div class="parties">
+      <div class="party">
+        <h2>Émetteur</h2>
+        <div class="name">${devisField(sellerName, "Nom de votre entreprise à compléter")}</div>
+        ${sellerContact ? `<div>${escapeHtml(sellerContact)}</div>` : ""}
+        <div>${devisField(settings?.billing_address, "Adresse à compléter")}</div>
+        <div>${escapeHtml([settings?.billing_postal_code, settings?.billing_city].filter(Boolean).join(" ")) || '<span class="todo">Code postal et ville à compléter</span>'}</div>
+        <div>SIRET : ${devisField(settings?.siret, "à compléter")}</div>
+        ${vatExempt ? "" : `<div>N° TVA : ${devisField(settings?.vat_number, "à compléter")}</div>`}
+      </div>
+      <div class="party">
+        <h2>Client</h2>
+        <div class="name">${devisField(prospect.company, "Entreprise non renseignée")}</div>
+        <div>${escapeHtml(prospect.name || "")}</div>
+        <div>${devisField(prospect.billing_address, "Adresse à compléter")}</div>
+        <div>${escapeHtml([prospect.billing_postal_code, prospect.billing_city].filter(Boolean).join(" ")) || '<span class="todo">Code postal et ville à compléter</span>'}</div>
+        ${prospect.email ? `<div>${escapeHtml(prospect.email)}</div>` : ""}
+      </div>
+    </div>
+
+    <table>
+      <thead><tr><th>Description</th><th class="num">Qté</th><th class="num">Prix unitaire</th><th class="num">Total</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="4" style="color:#8490a3">Aucune ligne renseignée</td></tr>'}</tbody>
+    </table>
+
+    <div class="totals">
+      <div><span>Total HT</span><span>${euros(total)}</span></div>
+      ${vatExempt
+        ? '<div style="color:#4a5468"><span>TVA</span><span>Non applicable</span></div>'
+        : `<div><span>TVA ${vatRate} %</span><span>${euros(vatAmount)}</span></div>`}
+      <div class="grand"><span>Total ${vatExempt ? "" : "TTC"}</span><span>${euros(total + vatAmount)}</span></div>
+    </div>
+
+    <div class="terms">
+      <h3>Conditions</h3>
+      <div>Offre valable ${validityDays} jours à compter de la date d'émission.</div>
+      ${settings?.devis_payment_terms ? `<div>${escapeHtml(settings.devis_payment_terms)}</div>` : ""}
+      ${vatExempt ? "<div>TVA non applicable, article 293 B du Code général des impôts.</div>" : ""}
+    </div>
+
+    <div class="sign">
+      <div class="sign-box"><span>L'émetteur</span><em>Date et signature</em></div>
+      <div class="sign-box"><span>Le client</span><em>Bon pour accord — date et signature</em></div>
+    </div>
+  </div>
+</body></html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) return false;
+  w.document.write(html);
+  w.document.close();
+  return true;
+}
+
 function DevisGenerator({ prospect, history, session, settings }) {
   const [items, setItems] = useState([{ description: "", qty: 1, unitPrice: prospect.deal_value || 0 }]);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [docError, setDocError] = useState("");
 
   const total = items.reduce((sum, it) => sum + (Number(it.qty) || 0) * (Number(it.unitPrice) || 0), 0);
 
@@ -2549,6 +2703,23 @@ Total général : ${formatEuros(total)}`;
     history.reload();
   }
 
+  async function openDocument() {
+    setDocError("");
+    // Le compteur est relu en base plutôt que pris dans les réglages chargés au
+    // démarrage : deux devis créés dans la même session auraient sinon le même numéro.
+    const { data: fresh } = await supabase.from("user_settings").select("devis_counter").eq("user_id", session.user.id).maybeSingle();
+    const counter = fresh?.devis_counter ?? settings?.devis_counter ?? 0;
+    const number = buildDevisNumber({ devis_counter: counter });
+
+    const opened = openDevisDocument({ prospect, settings, items, total, number });
+    if (!opened) {
+      setDocError("Le navigateur a bloqué l'ouverture — autorise les fenêtres pop-up pour ce site, puis réessaie.");
+      return;
+    }
+    // Le numéro n'est consommé qu'une fois le document réellement ouvert.
+    await supabase.from("user_settings").update({ devis_counter: counter + 1 }).eq("user_id", session.user.id);
+  }
+
   return (
     <div>
       <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginBottom: "8px" }}>LIGNES DU DEVIS</div>
@@ -2569,7 +2740,20 @@ Total général : ${formatEuros(total)}`;
         <div style={{ fontSize: "13px", fontWeight: 700 }}>Total : {formatEuros(total)}</div>
       </div>
 
-      <GeneratorBlock label="Générer le devis avec l'IA" loading={loading} error={error} content={content} setContent={setContent} onGenerate={generateWithAI} onSave={save} />
+      <button
+        className="focusable"
+        onClick={openDocument}
+        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "7px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}
+      >
+        Ouvrir le devis
+      </button>
+      {docError && <div style={{ fontSize: "12px", color: "var(--red)", marginBottom: "10px" }}>{docError}</div>}
+      <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginBottom: "16px" }}>
+        Document prêt à imprimer ou enregistrer en PDF, avec vos coordonnées et celles du client.
+        {" "}Complétez vos informations légales dans Paramètres → Facturation.
+      </div>
+
+      <GeneratorBlock label="Générer l'email d'accompagnement avec l'IA" loading={loading} error={error} content={content} setContent={setContent} onGenerate={generateWithAI} onSave={save} />
     </div>
   );
 }

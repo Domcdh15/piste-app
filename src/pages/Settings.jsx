@@ -246,6 +246,49 @@ export default function Settings({ session, prospects, settings, reloadSettings,
         </Section>
       )}
 
+      <Section title="Mes informations légales">
+        <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "14px" }}>
+          Ces informations apparaissent sur les devis que vous envoyez à vos clients. Sans elles, le document reste incomplet.
+        </div>
+        <Field label="Raison sociale">
+          <input value={local.company_name || ""} onChange={(e) => set({ company_name: e.target.value })} style={inputSm} placeholder="Nom de votre entreprise" />
+        </Field>
+        <Field label="Adresse">
+          <input value={local.billing_address || ""} onChange={(e) => set({ billing_address: e.target.value })} style={inputSm} placeholder="12 rue de la République" />
+        </Field>
+        <Field label="Code postal">
+          <input value={local.billing_postal_code || ""} onChange={(e) => set({ billing_postal_code: e.target.value })} style={inputSm} placeholder="69002" />
+        </Field>
+        <Field label="Ville">
+          <input value={local.billing_city || ""} onChange={(e) => set({ billing_city: e.target.value })} style={inputSm} placeholder="Lyon" />
+        </Field>
+        <Field label="SIRET">
+          <input value={local.siret || ""} onChange={(e) => set({ siret: e.target.value })} style={inputSm} placeholder="123 456 789 00012" />
+        </Field>
+        <Field label="Franchise de TVA">
+          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--text-dim)" }}>
+            <input type="checkbox" checked={!!local.vat_exempt} onChange={(e) => set({ vat_exempt: e.target.checked })} />
+            Je ne facture pas la TVA (micro-entreprise)
+          </label>
+        </Field>
+        {!local.vat_exempt && (
+          <>
+            <Field label="N° TVA intracom.">
+              <input value={local.vat_number || ""} onChange={(e) => set({ vat_number: e.target.value })} style={inputSm} placeholder="FR12345678901" />
+            </Field>
+            <Field label="Taux de TVA (%)">
+              <input type="number" min="0" max="100" step="0.1" value={local.vat_rate ?? 20} onChange={(e) => set({ vat_rate: e.target.value === "" ? null : Number(e.target.value) })} style={inputSm} />
+            </Field>
+          </>
+        )}
+        <Field label="Validité des devis">
+          <input type="number" min="1" value={local.devis_validity_days ?? 30} onChange={(e) => set({ devis_validity_days: e.target.value === "" ? null : Number(e.target.value) })} style={inputSm} placeholder="30" />
+        </Field>
+        <Field label="Conditions de paiement" last>
+          <input value={local.devis_payment_terms || ""} onChange={(e) => set({ devis_payment_terms: e.target.value })} style={inputSm} placeholder="Paiement à 30 jours à réception de facture" />
+        </Field>
+      </Section>
+
       {isAdmin && (
         <Section title="Abonnement & facturation">
           <BillingPanel local={local} session={session} team={team} reloadSettings={reloadSettings} reloadTeam={reloadTeam} />
