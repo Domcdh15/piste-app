@@ -53,7 +53,16 @@ const ACTIVITY_LABEL = {
   reassignation: "Réattribution",
 };
 
-function parseCSV(text) {
+// Excel en français enregistre les CSV avec des points-virgules, pas des virgules :
+// on déduit le séparateur de la ligne d'en-têtes plutôt que de supposer la virgule.
+function detectDelimiter(text) {
+  const firstLine = text.split(/\r?\n/).find((l) => l.trim() !== "") || "";
+  const counts = [",", ";", "\t"].map((d) => [d, firstLine.split(d).length - 1]);
+  const [best, count] = counts.sort((a, b) => b[1] - a[1])[0];
+  return count > 0 ? best : ",";
+}
+
+function parseCSV(text, delimiter = detectDelimiter(text)) {
   const rows = [];
   let row = [];
   let field = "";
@@ -68,7 +77,7 @@ function parseCSV(text) {
         } else inQuotes = false;
       } else field += c;
     } else if (c === '"') inQuotes = true;
-    else if (c === ",") {
+    else if (c === delimiter) {
       row.push(field);
       field = "";
     } else if (c === "\n") {
@@ -123,26 +132,50 @@ function ImportCsvModal({ session, onClose, onImported }) {
   const [parsed, setParsed] = useState(null);
   const [mapping, setMapping] = useState({});
   const [importing, setImporting] = useState(false);
+  const [reading, setReading] = useState(false);
   const [result, setResult] = useState(null);
 
-  function handleFile(e) {
+  // Un .xlsx est une archive compressée : il faut une bibliothèque pour l'ouvrir.
+  // Elle est chargée à la demande, pour ne pas alourdir le démarrage de l'application
+  // des utilisateurs qui n'importent jamais de fichier.
+  async function readSpreadsheet(file) {
+    const buffer = await file.arrayBuffer();
+    const XLSX = await import("xlsx");
+    const wb = XLSX.read(buffer, { type: "array" });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    if (!sheet) return [];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, raw: false, defval: "" });
+    return rows.map((r) => r.map((c) => (c == null ? "" : String(c)))).filter((r) => r.some((v) => v.trim() !== ""));
+  }
+
+  async function handleFile(e) {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const rows = parseCSV(String(reader.result));
-      if (rows.length < 2) return;
-      const headers = rows[0];
-      const dataRows = rows.slice(1);
+    setReading(true);
+    setResult(null);
+    try {
+      const isSpreadsheet = /\.(xlsx|xlsm|xls)$/i.test(file.name);
+      const rows = isSpreadsheet ? await readSpreadsheet(file) : parseCSV(await file.text());
+
+      if (rows.length < 2) {
+        setResult({ error: "Le fichier doit contenir une ligne d'en-têtes et au moins une ligne de données." });
+        return;
+      }
+
+      const headers = rows[0].map((h) => (h || "").trim());
+      const width = Math.max(...rows.map((r) => r.length));
+      const dataRows = rows.slice(1).map((r) => Array.from({ length: width }, (_, i) => r[i] ?? ""));
       const initialMapping = {};
       headers.forEach((h, i) => {
         initialMapping[i] = guessCsvField(h);
       });
       setParsed({ headers, dataRows });
       setMapping(initialMapping);
-      setResult(null);
-    };
-    reader.readAsText(file, "UTF-8");
+    } catch (err) {
+      setResult({ error: "Le fichier n'a pas pu être lu. Vérifie qu'il s'agit bien d'un CSV ou d'un fichier Excel." });
+    } finally {
+      setReading(false);
+    }
   }
 
   async function handleImport() {
@@ -227,13 +260,17 @@ function ImportCsvModal({ session, onClose, onImported }) {
         onClick={(e) => e.stopPropagation()}
         style={{ background: "var(--panel)", borderRadius: "14px", padding: "28px", width: "580px", maxWidth: "92vw", maxHeight: "85vh", overflowY: "auto" }}
       >
-        <div style={{ fontSize: "16px", fontWeight: 700, marginBottom: "6px" }}>Importer des prospects (CSV)</div>
+        <div style={{ fontSize: "16px", fontWeight: 700, marginBottom: "6px" }}>Importer des prospects</div>
         <div style={{ fontSize: "12.5px", color: "var(--text-dim)", marginBottom: "16px" }}>
-          Exporte ta liste depuis ton CRM actuel (ou Excel) en CSV, puis importe-la ici.
+          Importe directement ton fichier Excel, ou un CSV exporté depuis ton CRM actuel.
         </div>
 
         {!parsed ? (
-          <input type="file" accept=".csv" onChange={handleFile} />
+          <>
+            <input type="file" accept=".csv,.xlsx,.xlsm,.xls" onChange={handleFile} disabled={reading} />
+            {reading && <div style={{ fontSize: "12.5px", color: "var(--text-dim)", marginTop: "10px" }}>Lecture du fichier…</div>}
+            {result?.error && <div style={{ fontSize: "12.5px", color: "var(--red)", marginTop: "10px" }}>{result.error}</div>}
+          </>
         ) : (
           <>
             <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "10px" }}>
@@ -498,7 +535,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
                   <SparklesIcon size={12} color="#fff" /> Optimiser
                 </button>
                 <button className="focusable" onClick={() => setShowImport(true)} style={{ background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.32)", borderRadius: "9px", color: "#fff", fontSize: "12.5px", fontWeight: 600, padding: "8px 14px" }}>
-                  Importer CSV
+                  Importer
                 </button>
                 <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "#fff", border: "none", borderRadius: "9px", color: "var(--blue-deep)", fontSize: "12.5px", fontWeight: 700, padding: "8px 16px", boxShadow: "0 4px 14px rgba(10,20,50,0.18)" }}>
                   {showForm ? "Annuler" : "+ Opportunité"}

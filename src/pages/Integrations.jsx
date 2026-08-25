@@ -16,9 +16,9 @@ const CATALOG = [
   // MICROSOFT_CLIENT_ID / MICROSOFT_CLIENT_SECRET dans Vercel. Repasser real: true une fois
   // l'inscription d'application Azure créée, sans autre modification.
   { key: "microsoft", label: "Outlook Calendar & Mail", category: "Agenda & Email", desc: "Synchronisez vos événements, envoyez vos relances depuis Outlook, et permettez à Closia de s'appuyer sur vos échanges réels pour les rédiger.", permissions: "Lecture de l'agenda (Calendars.Read), envoi d'email (Mail.Send) et lecture des échanges avec vos prospects (Mail.Read)" },
-  { key: "hubspot", label: "HubSpot", category: "CRM", desc: "Reprenez vos contacts, entreprises et opportunités HubSpot dans Closia — exportez-les en CSV depuis HubSpot, puis importez le fichier.", importable: true },
-  { key: "salesforce", label: "Salesforce", category: "CRM", desc: "Reprenez vos comptes, contacts et opportunités Salesforce — exportez-les en CSV depuis Salesforce, puis importez le fichier.", importable: true },
-  { key: "pipedrive", label: "Pipedrive", category: "CRM", desc: "Reprenez vos prospects et opportunités Pipedrive — exportez-les en CSV depuis Pipedrive, puis importez le fichier.", importable: true },
+  { key: "hubspot", label: "HubSpot", category: "CRM", desc: "Reprenez vos contacts, entreprises et opportunités HubSpot dans Closia — exportez-les depuis HubSpot, puis importez le fichier CSV ou Excel.", importable: true },
+  { key: "salesforce", label: "Salesforce", category: "CRM", desc: "Reprenez vos comptes, contacts et opportunités Salesforce — exportez-les depuis Salesforce, puis importez le fichier CSV ou Excel.", importable: true },
+  { key: "pipedrive", label: "Pipedrive", category: "CRM", desc: "Reprenez vos prospects et opportunités Pipedrive — exportez-les depuis Pipedrive, puis importez le fichier CSV ou Excel.", importable: true },
   { key: "aircall", label: "Aircall", category: "Productivité", desc: "Logger automatiquement vos appels." },
   { key: "notion", label: "Notion", category: "Productivité", desc: "Exporter comptes-rendus et notes vers Notion." },
   { key: "stripe", label: "Stripe", category: "Productivité", desc: "Suivre les paiements liés à vos deals gagnés." },
@@ -173,7 +173,7 @@ function ToolCard({ tool, connected, loading, onConnect, onDisconnect, onImport 
         <span style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.02em" }}>{tool.category.toUpperCase()}</span>
         {tool.importable ? (
           <button className="focusable" onClick={onImport} style={{ fontSize: "11.5px", padding: "6px 10px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", whiteSpace: "nowrap" }}>
-            Importer un CSV
+            Importer un fichier
           </button>
         ) : !tool.real ? (
           <span style={{ fontSize: "11.5px", padding: "6px 10px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-faint)", whiteSpace: "nowrap" }}>Bientôt disponible</span>
