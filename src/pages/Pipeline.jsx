@@ -2044,7 +2044,7 @@ function QuickEmailModal({ prospect, session, settings, onClose, onDone }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "L'envoi a échoué.");
 
-      await supabase.from("activities").insert({ user_id: session.user.id, prospect_id: prospect.id, type: "email_envoye", note: subject, source: "manual" });
+      await supabase.from("activities").insert({ user_id: session.user.id, prospect_id: prospect.id, type: "note", note: `Email envoyé : ${subject}`, source: "manual" });
       await supabase.from("prospects").update({ last_contact_at: new Date().toISOString() }).eq("id", prospect.id);
       onDone?.();
       onClose();
@@ -3142,8 +3142,9 @@ Total général : ${formatEuros(total)}`;
       await supabase.from("activities").insert({
         user_id: session.user.id,
         prospect_id: prospect.id,
-        type: "email_envoye",
+        type: "note",
         note: `Devis ${number} envoyé à ${prospect.email}`,
+        source: "manual",
       });
       history.reload();
       setDevisSent(true);
