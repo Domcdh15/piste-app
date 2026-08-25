@@ -1207,6 +1207,8 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
 
             <ProspectNotesCard prospect={prospect} onUpdate={onUpdate} />
 
+            <DocumentsCard prospect={prospect} session={session} team={team} />
+
             <OpportunityAI prospect={prospect} history={history} session={session} onUpdate={onUpdate} />
 
             {showOwners && (
@@ -1921,6 +1923,160 @@ function ProspectNotesCard({ prospect, onUpdate }) {
         <div style={{ fontSize: "12.5px", color: "var(--text-dim)", lineHeight: 1.6, whiteSpace: "pre-line" }}>{prospect.notes}</div>
       ) : (
         <div style={{ fontSize: "12.5px", color: "var(--text-faint)" }}>Aucune note pour l'instant.</div>
+      )}
+    </Card>
+  );
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} o`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} Ko`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+}
+
+const FILE_BADGES = {
+  pdf: { label: "PDF", color: "#dc2626", dim: "#fdeaec" },
+  doc: { label: "DOC", color: "#2563eb", dim: "#e8f0fe" },
+  docx: { label: "DOC", color: "#2563eb", dim: "#e8f0fe" },
+  xls: { label: "XLS", color: "#0ea968", dim: "#dcfce7" },
+  xlsx: { label: "XLS", color: "#0ea968", dim: "#dcfce7" },
+  csv: { label: "CSV", color: "#0ea968", dim: "#dcfce7" },
+  png: { label: "IMG", color: "#7c3aed", dim: "#ede9fe" },
+  jpg: { label: "IMG", color: "#7c3aed", dim: "#ede9fe" },
+  jpeg: { label: "IMG", color: "#7c3aed", dim: "#ede9fe" },
+};
+
+const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
+function DocumentsCard({ prospect, session, team }) {
+  const [docs, setDocs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const fileRef = useRef(null);
+
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase
+      .from("prospect_documents")
+      .select("*")
+      .eq("prospect_id", prospect.id)
+      .order("created_at", { ascending: false });
+    setDocs(data || []);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prospect.id]);
+
+  async function upload(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setError("");
+
+    if (file.size > MAX_DOCUMENT_BYTES) {
+      setError(`Fichier trop volumineux (${formatFileSize(file.size)}). Maximum 10 Mo.`);
+      return;
+    }
+
+    setBusy(true);
+    // Le chemin commence par l'identifiant du propriétaire : c'est ce que vérifient
+    // les règles d'accès du stockage.
+    const safeName = file.name.replace(/[^\p{L}\p{N}._-]+/gu, "_");
+    const path = `${session.user.id}/${prospect.id}/${crypto.randomUUID()}-${safeName}`;
+
+    const { error: uploadError } = await supabase.storage.from("prospect-documents").upload(path, file, { contentType: file.type || "application/octet-stream" });
+    if (uploadError) {
+      setBusy(false);
+      setError("L'envoi du fichier a échoué. Réessaie.");
+      return;
+    }
+
+    const { error: rowError } = await supabase.from("prospect_documents").insert({
+      user_id: session.user.id,
+      prospect_id: prospect.id,
+      team_id: prospect.team_id || null,
+      storage_path: path,
+      file_name: file.name,
+      file_size: file.size,
+      mime_type: file.type || null,
+    });
+    // Sans la ligne de métadonnées le fichier serait invisible : on ne le laisse pas orphelin.
+    if (rowError) {
+      await supabase.storage.from("prospect-documents").remove([path]);
+      setError("L'enregistrement du document a échoué. Réessaie.");
+    }
+    setBusy(false);
+    load();
+  }
+
+  async function download(doc) {
+    // URL signée valable une minute : le fichier n'est jamais exposé publiquement.
+    const { data, error: signError } = await supabase.storage.from("prospect-documents").createSignedUrl(doc.storage_path, 60);
+    if (signError || !data?.signedUrl) {
+      setError("Le lien de téléchargement n'a pas pu être créé.");
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener");
+  }
+
+  async function remove(doc) {
+    setBusy(true);
+    await supabase.storage.from("prospect-documents").remove([doc.storage_path]);
+    await supabase.from("prospect_documents").delete().eq("id", doc.id);
+    setBusy(false);
+    load();
+  }
+
+  return (
+    <Card
+      title="Documents"
+      Icon={ListIcon}
+      action={
+        <CardLink onClick={() => fileRef.current?.click()}>{busy ? "En cours…" : "+ Ajouter"}</CardLink>
+      }
+    >
+      <input ref={fileRef} type="file" onChange={upload} style={{ display: "none" }} />
+      {error && <div style={{ fontSize: "12px", color: "var(--red)", marginBottom: "10px" }}>{error}</div>}
+
+      {loading ? (
+        <div style={{ fontSize: "12.5px", color: "var(--text-faint)" }}>Chargement…</div>
+      ) : docs.length === 0 ? (
+        <div style={{ fontSize: "12.5px", color: "var(--text-faint)" }}>
+          Aucun document. Devis signés, contrats, cahiers des charges — déposez-les ici pour les garder avec la fiche.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {docs.map((d) => {
+            const ext = (d.file_name.split(".").pop() || "").toLowerCase();
+            const badge = FILE_BADGES[ext] || { label: ext.slice(0, 3).toUpperCase() || "FIC", color: "var(--text-dim)", dim: "var(--panel2)" };
+            return (
+              <div key={d.id} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ width: "30px", height: "30px", borderRadius: "7px", background: badge.dim, color: badge.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", fontWeight: 700, flexShrink: 0 }}>
+                  {badge.label}
+                </span>
+                <button
+                  className="focusable"
+                  onClick={() => download(d)}
+                  style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: 0 }}
+                  title="Télécharger"
+                >
+                  <div style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.file_name}</div>
+                  <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>
+                    {[formatFileSize(d.file_size), formatShortDate(d.created_at)].filter(Boolean).join(" · ")}
+                  </div>
+                </button>
+                <button className="focusable" onClick={() => remove(d)} disabled={busy} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "13px", padding: "0 4px" }} title="Supprimer">
+                  ✕
+                </button>
+              </div>
+            );
+          })}
+        </div>
       )}
     </Card>
   );
