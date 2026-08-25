@@ -170,23 +170,25 @@ function ImportCsvModal({ session, onClose, onImported }) {
       .filter((r) => r.name || r.email || r.company);
 
     // Un import relancé par erreur ne doit pas dupliquer les fiches déjà présentes.
-    const emails = records.map((r) => (r.email || "").toLowerCase()).filter(Boolean);
-    let skipped = 0;
-    let toInsert = records;
-    if (emails.length) {
-      const { data: existing } = await supabase.from("prospects").select("email").not("email", "is", null);
-      const known = new Set((existing || []).map((p) => (p.email || "").toLowerCase()).filter(Boolean));
-      if (known.size) {
-        toInsert = records.filter((r) => {
-          const e = (r.email || "").toLowerCase();
-          if (e && known.has(e)) {
-            skipped++;
-            return false;
-          }
-          return true;
-        });
-      }
+    // On interroge uniquement les emails du fichier (par lots, pour ne pas produire
+    // une URL trop longue) plutôt que de charger tout le pipeline : une liste de plus
+    // de 1000 prospects serait tronquée par la limite de lignes de Supabase.
+    const emails = [...new Set(records.map((r) => (r.email || "").toLowerCase()).filter(Boolean))];
+    const known = new Set();
+    for (let i = 0; i < emails.length; i += 150) {
+      const { data: existing } = await supabase.from("prospects").select("email").in("email", emails.slice(i, i + 150));
+      (existing || []).forEach((p) => p.email && known.add(p.email.toLowerCase()));
     }
+
+    let skipped = 0;
+    const toInsert = records.filter((r) => {
+      const e = (r.email || "").toLowerCase();
+      if (e && known.has(e)) {
+        skipped++;
+        return false;
+      }
+      return true;
+    });
 
     if (toInsert.length === 0) {
       setImporting(false);
@@ -194,12 +196,27 @@ function ImportCsvModal({ session, onClose, onImported }) {
       return;
     }
 
-    const { error } = await supabase.from("prospects").insert(toInsert);
+    // Insertion par lots : un fichier de plusieurs milliers de lignes en une seule
+    // requête dépasserait les limites de taille de la requête.
+    let inserted = 0;
+    let failed = false;
+    for (let i = 0; i < toInsert.length; i += 250) {
+      const { error } = await supabase.from("prospects").insert(toInsert.slice(i, i + 250));
+      if (error) {
+        failed = true;
+        break;
+      }
+      inserted += toInsert.slice(i, i + 250).length;
+    }
+
     setImporting(false);
-    if (error) {
+    if (failed && inserted === 0) {
       setResult({ error: "L'import a échoué. Vérifie le fichier et réessaie." });
+    } else if (failed) {
+      setResult({ error: `Import interrompu après ${inserted} prospect${inserted > 1 ? "s" : ""}. Réimporte le fichier — les fiches déjà créées seront ignorées.` });
+      onImported?.();
     } else {
-      setResult({ ok: true, count: toInsert.length, skipped });
+      setResult({ ok: true, count: inserted, skipped });
       onImported?.();
     }
   }

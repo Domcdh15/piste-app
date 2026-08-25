@@ -67,7 +67,6 @@ export default function Integrations({ session, onBack, setActiveTab, onOpenImpo
     window.location.href = `/api/${provider}/authorize?token=${encodeURIComponent(session.access_token)}`;
   }
 
-  const connectedTools = CATALOG.filter((t) => t.real && status[t.key]);
   const q = search.trim().toLowerCase();
   const filteredCatalog = CATALOG.filter((t) => (category === "Toutes" || t.category === category) && (!q || t.label.toLowerCase().includes(q)));
   const byCategory = CATEGORIES.slice(1).map((c) => ({ category: c, tools: filteredCatalog.filter((t) => t.category === c) })).filter((g) => g.tools.length > 0);
@@ -84,43 +83,6 @@ export default function Integrations({ session, onBack, setActiveTab, onOpenImpo
           <PageTitle icon={PlugIcon} color="var(--blue)" style={{ marginBottom: "4px" }}>Intégrations</PageTitle>
           <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Connectez vos outils. Closia fait le reste.</div>
         </div>
-      </div>
-
-      <div style={{ marginBottom: "32px" }}>
-        <div className="display" style={{ fontWeight: 700, fontSize: "14px", marginBottom: "2px" }}>Vos connexions</div>
-        <div style={{ color: "var(--text-dim)", fontSize: "12.5px", marginBottom: "14px" }}>
-          {loading ? "Chargement..." : connectedTools.length === 0 ? "Aucune application connectée." : `${connectedTools.length} application${connectedTools.length > 1 ? "s" : ""} connectée${connectedTools.length > 1 ? "s" : ""}`}
-        </div>
-
-        {!loading && connectedTools.length === 0 ? (
-          <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "24px", textAlign: "center" }}>
-            <div className="display" style={{ fontWeight: 700, fontSize: "14px", marginBottom: "6px" }}>Connectez votre premier outil</div>
-            <div style={{ color: "var(--text-dim)", fontSize: "12.5px", marginBottom: "14px" }}>Importez vos données et retrouvez votre activité commerciale dans Closia.</div>
-            <button className="focusable" onClick={() => document.getElementById("connect-app-anchor")?.scrollIntoView({ behavior: "smooth" })} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "8px 16px", fontSize: "13px", fontWeight: 600 }}>
-              Voir les intégrations
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "10px" }}>
-            {connectedTools.map((t) => (
-              <div key={t.key} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
-                  <span style={{ width: "30px", height: "30px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: badgeColor(t.label), color: "#fff", fontWeight: 700, fontSize: "12px" }}>
-                    {t.label.slice(0, 2).toUpperCase()}
-                  </span>
-                  <div>
-                    <div className="display" style={{ fontWeight: 600, fontSize: "13px" }}>{t.label}</div>
-                    <span className="mono" style={{ fontSize: "10px", fontWeight: 700, color: "#527a61" }}>● Connecté</span>
-                  </div>
-                </div>
-                <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginBottom: "10px" }}>{t.desc}</div>
-                <button className="focusable" onClick={() => disconnect(t.key)} style={{ fontSize: "11.5px", padding: "6px 10px", borderRadius: "6px", background: "var(--red-dim)", color: "var(--red)", border: "0.5px solid var(--red)55" }}>
-                  Déconnecter
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       <div id="connect-app-anchor" style={{ marginBottom: "8px" }}>
