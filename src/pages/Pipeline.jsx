@@ -2660,6 +2660,8 @@ function DevisGenerator({ prospect, history, session, settings }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [docError, setDocError] = useState("");
+  const [busyDoc, setBusyDoc] = useState("");
+  const [devisSent, setDevisSent] = useState(false);
 
   const total = items.reduce((sum, it) => sum + (Number(it.qty) || 0) * (Number(it.unitPrice) || 0), 0);
 
@@ -2720,6 +2722,82 @@ Total général : ${formatEuros(total)}`;
     await supabase.from("user_settings").update({ devis_counter: counter + 1 }).eq("user_id", session.user.id);
   }
 
+  // Réserve le prochain numéro de devis et le consomme — partagé par le PDF et l'envoi.
+  async function claimDevisNumber() {
+    const { data: fresh } = await supabase.from("user_settings").select("devis_counter").eq("user_id", session.user.id).maybeSingle();
+    const counter = fresh?.devis_counter ?? settings?.devis_counter ?? 0;
+    await supabase.from("user_settings").update({ devis_counter: counter + 1 }).eq("user_id", session.user.id);
+    return buildDevisNumber({ devis_counter: counter });
+  }
+
+  async function downloadPdf() {
+    if (busyDoc) return;
+    setBusyDoc("pdf");
+    setDocError("");
+    try {
+      const number = await claimDevisNumber();
+      const { buildDevisPdf, devisFileName } = await import("../lib/devisPdf.js");
+      const { doc } = await buildDevisPdf({ prospect, settings, items, total, number });
+      doc.save(devisFileName(prospect, number));
+    } catch (e) {
+      setDocError("La génération du PDF a échoué. Réessaie.");
+    } finally {
+      setBusyDoc("");
+    }
+  }
+
+  async function sendDevisByEmail() {
+    if (busyDoc || !prospect.email) return;
+    setBusyDoc("mail");
+    setDocError("");
+    setDevisSent(false);
+    try {
+      const statusRes = await fetch("/api/calendar/status", { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const status = await statusRes.json();
+      const provider = status.google ? "google" : status.microsoft ? "microsoft" : null;
+      if (!provider) {
+        setDocError("Aucune boîte mail connectée — connecte Google ou Outlook dans Intégrations pour envoyer le devis.");
+        return;
+      }
+
+      const number = await claimDevisNumber();
+      const { buildDevisPdf, devisFileName } = await import("../lib/devisPdf.js");
+      const { doc } = await buildDevisPdf({ prospect, settings, items, total, number });
+      const base64 = doc.output("datauristring").split(",")[1];
+
+      const message = content.trim() || `Bonjour,\n\nVous trouverez ci-joint le devis ${number}.\n\nJe reste à votre disposition pour toute question.\n\nBonne journée,`;
+
+      const res = await fetch("/api/calendar/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          action: "send_email",
+          provider,
+          to: prospect.email,
+          subject: `Devis ${number} — ${prospect.company || ""}`.trim(),
+          body: appendSignature(message, settings),
+          attachment: { filename: devisFileName(prospect, number), contentType: "application/pdf", base64 },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "L'envoi a échoué.");
+
+      await supabase.from("activities").insert({
+        user_id: session.user.id,
+        prospect_id: prospect.id,
+        type: "email_envoye",
+        note: `Devis ${number} envoyé à ${prospect.email}`,
+      });
+      history.reload();
+      setDevisSent(true);
+      setTimeout(() => setDevisSent(false), 3000);
+    } catch (e) {
+      setDocError(e.message || "L'envoi a échoué.");
+    } finally {
+      setBusyDoc("");
+    }
+  }
+
   return (
     <div>
       <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginBottom: "8px" }}>LIGNES DU DEVIS</div>
@@ -2740,17 +2818,35 @@ Total général : ${formatEuros(total)}`;
         <div style={{ fontSize: "13px", fontWeight: 700 }}>Total : {formatEuros(total)}</div>
       </div>
 
-      <button
-        className="focusable"
-        onClick={openDocument}
-        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "7px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}
-      >
-        Ouvrir le devis
-      </button>
+      <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+        <button
+          className="focusable"
+          onClick={openDocument}
+          style={{ flex: 1, background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}
+        >
+          Aperçu
+        </button>
+        <button
+          className="focusable"
+          onClick={downloadPdf}
+          disabled={busyDoc}
+          style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: busyDoc ? 0.6 : 1 }}
+        >
+          {busyDoc === "pdf" ? "Génération…" : "Télécharger le PDF"}
+        </button>
+        <button
+          className="focusable"
+          onClick={sendDevisByEmail}
+          disabled={busyDoc || !prospect.email}
+          title={prospect.email ? "" : "Ajoute une adresse email à ce contact"}
+          style={{ flex: 1, background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: busyDoc || !prospect.email ? 0.6 : 1 }}
+        >
+          {busyDoc === "mail" ? "Envoi…" : devisSent ? "Envoyé ✓" : "Envoyer par email"}
+        </button>
+      </div>
       {docError && <div style={{ fontSize: "12px", color: "var(--red)", marginBottom: "10px" }}>{docError}</div>}
       <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginBottom: "16px" }}>
-        Document prêt à imprimer ou enregistrer en PDF, avec vos coordonnées et celles du client.
-        {" "}Complétez vos informations légales dans Paramètres → Facturation.
+        Le PDF reprend vos coordonnées et celles du client. Complétez vos informations légales dans Paramètres → Mes informations légales.
       </div>
 
       <GeneratorBlock label="Générer l'email d'accompagnement avec l'IA" loading={loading} error={error} content={content} setContent={setContent} onGenerate={generateWithAI} onSave={save} />

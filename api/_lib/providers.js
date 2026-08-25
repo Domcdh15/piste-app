@@ -174,15 +174,36 @@ export async function listRecentMessages(provider, accessToken, sinceISO) {
   return [];
 }
 
-export async function sendEmail(provider, accessToken, { to, subject, body, fromName }) {
+// `attachment` (optionnel) : { filename, contentType, base64 }
+export async function sendEmail(provider, accessToken, { to, subject, body, fromName, attachment }) {
   if (provider === "google") {
-    const headers = [
-      `To: ${to}`,
-      `Subject: =?utf-8?B?${Buffer.from(subject || "", "utf-8").toString("base64")}?=`,
-      "Content-Type: text/plain; charset=utf-8",
-      "MIME-Version: 1.0",
-    ];
-    const message = `${headers.join("\r\n")}\r\n\r\n${body}`;
+    const encodedSubject = `Subject: =?utf-8?B?${Buffer.from(subject || "", "utf-8").toString("base64")}?=`;
+    let message;
+
+    if (attachment) {
+      const boundary = `closia_${Date.now().toString(36)}`;
+      message = [
+        `To: ${to}`,
+        encodedSubject,
+        "MIME-Version: 1.0",
+        `Content-Type: multipart/mixed; boundary="${boundary}"`,
+        "",
+        `--${boundary}`,
+        "Content-Type: text/plain; charset=utf-8",
+        "",
+        body || "",
+        `--${boundary}`,
+        `Content-Type: ${attachment.contentType}; name="${attachment.filename}"`,
+        "Content-Transfer-Encoding: base64",
+        `Content-Disposition: attachment; filename="${attachment.filename}"`,
+        "",
+        attachment.base64.replace(/(.{76})/g, "$1\r\n"),
+        `--${boundary}--`,
+      ].join("\r\n");
+    } else {
+      const headers = [`To: ${to}`, encodedSubject, "Content-Type: text/plain; charset=utf-8", "MIME-Version: 1.0"];
+      message = `${headers.join("\r\n")}\r\n\r\n${body}`;
+    }
     const raw = Buffer.from(message, "utf-8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
     const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
       method: "POST",
@@ -205,6 +226,18 @@ export async function sendEmail(provider, accessToken, { to, subject, body, from
           subject: subject || "",
           body: { contentType: "Text", content: body || "" },
           toRecipients: [{ emailAddress: { address: to } }],
+          ...(attachment
+            ? {
+                attachments: [
+                  {
+                    "@odata.type": "#microsoft.graph.fileAttachment",
+                    name: attachment.filename,
+                    contentType: attachment.contentType,
+                    contentBytes: attachment.base64,
+                  },
+                ],
+              }
+            : {}),
         },
         saveToSentItems: true,
       }),

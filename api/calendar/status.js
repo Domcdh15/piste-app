@@ -97,7 +97,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    const { action, provider, to, subject, body, signature } = req.body || {};
+    const { action, provider, to, subject, body, signature, attachment } = req.body || {};
 
     if (action === "set_gmail_signature") {
       if (!signature) return res.status(400).json({ error: "Signature manquante" });
@@ -148,8 +148,13 @@ export default async function handler(req, res) {
       if (!conn) return res.status(400).json({ error: `Aucune connexion ${provider} — connecte ton compte dans Intégrations.` });
 
       try {
+        // Une pièce jointe trop lourde est refusée ici plutôt que par le fournisseur,
+        // pour renvoyer un message compréhensible.
+        if (attachment?.base64 && attachment.base64.length > 7_000_000) {
+          return res.status(400).json({ error: "Pièce jointe trop volumineuse (10 Mo maximum)." });
+        }
         const accessToken = await ensureFreshToken(admin, conn);
-        await sendEmail(provider, accessToken, { to, subject, body });
+        await sendEmail(provider, accessToken, { to, subject, body, attachment });
         return res.status(200).json({ ok: true });
       } catch (e) {
         const insufficientScope = /insufficient|scope|permission/i.test(e.message || "");
