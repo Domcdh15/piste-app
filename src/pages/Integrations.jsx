@@ -12,7 +12,10 @@ const CATEGORIES = ["Toutes", "Agenda & Email", "CRM", "Productivité"];
 
 const CATALOG = [
   { key: "google", label: "Google Calendar & Gmail", category: "Agenda & Email", desc: "Synchronisez vos rendez-vous, envoyez vos relances depuis Gmail, et permettez à Closia de s'appuyer sur vos échanges réels pour les rédiger.", real: true, permissions: "Lecture de l'agenda (calendar.readonly), envoi d'email (gmail.send), synchronisation de signature (gmail.settings.basic) et lecture des échanges avec vos prospects (gmail.readonly)" },
-  { key: "microsoft", label: "Outlook Calendar & Mail", category: "Agenda & Email", desc: "Synchronisez vos événements, envoyez vos relances depuis Outlook, et permettez à Closia de s'appuyer sur vos échanges réels pour les rédiger.", real: true, permissions: "Lecture de l'agenda (Calendars.Read), envoi d'email (Mail.Send) et lecture des échanges avec vos prospects (Mail.Read)" },
+  // Le code Outlook est complet (agenda, envoi, lecture des échanges) — il ne manque que
+  // MICROSOFT_CLIENT_ID / MICROSOFT_CLIENT_SECRET dans Vercel. Repasser real: true une fois
+  // l'inscription d'application Azure créée, sans autre modification.
+  { key: "microsoft", label: "Outlook Calendar & Mail", category: "Agenda & Email", desc: "Synchronisez vos événements, envoyez vos relances depuis Outlook, et permettez à Closia de s'appuyer sur vos échanges réels pour les rédiger.", permissions: "Lecture de l'agenda (Calendars.Read), envoi d'email (Mail.Send) et lecture des échanges avec vos prospects (Mail.Read)" },
   { key: "hubspot", label: "HubSpot", category: "CRM", desc: "Reprenez vos contacts, entreprises et opportunités HubSpot dans Closia — exportez-les en CSV depuis HubSpot, puis importez le fichier.", importable: true },
   { key: "salesforce", label: "Salesforce", category: "CRM", desc: "Reprenez vos comptes, contacts et opportunités Salesforce — exportez-les en CSV depuis Salesforce, puis importez le fichier.", importable: true },
   { key: "pipedrive", label: "Pipedrive", category: "CRM", desc: "Reprenez vos prospects et opportunités Pipedrive — exportez-les en CSV depuis Pipedrive, puis importez le fichier.", importable: true },
