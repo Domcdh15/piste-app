@@ -1075,6 +1075,10 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
         </div>
       )}
 
+      <div style={{ fontSize: "12.5px", color: "var(--text-faint)", marginTop: "8px" }}>
+        Dernier contact : {prospect.last_contact_at ? formatShortDate(prospect.last_contact_at) : "jamais"}
+      </div>
+
       <ProspectOwnersReadout team={team} prospect={prospect} />
 
       {/* Quick actions */}
@@ -1198,36 +1202,6 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <div>
-            <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--text-faint)", marginBottom: "8px" }}>INFORMATIONS</div>
-            <div style={{ fontSize: "13px", color: "var(--text-dim)" }}>Entreprise</div>
-            <div style={{ fontSize: "13.5px", color: "var(--text)", marginBottom: "8px" }}>{prospect.company}</div>
-            {prospect.job_title && (
-              <>
-                <div style={{ fontSize: "13px", color: "var(--text-dim)" }}>Poste</div>
-                <div style={{ fontSize: "13.5px", color: "var(--text)" }}>{prospect.job_title}</div>
-              </>
-            )}
-          </div>
-
-          {(prospect.email || prospect.phone) && (
-            <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "16px" }}>
-              <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--text-faint)", marginBottom: "8px" }}>CONTACT</div>
-              {prospect.email && (
-                <>
-                  <div style={{ fontSize: "13px", color: "var(--text-dim)" }}>Email</div>
-                  <div style={{ fontSize: "13.5px", color: "var(--blue)", marginBottom: "8px", overflowWrap: "anywhere" }}>{prospect.email}</div>
-                </>
-              )}
-              {prospect.phone && (
-                <>
-                  <div style={{ fontSize: "13px", color: "var(--text-dim)" }}>Téléphone</div>
-                  <div style={{ fontSize: "13.5px", color: "var(--text)" }}>{prospect.phone}</div>
-                </>
-              )}
-            </div>
-          )}
-
           {showOwners && (
             <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "16px" }}>
               <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--text-faint)", marginBottom: "8px" }}>ÉQUIPE</div>
@@ -1235,8 +1209,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
             </div>
           )}
 
-          <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "16px" }}>
-            <div style={{ fontSize: "13px", color: "var(--text-faint)" }}>Dernier contact : {prospect.last_contact_at ? formatShortDate(prospect.last_contact_at) : "jamais"}</div>
+          <div style={showOwners ? { borderTop: "0.5px solid var(--hairline)", paddingTop: "16px" } : undefined}>
             {confirmDelete ? (
               <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
                 <button className="focusable" onClick={onDelete} style={{ fontSize: "12.5px", fontWeight: 500, color: "var(--red)", background: "none", border: "none", padding: 0 }}>Confirmer la suppression</button>
