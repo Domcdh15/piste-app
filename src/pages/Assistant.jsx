@@ -460,7 +460,50 @@ function RelanceFlow({ prospectId, prospects, session, settings, onBack }) {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [context, setContext] = useState(null);
+  const [mailbox, setMailbox] = useState(null);
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [sendError, setSendError] = useState("");
   const prospect = prospects.find((p) => p.id === selectedId);
+
+  // Sert à savoir s'il faut proposer l'envoi direct ou seulement la copie.
+  useEffect(() => {
+    fetch("/api/calendar/status", { headers: { Authorization: `Bearer ${session.access_token}` } })
+      .then((r) => r.json())
+      .then((s) => setMailbox(s.google ? "google" : s.microsoft ? "microsoft" : null))
+      .catch(() => setMailbox(null));
+  }, [session.access_token]);
+
+  async function send() {
+    if (!prospect?.email || sending) return;
+    setSending(true);
+    setSendError("");
+    try {
+      const res = await fetch("/api/calendar/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          action: "send_email",
+          provider: mailbox,
+          to: prospect.email,
+          subject: `${prospect.company || ""} — suivi`.trim(),
+          body: content,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "L'envoi a échoué.");
+
+      await supabase.from("emails_generes").insert({ user_id: session.user.id, prospect_id: prospect.id, team_id: prospect.team_id || null, type: "relance", content });
+      await supabase.from("activities").insert({ user_id: session.user.id, prospect_id: prospect.id, team_id: prospect.team_id || null, type: "note", note: `Relance envoyée à ${prospect.email}`, source: "manual" });
+      await supabase.from("prospects").update({ last_contact_at: new Date().toISOString() }).eq("id", prospect.id);
+      setSent(true);
+      setTimeout(() => setSent(false), 3000);
+    } catch (e) {
+      setSendError(e.message || "L'envoi a échoué.");
+    } finally {
+      setSending(false);
+    }
+  }
 
   useEffect(() => {
     setContent("");
@@ -533,9 +576,33 @@ ${ctx.text}`;
                 onChange={(e) => setContent(e.target.value)}
                 style={{ width: "100%", boxSizing: "border-box", background: CARD, border: `0.5px solid ${BORDER}`, borderRadius: "10px", color: TEXT, fontSize: "13px", lineHeight: 1.6, padding: "12px", minHeight: "160px", resize: "vertical", fontFamily: "Inter, sans-serif", marginBottom: "10px" }}
               />
-              <button className="focusable" onClick={copy} style={{ background: ACCENT_DIM, color: ACCENT, border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600 }}>
-                {copied ? "Copié ✓" : "Copier l'email"}
-              </button>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                {mailbox && prospect?.email && (
+                  <button
+                    className="focusable"
+                    onClick={send}
+                    disabled={sending}
+                    style={{ display: "inline-flex", alignItems: "center", gap: "7px", background: ACCENT, color: "#fff", border: "none", borderRadius: "8px", padding: "9px 18px", fontSize: "13px", fontWeight: 600, opacity: sending ? 0.6 : 1 }}
+                  >
+                    <MailIcon size={13} color="#fff" />
+                    {sending ? "Envoi…" : sent ? "Envoyé ✓" : `Envoyer à ${prospect.email}`}
+                  </button>
+                )}
+                <button className="focusable" onClick={copy} style={{ background: ACCENT_DIM, color: ACCENT, border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600 }}>
+                  {copied ? "Copié ✓" : "Copier l'email"}
+                </button>
+              </div>
+              {sendError && <div style={{ color: RED, fontSize: "12px", marginTop: "8px" }}>{sendError}</div>}
+              {!mailbox && (
+                <div style={{ fontSize: "11.5px", color: TEXT2, marginTop: "8px" }}>
+                  Connectez votre boîte Gmail ou Outlook dans Paramètres → Intégrations pour envoyer directement depuis Closia.
+                </div>
+              )}
+              {mailbox && !prospect?.email && (
+                <div style={{ fontSize: "11.5px", color: TEXT2, marginTop: "8px" }}>
+                  Ce contact n'a pas d'adresse email — ajoutez-la sur sa fiche pour pouvoir envoyer directement.
+                </div>
+              )}
             </>
           )}
         </>
