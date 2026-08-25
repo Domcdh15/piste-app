@@ -13,6 +13,9 @@ const CATEGORIES = ["Toutes", "Agenda", "CRM", "Email", "Productivité"];
 const CATALOG = [
   { key: "google", label: "Google Calendar & Gmail", category: "Agenda", desc: "Synchronisez vos rendez-vous, envoyez vos relances depuis Gmail, et permettez à Closia de s'appuyer sur vos échanges réels pour les rédiger.", real: true, permissions: "Lecture de l'agenda (calendar.readonly), envoi d'email (gmail.send), synchronisation de signature (gmail.settings.basic) et lecture des échanges avec vos prospects (gmail.readonly)" },
   { key: "microsoft", label: "Outlook Calendar", category: "Agenda", desc: "Synchronisez vos événements et envoyez vos relances directement depuis Outlook.", real: true, permissions: "Lecture de l'agenda (Calendars.Read) et envoi d'email (Mail.Send)" },
+  { key: "hubspot", label: "HubSpot", category: "CRM", desc: "Reprenez vos contacts, entreprises et opportunités HubSpot dans Closia — exportez-les en CSV depuis HubSpot, puis importez le fichier.", importable: true },
+  { key: "salesforce", label: "Salesforce", category: "CRM", desc: "Reprenez vos comptes, contacts et opportunités Salesforce — exportez-les en CSV depuis Salesforce, puis importez le fichier.", importable: true },
+  { key: "pipedrive", label: "Pipedrive", category: "CRM", desc: "Reprenez vos prospects et opportunités Pipedrive — exportez-les en CSV depuis Pipedrive, puis importez le fichier.", importable: true },
   { key: "outlook_mail", label: "Outlook", category: "Email", desc: "Connectez votre boîte Outlook et centralisez vos échanges commerciaux." },
   { key: "aircall", label: "Aircall", category: "Productivité", desc: "Logger automatiquement vos appels." },
   { key: "notion", label: "Notion", category: "Productivité", desc: "Exporter comptes-rendus et notes vers Notion." },
@@ -25,7 +28,7 @@ const COMING_LATER = [
   { key: "make", label: "Make", desc: "Automatisez vos workflows commerciaux." },
 ];
 
-export default function Integrations({ session, onBack }) {
+export default function Integrations({ session, onBack, setActiveTab }) {
   const [status, setStatus] = useState({ google: false, microsoft: false });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -152,6 +155,7 @@ export default function Integrations({ session, onBack }) {
                   loading={loading}
                   onConnect={() => (t.real ? setConfirmKey(t.key) : null)}
                   onDisconnect={() => disconnect(t.key)}
+                  onImport={() => setActiveTab?.("pipeline")}
                 />
               ))}
             </div>
@@ -191,7 +195,7 @@ export default function Integrations({ session, onBack }) {
   );
 }
 
-function ToolCard({ tool, connected, loading, onConnect, onDisconnect }) {
+function ToolCard({ tool, connected, loading, onConnect, onDisconnect, onImport }) {
   return (
     <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px", display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
@@ -203,7 +207,11 @@ function ToolCard({ tool, connected, loading, onConnect, onDisconnect }) {
       <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginBottom: "12px", flex: 1 }}>{tool.desc}</div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
         <span style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.02em" }}>{tool.category.toUpperCase()}</span>
-        {!tool.real ? (
+        {tool.importable ? (
+          <button className="focusable" onClick={onImport} style={{ fontSize: "11.5px", padding: "6px 10px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", whiteSpace: "nowrap" }}>
+            Importer un CSV
+          </button>
+        ) : !tool.real ? (
           <span style={{ fontSize: "11.5px", padding: "6px 10px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-faint)", whiteSpace: "nowrap" }}>Bientôt disponible</span>
         ) : loading ? (
           <span style={{ color: "var(--text-faint)", fontSize: "11.5px" }}>...</span>
