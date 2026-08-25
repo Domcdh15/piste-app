@@ -987,7 +987,8 @@ ${atRisk.slice(0, 15).map((p) => `- ${p.name} (${p.company}), ${formatEuros(p.de
 
 function ProspectDetailPage({ prospect, session, settings, team, onBack, backLabel, onUpdate, onDelete, onLogActivity, initialTab, reload }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
+  const [quickAction, setQuickAction] = useState(null);
+  const [showDevis, setShowDevis] = useState(false);
   const [tab, setTab] = useState(initialTab && initialTab !== "historique" ? initialTab : "email");
   const [dealValueInput, setDealValueInput] = useState(prospect.deal_value ?? 0);
   const [taskVersion, setTaskVersion] = useState(0);
@@ -1079,41 +1080,44 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
       {/* Quick actions */}
       <div style={{ display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap", marginTop: "18px" }}>
         {prospect.email ? (
-          <a href={`mailto:${prospect.email}`} className="btn-primary focusable">
+          <button className="btn-primary focusable" onClick={() => setQuickAction("email")}>
             <MailIcon size={13} color="#fff" /> Email
-          </a>
+          </button>
         ) : prospect.phone ? (
-          <a href={`tel:${prospect.phone}`} className="btn-primary focusable">
+          <button className="btn-primary focusable" onClick={() => setQuickAction("call")}>
             <PhoneIcon size={13} color="#fff" /> Appeler
-          </a>
+          </button>
         ) : null}
         {prospect.phone && prospect.email && (
-          <a href={`tel:${prospect.phone}`} className="focusable" style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "var(--text-dim)", fontSize: "13px", fontWeight: 500, textDecoration: "none" }}>
+          <button className="focusable" onClick={() => setQuickAction("call")} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
             <PhoneIcon size={13} color="var(--text-dim)" /> Appeler
-          </a>
+          </button>
         )}
-        <button className="focusable" onClick={goToNote} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
+        <button className="focusable" onClick={() => setQuickAction("note")} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
           Ajouter une note
         </button>
-        <button className="focusable" onClick={() => goToTab("taches")} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
+        <button className="focusable" onClick={() => setQuickAction("task")} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
           Ajouter une tâche
         </button>
-        <button className="focusable" onClick={() => onUpdate({ last_contact_at: new Date().toISOString() })} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
+        <button className="focusable" onClick={() => setQuickAction("contacted")} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
           Marquer contacté
         </button>
-        <button className="focusable" onClick={() => setShowEdit((s) => !s)} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: showEdit ? "var(--blue)" : "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
+        <button className="focusable" onClick={() => setQuickAction("edit")} style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px", fontWeight: 500 }}>
           Modifier
         </button>
       </div>
 
-      {showEdit && (
-        <div style={{ marginTop: "16px" }}>
-          <EditProspectForm
-            prospect={prospect}
-            onSave={(changes) => onUpdate(changes)}
-            onCancel={() => setShowEdit(false)}
-          />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px" }}>
+      {showDevis && <DevisGenerator prospect={prospect} history={history} session={session} settings={settings} onClose={() => setShowDevis(false)} />}
+
+      {quickAction === "email" && <QuickEmailModal prospect={prospect} session={session} settings={settings} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
+      {quickAction === "call" && <QuickCallModal prospect={prospect} session={session} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
+      {quickAction === "note" && <QuickNoteModal prospect={prospect} session={session} settings={settings} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
+      {quickAction === "task" && <QuickTaskModal prospect={prospect} session={session} settings={settings} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); bumpTasks(); }} />}
+      {quickAction === "contacted" && <QuickContactedModal prospect={prospect} session={session} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
+      {quickAction === "edit" && (
+        <Modal onClose={() => setQuickAction(null)}>
+          <ModalTitle sub={`${prospect.name} · ${prospect.company}`}>Modifier la fiche</ModalTitle>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "14px" }}>
             <div>
               <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>STATUT</div>
               <select value={prospect.status} onChange={(e) => onUpdate({ status: e.target.value })} style={{ ...selectStyle, width: "100%" }}>
@@ -1133,7 +1137,8 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
               />
             </div>
           </div>
-        </div>
+          <EditProspectForm prospect={prospect} onSave={async (changes) => { await onUpdate(changes); setQuickAction(null); }} onCancel={() => setQuickAction(null)} />
+        </Modal>
       )}
 
       <div style={{ borderTop: "0.5px solid var(--hairline)", margin: "22px 0" }} />
@@ -1169,12 +1174,19 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
           <div style={{ borderTop: "0.5px solid var(--hairline)", margin: "26px 0 16px" }} />
 
           <div ref={toolsRef} style={{ color: "var(--text-faint)", fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.05em", marginBottom: "10px", scrollMarginTop: "20px" }}>OUTILS</div>
-          <div style={{ display: "flex", gap: "16px", marginBottom: "14px", flexWrap: "wrap" }}>
-            {[["email", "Email"], ["echanges", "Échanges"], ["script", "Script"], ["taches", "Tâches"], ["devis", "Devis"]].map(([key, label]) => (
+          <div style={{ display: "flex", gap: "16px", marginBottom: "14px", flexWrap: "wrap", alignItems: "center" }}>
+            {[["email", "Email"], ["echanges", "Échanges"], ["script", "Script"], ["taches", "Tâches"]].map(([key, label]) => (
               <button key={key} className="focusable" onClick={() => setTab(key)} style={{ background: "none", border: "none", padding: 0, fontSize: "13px", fontWeight: tab === key ? 600 : 400, color: tab === key ? "var(--blue)" : "var(--text-dim)" }}>
                 {label}
               </button>
             ))}
+            <button
+              className="focusable"
+              onClick={() => setShowDevis(true)}
+              style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "6px 14px", fontSize: "12.5px", fontWeight: 600 }}
+            >
+              Créer un devis
+            </button>
           </div>
 
           <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "var(--radius-md)", padding: "18px" }}>
@@ -1182,7 +1194,6 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
             {tab === "echanges" && <EmailThreadTab prospect={prospect} session={session} />}
             {tab === "script" && <ScriptGenerator prospect={prospect} history={history} session={session} />}
             {tab === "taches" && <TasksTab prospect={prospect} session={session} settings={settings} onChange={bumpTasks} />}
-            {tab === "devis" && <DevisGenerator prospect={prospect} history={history} session={session} settings={settings} />}
           </div>
         </div>
 
@@ -1799,6 +1810,270 @@ function Modal({ children, onClose }) {
         {children}
       </div>
     </div>
+  );
+}
+
+function ModalTitle({ children, sub }) {
+  return (
+    <div style={{ marginBottom: "16px" }}>
+      <div className="display" style={{ fontWeight: 700, fontSize: "16px" }}>{children}</div>
+      {sub && <div style={{ fontSize: "12.5px", color: "var(--text-dim)", marginTop: "3px" }}>{sub}</div>}
+    </div>
+  );
+}
+
+function ModalActions({ onCancel, onConfirm, confirmLabel, busy, disabled }) {
+  return (
+    <div style={{ display: "flex", gap: "8px", marginTop: "18px" }}>
+      <button
+        className="focusable"
+        onClick={onConfirm}
+        disabled={busy || disabled}
+        style={{ flex: 1, background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: busy || disabled ? 0.6 : 1 }}
+      >
+        {busy ? "Enregistrement…" : confirmLabel}
+      </button>
+      <button className="focusable" onClick={onCancel} style={{ background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px 16px", fontSize: "13px" }}>
+        Annuler
+      </button>
+    </div>
+  );
+}
+
+function todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function QuickNoteModal({ prospect, session, settings, onClose, onDone }) {
+  const [actionType, setActionType] = useState("appel_abouti");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    if (!note.trim() || busy) return;
+    setBusy(true);
+    await supabase.from("activities").insert({ user_id: session.user.id, prospect_id: prospect.id, type: actionType, note: note.trim(), source: "manual" });
+    await supabase.from("prospects").update({ last_contact_at: new Date().toISOString() }).eq("id", prospect.id);
+    setBusy(false);
+    onDone?.();
+    onClose();
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <ModalTitle sub={`${prospect.name} · ${prospect.company}`}>Ajouter une note</ModalTitle>
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
+        {ACTION_TYPES.map(({ key, label, Icon }) => (
+          <button
+            key={key}
+            className="focusable"
+            onClick={() => setActionType(key)}
+            style={{ display: "flex", alignItems: "center", gap: "5px", background: actionType === key ? "var(--blue-dim)" : "var(--panel2)", color: actionType === key ? "var(--blue)" : "var(--text-dim)", border: actionType === key ? "0.5px solid #147ff555" : "0.5px solid var(--hairline)", borderRadius: "999px", padding: "6px 11px", fontSize: "12px" }}
+          >
+            <Icon size={12} /> {label}
+          </button>
+        ))}
+      </div>
+      <textarea
+        autoFocus
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Ce qui s'est dit, ce qu'il faut retenir…"
+        style={{ width: "100%", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", lineHeight: 1.5, padding: "10px 12px", minHeight: "110px", resize: "vertical", fontFamily: "Inter, sans-serif", boxSizing: "border-box" }}
+      />
+      <ModalActions onCancel={onClose} onConfirm={submit} confirmLabel="Enregistrer la note" busy={busy} disabled={!note.trim()} />
+    </Modal>
+  );
+}
+
+function QuickTaskModal({ prospect, session, settings, onClose, onDone }) {
+  const [type, setType] = useState("appel_telephone");
+  const [note, setNote] = useState("");
+  const [dueDate, setDueDate] = useState(todayISO());
+  const [dueTime, setDueTime] = useState(settings?.default_task_time || "17:00");
+  const [priority, setPriority] = useState("50");
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    if (!note.trim() || busy) return;
+    setBusy(true);
+    await supabase.from("tasks").insert({
+      user_id: session.user.id,
+      prospect_id: prospect.id,
+      type,
+      note: note.trim(),
+      due_at: dueDate ? new Date(`${dueDate}T${dueTime || "17:00"}`).toISOString() : null,
+      priority: Number(priority),
+    });
+    setBusy(false);
+    onDone?.();
+    onClose();
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <ModalTitle sub={`${prospect.name} · ${prospect.company}`}>Ajouter une tâche</ModalTitle>
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        <select value={type} onChange={(e) => setType(e.target.value)} style={{ ...inputStyle, width: "100%" }}>
+          {Object.entries(TASK_TYPE_META).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}
+        </select>
+        <input autoFocus placeholder="Que faut-il faire ?" value={note} onChange={(e) => setNote(e.target.value)} style={{ ...inputStyle, width: "100%" }} />
+        <div style={{ display: "flex", gap: "8px" }}>
+          <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+          <input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+        </div>
+        <select value={priority} onChange={(e) => setPriority(e.target.value)} style={{ ...inputStyle, width: "100%" }}>
+          {PRIORITY_LEVELS.map((l) => <option key={l.value} value={l.value}>Priorité : {l.label}</option>)}
+        </select>
+      </div>
+      <ModalActions onCancel={onClose} onConfirm={submit} confirmLabel="Créer la tâche" busy={busy} disabled={!note.trim()} />
+    </Modal>
+  );
+}
+
+function QuickContactedModal({ prospect, session, onClose, onDone }) {
+  const [date, setDate] = useState(todayISO());
+  const [type, setType] = useState("appel_abouti");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    if (busy) return;
+    setBusy(true);
+    const when = new Date(`${date}T12:00`).toISOString();
+    await supabase.from("prospects").update({ last_contact_at: when }).eq("id", prospect.id);
+    await supabase.from("activities").insert({
+      user_id: session.user.id,
+      prospect_id: prospect.id,
+      type,
+      note: note.trim() || null,
+      source: "manual",
+    });
+    setBusy(false);
+    onDone?.();
+    onClose();
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <ModalTitle sub="Met à jour la date du dernier échange et l'enregistre dans l'historique.">Marquer comme contacté</ModalTitle>
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        <select value={type} onChange={(e) => setType(e.target.value)} style={{ ...inputStyle, width: "100%" }}>
+          {ACTION_TYPES.map(({ key, label }) => <option key={key} value={key}>{label}</option>)}
+        </select>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...inputStyle, width: "100%" }} />
+        <input placeholder="Note (facultatif)" value={note} onChange={(e) => setNote(e.target.value)} style={{ ...inputStyle, width: "100%" }} />
+      </div>
+      <ModalActions onCancel={onClose} onConfirm={submit} confirmLabel="Enregistrer" busy={busy} />
+    </Modal>
+  );
+}
+
+function QuickCallModal({ prospect, session, onClose, onDone }) {
+  const [outcome, setOutcome] = useState("appel_abouti");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function logCall() {
+    if (busy) return;
+    setBusy(true);
+    await supabase.from("activities").insert({ user_id: session.user.id, prospect_id: prospect.id, type: outcome, note: note.trim() || null, source: "manual" });
+    if (outcome !== "appel_manque") {
+      await supabase.from("prospects").update({ last_contact_at: new Date().toISOString() }).eq("id", prospect.id);
+    }
+    setBusy(false);
+    onDone?.();
+    onClose();
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <ModalTitle sub={`${prospect.name} · ${prospect.company}`}>Appeler</ModalTitle>
+      <a
+        href={`tel:${prospect.phone}`}
+        className="focusable"
+        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "10px", padding: "14px", fontSize: "16px", fontWeight: 700, textDecoration: "none", marginBottom: "16px" }}
+      >
+        <PhoneIcon size={16} color="var(--blue)" /> {prospect.phone}
+      </a>
+      <div style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "10px" }}>Une fois l'appel terminé, enregistrez ce qu'il en ressort :</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        <select value={outcome} onChange={(e) => setOutcome(e.target.value)} style={{ ...inputStyle, width: "100%" }}>
+          <option value="appel_abouti">Appel abouti</option>
+          <option value="appel_manque">Appel manqué</option>
+          <option value="note">Autre — note libre</option>
+        </select>
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Ce qui s'est dit (facultatif)"
+          style={{ width: "100%", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", padding: "10px 12px", minHeight: "80px", resize: "vertical", fontFamily: "Inter, sans-serif", boxSizing: "border-box" }}
+        />
+      </div>
+      <ModalActions onCancel={onClose} onConfirm={logCall} confirmLabel="Enregistrer l'appel" busy={busy} />
+    </Modal>
+  );
+}
+
+function QuickEmailModal({ prospect, session, settings, onClose, onDone }) {
+  const [subject, setSubject] = useState(`${prospect.company || ""} — suivi`.trim());
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function send() {
+    if (!body.trim() || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const statusRes = await fetch("/api/calendar/status", { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const status = await statusRes.json();
+      const provider = status.google ? "google" : status.microsoft ? "microsoft" : null;
+      if (!provider) {
+        // Sans boîte connectée, on ne bloque pas : on bascule sur le client mail du poste.
+        window.location.href = `mailto:${prospect.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        onClose();
+        return;
+      }
+      const res = await fetch("/api/calendar/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "send_email", provider, to: prospect.email, subject, body: appendSignature(body, settings) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "L'envoi a échoué.");
+
+      await supabase.from("activities").insert({ user_id: session.user.id, prospect_id: prospect.id, type: "email_envoye", note: subject, source: "manual" });
+      await supabase.from("prospects").update({ last_contact_at: new Date().toISOString() }).eq("id", prospect.id);
+      onDone?.();
+      onClose();
+    } catch (e) {
+      setError(e.message || "L'envoi a échoué.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <ModalTitle sub={`À : ${prospect.email}`}>Envoyer un email</ModalTitle>
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        <input placeholder="Objet" value={subject} onChange={(e) => setSubject(e.target.value)} style={{ ...inputStyle, width: "100%" }} />
+        <textarea
+          autoFocus
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder="Votre message…"
+          style={{ width: "100%", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", lineHeight: 1.5, padding: "10px 12px", minHeight: "150px", resize: "vertical", fontFamily: "Inter, sans-serif", boxSizing: "border-box" }}
+        />
+      </div>
+      {error && <div style={{ fontSize: "12px", color: "var(--red)", marginTop: "8px" }}>{error}</div>}
+      <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginTop: "8px" }}>
+        Votre signature est ajoutée automatiquement. Pour un email rédigé par l'IA, utilisez l'onglet Email plus bas.
+      </div>
+      <ModalActions onCancel={onClose} onConfirm={send} confirmLabel="Envoyer" busy={busy} disabled={!body.trim()} />
+    </Modal>
   );
 }
 
@@ -2654,7 +2929,89 @@ function openDevisDocument({ prospect, settings, items, total, number }) {
   return true;
 }
 
-function DevisGenerator({ prospect, history, session, settings }) {
+function DevisPreview({ prospect, settings, items, total }) {
+  const vatExempt = !!settings?.vat_exempt;
+  const vatRate = vatExempt ? 0 : Number(settings?.vat_rate ?? 20);
+  const validityDays = Number(settings?.devis_validity_days ?? 30);
+  const today = new Date();
+  const validUntil = new Date(today.getTime() + validityDays * 86400000);
+  const fmt = (d) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  const todo = (v, label) => (v ? <>{v}</> : <span style={{ background: "#fff4d6", color: "#92600a", borderRadius: "4px", padding: "0 5px", fontWeight: 600 }}>{label} à compléter</span>);
+  const rows = items.filter((it) => (it.description || "").trim() || Number(it.unitPrice) > 0);
+
+  const party = (title, children) => (
+    <div style={{ border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "12px 14px" }}>
+      <div style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-faint)", marginBottom: "6px" }}>{title}</div>
+      {children}
+    </div>
+  );
+
+  return (
+    <div style={{ background: "#fff", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "28px", boxShadow: "var(--shadow-sm)", fontSize: "12px", color: "var(--text)" }}>
+      <div className="display" style={{ fontSize: "22px", fontWeight: 800, marginBottom: "3px" }}>Devis</div>
+      <div style={{ fontSize: "11.5px", color: "var(--text-dim)" }}>Émis le {fmt(today)} · valable jusqu'au {fmt(validUntil)}</div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", margin: "20px 0" }}>
+        {party("Émetteur", (
+          <>
+            <div style={{ fontWeight: 700, marginBottom: "2px" }}>{todo(settings?.company_name, "Raison sociale")}</div>
+            <div style={{ color: "var(--text-dim)" }}>{todo(settings?.billing_address, "Adresse")}</div>
+            <div style={{ color: "var(--text-dim)" }}>{todo([settings?.billing_postal_code, settings?.billing_city].filter(Boolean).join(" "), "Ville")}</div>
+            <div style={{ color: "var(--text-dim)" }}>SIRET : {todo(settings?.siret, "SIRET")}</div>
+          </>
+        ))}
+        {party("Client", (
+          <>
+            <div style={{ fontWeight: 700, marginBottom: "2px" }}>{todo(prospect.company, "Entreprise")}</div>
+            <div style={{ color: "var(--text-dim)" }}>{prospect.name}</div>
+            <div style={{ color: "var(--text-dim)" }}>{todo(prospect.billing_address, "Adresse")}</div>
+            <div style={{ color: "var(--text-dim)" }}>{todo([prospect.billing_postal_code, prospect.billing_city].filter(Boolean).join(" "), "Ville")}</div>
+          </>
+        ))}
+      </div>
+
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr style={{ borderBottom: "1.5px solid var(--text)" }}>
+            <th style={{ textAlign: "left", fontSize: "9px", letterSpacing: "0.05em", color: "var(--text-faint)", padding: "0 4px 6px" }}>DESCRIPTION</th>
+            <th style={{ textAlign: "right", fontSize: "9px", color: "var(--text-faint)", padding: "0 4px 6px" }}>QTÉ</th>
+            <th style={{ textAlign: "right", fontSize: "9px", color: "var(--text-faint)", padding: "0 4px 6px" }}>TOTAL</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr><td colSpan={3} style={{ padding: "12px 4px", color: "var(--text-faint)" }}>Aucune ligne renseignée</td></tr>
+          ) : rows.map((it, i) => (
+            <tr key={i} style={{ borderBottom: "0.5px solid var(--hairline)" }}>
+              <td style={{ padding: "8px 4px" }}>{it.description || "—"}</td>
+              <td style={{ padding: "8px 4px", textAlign: "right", color: "var(--text-dim)" }}>{Number(it.qty) || 0}</td>
+              <td className="mono" style={{ padding: "8px 4px", textAlign: "right", fontWeight: 600 }}>{formatEuros((Number(it.qty) || 0) * (Number(it.unitPrice) || 0))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div style={{ marginLeft: "auto", width: "220px", marginTop: "14px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", color: "var(--text-dim)" }}><span>Total HT</span><span className="mono">{formatEuros(total)}</span></div>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", color: "var(--text-dim)" }}>
+          <span>{vatExempt ? "TVA" : `TVA ${vatRate} %`}</span>
+          <span className="mono">{vatExempt ? "Non applicable" : formatEuros(total * (vatRate / 100))}</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0 0", borderTop: "1.5px solid var(--text)", fontWeight: 700, fontSize: "14px" }}>
+          <span>Total {vatExempt ? "" : "TTC"}</span><span className="mono">{formatEuros(total * (1 + vatRate / 100))}</span>
+        </div>
+      </div>
+
+      <div style={{ borderTop: "0.5px solid var(--hairline)", marginTop: "22px", paddingTop: "12px", fontSize: "11px", color: "var(--text-dim)" }}>
+        <div>Offre valable {validityDays} jours à compter de la date d'émission.</div>
+        {settings?.devis_payment_terms && <div>{settings.devis_payment_terms}</div>}
+        {vatExempt && <div>TVA non applicable, article 293 B du Code général des impôts.</div>}
+      </div>
+    </div>
+  );
+}
+
+function DevisGenerator({ prospect, history, session, settings, onClose }) {
   const [items, setItems] = useState([{ description: "", qty: 1, unitPrice: prospect.deal_value || 0 }]);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
@@ -2798,58 +3155,81 @@ Total général : ${formatEuros(total)}`;
     }
   }
 
+  const vatExempt = !!settings?.vat_exempt;
+  const vatRate = vatExempt ? 0 : Number(settings?.vat_rate ?? 20);
+  const legalReady = settings?.company_name && settings?.billing_address && settings?.billing_postal_code && settings?.siret;
+
   return (
-    <div>
-      <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginBottom: "8px" }}>LIGNES DU DEVIS</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "10px" }}>
-        {items.map((it, i) => (
-          <div key={i} style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-            <input placeholder="Description" value={it.description} onChange={(e) => updateItem(i, { description: e.target.value })} style={{ ...inputStyle, flex: 1 }} />
-            <input type="number" min="1" placeholder="Qté" value={it.qty} onChange={(e) => updateItem(i, { qty: e.target.value })} style={{ ...inputStyle, width: "60px" }} />
-            <input type="number" min="0" placeholder="Prix unitaire (€)" value={it.unitPrice} onChange={(e) => updateItem(i, { unitPrice: e.target.value })} style={{ ...inputStyle, width: "120px" }} />
-            <button className="focusable" onClick={() => removeItem(i)} disabled={items.length === 1} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "13px", padding: "0 4px", opacity: items.length === 1 ? 0.3 : 1 }}>✕</button>
+    <div style={{ position: "fixed", inset: 0, background: "var(--bg)", zIndex: 120, display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", padding: "16px 28px", borderBottom: "0.5px solid var(--hairline)", background: "var(--panel)", flexWrap: "wrap" }}>
+        <div>
+          <div className="display" style={{ fontWeight: 700, fontSize: "16px" }}>Nouveau devis</div>
+          <div style={{ fontSize: "12.5px", color: "var(--text-dim)", marginTop: "2px" }}>{prospect.company} · {prospect.name}</div>
+        </div>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <button className="focusable" onClick={openDocument} style={{ background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600 }}>
+            Aperçu
+          </button>
+          <button className="focusable" onClick={downloadPdf} disabled={busyDoc} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600, opacity: busyDoc ? 0.6 : 1 }}>
+            {busyDoc === "pdf" ? "Génération…" : "Télécharger le PDF"}
+          </button>
+          <button className="focusable" onClick={sendDevisByEmail} disabled={busyDoc || !prospect.email} title={prospect.email ? "" : "Ajoute une adresse email à ce contact"} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "9px 18px", fontSize: "13px", fontWeight: 600, opacity: busyDoc || !prospect.email ? 0.6 : 1 }}>
+            {busyDoc === "mail" ? "Envoi…" : devisSent ? "Envoyé ✓" : "Envoyer par email"}
+          </button>
+          <button className="focusable" onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "20px", lineHeight: 1, padding: "0 6px" }} title="Fermer">✕</button>
+        </div>
+      </div>
+
+      {docError && <div style={{ fontSize: "12.5px", color: "var(--red)", padding: "10px 28px", background: "var(--red-dim)" }}>{docError}</div>}
+      {!legalReady && (
+        <div style={{ fontSize: "12.5px", color: "#92600a", background: "var(--amber-dim)", padding: "10px 28px" }}>
+          Vos informations légales sont incomplètes — le devis sortira avec des mentions « à compléter ». Renseignez-les dans Paramètres → Mes informations légales.
+        </div>
+      )}
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px 60px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: "24px", maxWidth: "1200px", margin: "0 auto", alignItems: "start" }}>
+          <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "var(--radius-md)", padding: "20px" }}>
+            <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginBottom: "10px" }}>LIGNES DU DEVIS</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
+              {items.map((it, i) => (
+                <div key={i} style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                  <input placeholder="Description" value={it.description} onChange={(e) => updateItem(i, { description: e.target.value })} style={{ ...inputStyle, flex: 1, minWidth: 0 }} />
+                  <input type="number" min="1" placeholder="Qté" value={it.qty} onChange={(e) => updateItem(i, { qty: e.target.value })} style={{ ...inputStyle, width: "62px" }} />
+                  <input type="number" min="0" placeholder="Prix €" value={it.unitPrice} onChange={(e) => updateItem(i, { unitPrice: e.target.value })} style={{ ...inputStyle, width: "104px" }} />
+                  <button className="focusable" onClick={() => removeItem(i)} disabled={items.length === 1} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "13px", padding: "0 4px", opacity: items.length === 1 ? 0.3 : 1 }}>✕</button>
+                </div>
+              ))}
+            </div>
+            <button className="focusable" onClick={addItem} style={{ fontSize: "12px", padding: "7px 12px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
+              + Ajouter une ligne
+            </button>
+
+            <div style={{ borderTop: "0.5px solid var(--hairline)", marginTop: "18px", paddingTop: "14px", display: "flex", flexDirection: "column", gap: "7px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--text-dim)" }}>
+                <span>Total HT</span><span className="mono">{formatEuros(total)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--text-dim)" }}>
+                <span>{vatExempt ? "TVA" : `TVA ${vatRate} %`}</span>
+                <span className="mono">{vatExempt ? "Non applicable" : formatEuros(total * (vatRate / 100))}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "16px", fontWeight: 700, borderTop: "0.5px solid var(--hairline)", paddingTop: "8px" }}>
+                <span>Total {vatExempt ? "" : "TTC"}</span>
+                <span className="mono">{formatEuros(total * (1 + vatRate / 100))}</span>
+              </div>
+            </div>
+
+            <div style={{ borderTop: "0.5px solid var(--hairline)", marginTop: "18px", paddingTop: "16px" }}>
+              <GeneratorBlock label="Générer l'email d'accompagnement avec l'IA" loading={loading} error={error} content={content} setContent={setContent} onGenerate={generateWithAI} onSave={save} />
+            </div>
           </div>
-        ))}
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-        <button className="focusable" onClick={addItem} style={{ fontSize: "12px", padding: "6px 10px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
-          + Ajouter une ligne
-        </button>
-        <div style={{ fontSize: "13px", fontWeight: 700 }}>Total : {formatEuros(total)}</div>
-      </div>
 
-      <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
-        <button
-          className="focusable"
-          onClick={openDocument}
-          style={{ flex: 1, background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}
-        >
-          Aperçu
-        </button>
-        <button
-          className="focusable"
-          onClick={downloadPdf}
-          disabled={busyDoc}
-          style={{ flex: 1, background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: busyDoc ? 0.6 : 1 }}
-        >
-          {busyDoc === "pdf" ? "Génération…" : "Télécharger le PDF"}
-        </button>
-        <button
-          className="focusable"
-          onClick={sendDevisByEmail}
-          disabled={busyDoc || !prospect.email}
-          title={prospect.email ? "" : "Ajoute une adresse email à ce contact"}
-          style={{ flex: 1, background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: busyDoc || !prospect.email ? 0.6 : 1 }}
-        >
-          {busyDoc === "mail" ? "Envoi…" : devisSent ? "Envoyé ✓" : "Envoyer par email"}
-        </button>
+          <div>
+            <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginBottom: "10px" }}>APERÇU DU DOCUMENT</div>
+            <DevisPreview prospect={prospect} settings={settings} items={items} total={total} />
+          </div>
+        </div>
       </div>
-      {docError && <div style={{ fontSize: "12px", color: "var(--red)", marginBottom: "10px" }}>{docError}</div>}
-      <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginBottom: "16px" }}>
-        Le PDF reprend vos coordonnées et celles du client. Complétez vos informations légales dans Paramètres → Mes informations légales.
-      </div>
-
-      <GeneratorBlock label="Générer l'email d'accompagnement avec l'IA" loading={loading} error={error} content={content} setContent={setContent} onGenerate={generateWithAI} onSave={save} />
     </div>
   );
 }
