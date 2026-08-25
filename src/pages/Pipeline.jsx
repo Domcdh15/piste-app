@@ -2929,6 +2929,38 @@ function openDevisDocument({ prospect, settings, items, total, number }) {
   return true;
 }
 
+// Bloc repliable du formulaire de devis. Replié par défaut : on ouvre surtout le
+// devis pour saisir des lignes, les coordonnées ne bougent qu'occasionnellement.
+function DevisFieldset({ title, children, onSave, saved, saveLabel }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ border: "0.5px solid var(--hairline)", borderRadius: "10px", marginBottom: "10px", overflow: "hidden" }}>
+      <button
+        className="focusable"
+        onClick={() => setOpen((o) => !o)}
+        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--panel2)", border: "none", padding: "10px 12px", fontSize: "12px", fontWeight: 600, color: "var(--text-dim)" }}
+      >
+        {title}
+        <span style={{ fontSize: "10px", color: "var(--text-faint)" }}>{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div style={{ padding: "12px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>{children}</div>
+          {onSave && (
+            <button
+              className="focusable"
+              onClick={onSave}
+              style={{ marginTop: "10px", background: "none", border: "none", padding: 0, color: saved ? "#527a61" : "var(--blue)", fontSize: "11.5px", fontWeight: 600 }}
+            >
+              {saved ? "Enregistré ✓" : saveLabel}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DevisPreview({ prospect, settings, items, total }) {
   const vatExempt = !!settings?.vat_exempt;
   const vatRate = vatExempt ? 0 : Number(settings?.vat_rate ?? 20);
@@ -3020,6 +3052,57 @@ function DevisGenerator({ prospect, history, session, settings, onClose }) {
   const [busyDoc, setBusyDoc] = useState("");
   const [devisSent, setDevisSent] = useState(false);
 
+  // Tout le devis est modifiable au moment de le faire : les coordonnées peuvent
+  // avoir changé, l'adresse de facturation différer de celle de la fiche, la validité
+  // être négociée. Les champs partent des valeurs enregistrées, puis vivent leur vie.
+  const [seller, setSeller] = useState({
+    company_name: settings?.company_name || settings?.sig_company || "",
+    billing_address: settings?.billing_address || "",
+    billing_postal_code: settings?.billing_postal_code || "",
+    billing_city: settings?.billing_city || "",
+    siret: settings?.siret || "",
+    vat_number: settings?.vat_number || "",
+  });
+  const [client, setClient] = useState({
+    company: prospect.company || "",
+    name: prospect.name || "",
+    email: prospect.email || "",
+    billing_address: prospect.billing_address || "",
+    billing_postal_code: prospect.billing_postal_code || "",
+    billing_city: prospect.billing_city || "",
+  });
+  const [terms, setTerms] = useState({
+    vat_exempt: !!settings?.vat_exempt,
+    vat_rate: settings?.vat_rate ?? 20,
+    devis_validity_days: settings?.devis_validity_days ?? 30,
+    devis_payment_terms: settings?.devis_payment_terms || "",
+  });
+  const [savedSeller, setSavedSeller] = useState(false);
+  const [savedClient, setSavedClient] = useState(false);
+
+  // Ce que voient l'aperçu, le PDF et l'email : les réglages enregistrés recouverts
+  // par les modifications faites sur ce devis précis.
+  const effectiveSettings = { ...settings, ...seller, ...terms };
+  const effectiveProspect = { ...prospect, ...client };
+
+  async function saveSellerToSettings() {
+    await supabase.from("user_settings").update({ ...seller, ...terms }).eq("user_id", session.user.id);
+    setSavedSeller(true);
+    setTimeout(() => setSavedSeller(false), 2000);
+  }
+
+  async function saveClientToProspect() {
+    await supabase.from("prospects").update({
+      company: client.company,
+      email: client.email,
+      billing_address: client.billing_address,
+      billing_postal_code: client.billing_postal_code,
+      billing_city: client.billing_city,
+    }).eq("id", prospect.id);
+    setSavedClient(true);
+    setTimeout(() => setSavedClient(false), 2000);
+  }
+
   const total = items.reduce((sum, it) => sum + (Number(it.qty) || 0) * (Number(it.unitPrice) || 0), 0);
 
   function updateItem(i, patch) {
@@ -3070,7 +3153,7 @@ Total général : ${formatEuros(total)}`;
     const counter = fresh?.devis_counter ?? settings?.devis_counter ?? 0;
     const number = buildDevisNumber({ devis_counter: counter });
 
-    const opened = openDevisDocument({ prospect, settings, items, total, number });
+    const opened = openDevisDocument({ prospect: effectiveProspect, settings: effectiveSettings, items, total, number });
     if (!opened) {
       setDocError("Le navigateur a bloqué l'ouverture — autorise les fenêtres pop-up pour ce site, puis réessaie.");
       return;
@@ -3094,8 +3177,8 @@ Total général : ${formatEuros(total)}`;
     try {
       const number = await claimDevisNumber();
       const { buildDevisPdf, devisFileName } = await import("../lib/devisPdf.js");
-      const { doc } = await buildDevisPdf({ prospect, settings, items, total, number });
-      doc.save(devisFileName(prospect, number));
+      const { doc } = await buildDevisPdf({ prospect: effectiveProspect, settings: effectiveSettings, items, total, number });
+      doc.save(devisFileName(effectiveProspect, number));
     } catch (e) {
       setDocError("La génération du PDF a échoué. Réessaie.");
     } finally {
@@ -3104,7 +3187,7 @@ Total général : ${formatEuros(total)}`;
   }
 
   async function sendDevisByEmail() {
-    if (busyDoc || !prospect.email) return;
+    if (busyDoc || !effectiveProspect.email) return;
     setBusyDoc("mail");
     setDocError("");
     setDevisSent(false);
@@ -3119,7 +3202,7 @@ Total général : ${formatEuros(total)}`;
 
       const number = await claimDevisNumber();
       const { buildDevisPdf, devisFileName } = await import("../lib/devisPdf.js");
-      const { doc } = await buildDevisPdf({ prospect, settings, items, total, number });
+      const { doc } = await buildDevisPdf({ prospect: effectiveProspect, settings: effectiveSettings, items, total, number });
       const base64 = doc.output("datauristring").split(",")[1];
 
       const message = content.trim() || `Bonjour,\n\nVous trouverez ci-joint le devis ${number}.\n\nJe reste à votre disposition pour toute question.\n\nBonne journée,`;
@@ -3130,10 +3213,10 @@ Total général : ${formatEuros(total)}`;
         body: JSON.stringify({
           action: "send_email",
           provider,
-          to: prospect.email,
+          to: effectiveProspect.email,
           subject: `Devis ${number} — ${prospect.company || ""}`.trim(),
           body: appendSignature(message, settings),
-          attachment: { filename: devisFileName(prospect, number), contentType: "application/pdf", base64 },
+          attachment: { filename: devisFileName(effectiveProspect, number), contentType: "application/pdf", base64 },
         }),
       });
       const data = await res.json();
@@ -3143,7 +3226,7 @@ Total général : ${formatEuros(total)}`;
         user_id: session.user.id,
         prospect_id: prospect.id,
         type: "note",
-        note: `Devis ${number} envoyé à ${prospect.email}`,
+        note: `Devis ${number} envoyé à ${effectiveProspect.email}`,
         source: "manual",
       });
       history.reload();
@@ -3156,9 +3239,9 @@ Total général : ${formatEuros(total)}`;
     }
   }
 
-  const vatExempt = !!settings?.vat_exempt;
-  const vatRate = vatExempt ? 0 : Number(settings?.vat_rate ?? 20);
-  const legalReady = settings?.company_name && settings?.billing_address && settings?.billing_postal_code && settings?.siret;
+  const vatExempt = !!terms.vat_exempt;
+  const vatRate = vatExempt ? 0 : Number(terms.vat_rate ?? 20);
+  const legalReady = seller.company_name && seller.billing_address && seller.billing_postal_code && seller.siret;
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "var(--bg)", zIndex: 120, display: "flex", flexDirection: "column" }}>
@@ -3174,7 +3257,7 @@ Total général : ${formatEuros(total)}`;
           <button className="focusable" onClick={downloadPdf} disabled={busyDoc} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600, opacity: busyDoc ? 0.6 : 1 }}>
             {busyDoc === "pdf" ? "Génération…" : "Télécharger le PDF"}
           </button>
-          <button className="focusable" onClick={sendDevisByEmail} disabled={busyDoc || !prospect.email} title={prospect.email ? "" : "Ajoute une adresse email à ce contact"} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "9px 18px", fontSize: "13px", fontWeight: 600, opacity: busyDoc || !prospect.email ? 0.6 : 1 }}>
+          <button className="focusable" onClick={sendDevisByEmail} disabled={busyDoc || !effectiveProspect.email} title={effectiveProspect.email ? "" : "Renseigne une adresse email du client"} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "9px 18px", fontSize: "13px", fontWeight: 600, opacity: busyDoc || !prospect.email ? 0.6 : 1 }}>
             {busyDoc === "mail" ? "Envoi…" : devisSent ? "Envoyé ✓" : "Envoyer par email"}
           </button>
           <button className="focusable" onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "20px", lineHeight: 1, padding: "0 6px" }} title="Fermer">✕</button>
@@ -3191,6 +3274,52 @@ Total général : ${formatEuros(total)}`;
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px 60px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: "24px", maxWidth: "1200px", margin: "0 auto", alignItems: "start" }}>
           <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "var(--radius-md)", padding: "20px" }}>
+            <DevisFieldset
+              title="Vos coordonnées"
+              onSave={saveSellerToSettings}
+              saved={savedSeller}
+              saveLabel="Mémoriser pour mes prochains devis"
+            >
+              <input placeholder="Raison sociale" value={seller.company_name} onChange={(e) => setSeller({ ...seller, company_name: e.target.value })} style={{ ...inputStyle, gridColumn: "1 / -1" }} />
+              <input placeholder="Adresse" value={seller.billing_address} onChange={(e) => setSeller({ ...seller, billing_address: e.target.value })} style={{ ...inputStyle, gridColumn: "1 / -1" }} />
+              <input placeholder="Code postal" value={seller.billing_postal_code} onChange={(e) => setSeller({ ...seller, billing_postal_code: e.target.value })} style={inputStyle} />
+              <input placeholder="Ville" value={seller.billing_city} onChange={(e) => setSeller({ ...seller, billing_city: e.target.value })} style={inputStyle} />
+              <input placeholder="SIRET" value={seller.siret} onChange={(e) => setSeller({ ...seller, siret: e.target.value })} style={inputStyle} />
+              <input placeholder="N° TVA" value={seller.vat_number} onChange={(e) => setSeller({ ...seller, vat_number: e.target.value })} style={inputStyle} />
+            </DevisFieldset>
+
+            <DevisFieldset
+              title="Coordonnées du client"
+              onSave={saveClientToProspect}
+              saved={savedClient}
+              saveLabel="Enregistrer sur la fiche du prospect"
+            >
+              <input placeholder="Entreprise" value={client.company} onChange={(e) => setClient({ ...client, company: e.target.value })} style={inputStyle} />
+              <input placeholder="Contact" value={client.name} onChange={(e) => setClient({ ...client, name: e.target.value })} style={inputStyle} />
+              <input placeholder="Adresse de facturation" value={client.billing_address} onChange={(e) => setClient({ ...client, billing_address: e.target.value })} style={{ ...inputStyle, gridColumn: "1 / -1" }} />
+              <input placeholder="Code postal" value={client.billing_postal_code} onChange={(e) => setClient({ ...client, billing_postal_code: e.target.value })} style={inputStyle} />
+              <input placeholder="Ville" value={client.billing_city} onChange={(e) => setClient({ ...client, billing_city: e.target.value })} style={inputStyle} />
+              <input placeholder="Email" value={client.email} onChange={(e) => setClient({ ...client, email: e.target.value })} style={{ ...inputStyle, gridColumn: "1 / -1" }} />
+            </DevisFieldset>
+
+            <DevisFieldset title="Conditions">
+              <label style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", color: "var(--text-dim)" }}>
+                <input type="checkbox" checked={terms.vat_exempt} onChange={(e) => setTerms({ ...terms, vat_exempt: e.target.checked })} />
+                TVA non applicable (micro-entreprise)
+              </label>
+              {!terms.vat_exempt && (
+                <label style={{ fontSize: "11px", color: "var(--text-faint)" }}>
+                  Taux de TVA (%)
+                  <input type="number" min="0" max="100" step="0.1" value={terms.vat_rate} onChange={(e) => setTerms({ ...terms, vat_rate: e.target.value === "" ? 0 : Number(e.target.value) })} style={{ ...inputStyle, width: "100%", marginTop: "3px" }} />
+                </label>
+              )}
+              <label style={{ fontSize: "11px", color: "var(--text-faint)" }}>
+                Validité (jours)
+                <input type="number" min="1" value={terms.devis_validity_days} onChange={(e) => setTerms({ ...terms, devis_validity_days: e.target.value === "" ? 30 : Number(e.target.value) })} style={{ ...inputStyle, width: "100%", marginTop: "3px" }} />
+              </label>
+              <input placeholder="Conditions de paiement" value={terms.devis_payment_terms} onChange={(e) => setTerms({ ...terms, devis_payment_terms: e.target.value })} style={{ ...inputStyle, gridColumn: "1 / -1" }} />
+            </DevisFieldset>
+
             <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginBottom: "10px" }}>LIGNES DU DEVIS</div>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
               {items.map((it, i) => (
@@ -3227,7 +3356,7 @@ Total général : ${formatEuros(total)}`;
 
           <div>
             <div style={{ color: "var(--text-faint)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.03em", marginBottom: "10px" }}>APERÇU DU DOCUMENT</div>
-            <DevisPreview prospect={prospect} settings={settings} items={items} total={total} />
+            <DevisPreview prospect={effectiveProspect} settings={effectiveSettings} items={items} total={total} />
           </div>
         </div>
       </div>
