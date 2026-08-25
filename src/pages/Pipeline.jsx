@@ -2205,7 +2205,7 @@ function EmailThreadTab({ prospect, session }) {
   }
   if (state.loading) return <div style={{ fontSize: "12.5px", color: "var(--text-faint)" }}>Lecture des échanges…</div>;
   if (state.notConnected) {
-    return <div style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>Connecte ta boîte Gmail dans Paramètres → Intégrations pour retrouver ici vos échanges avec ce contact.</div>;
+    return <div style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>Connecte ta boîte Gmail ou Outlook dans Paramètres → Intégrations pour retrouver ici vos échanges avec ce contact.</div>;
   }
   if (state.error) return <div style={{ fontSize: "12.5px", color: "var(--red)" }}>{state.error}</div>;
   if (state.messages.length === 0) {
@@ -2215,7 +2215,7 @@ function EmailThreadTab({ prospect, session }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>
-        {state.messages.length} échange{state.messages.length > 1 ? "s" : ""} avec {prospect.email} · lus depuis Gmail, non stockés par Closia
+        {state.messages.length} échange{state.messages.length > 1 ? "s" : ""} avec {prospect.email} · lus depuis votre boîte mail, non stockés par Closia
       </div>
       {state.messages.map((m) => {
         const open = expanded === m.id;

@@ -10,7 +10,7 @@ const PROVIDERS = {
   microsoft: {
     authUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
     tokenUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-    scope: "offline_access Calendars.Read Mail.Send",
+    scope: "offline_access Calendars.Read Mail.Send Mail.Read",
     extraAuthParams: {},
     clientIdEnv: "MICROSOFT_CLIENT_ID",
     clientSecretEnv: "MICROSOFT_CLIENT_SECRET",
@@ -309,17 +309,26 @@ function extractBody(payload) {
   }
 
   if (payload.mimeType === "text/html" && payload.body?.data) {
-    return decodeBase64Url(payload.body.data)
-      .replace(/<style[\s\S]*?<\/style>/gi, "")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/p>/gi, "\n")
-      .replace(/<[^>]+>/g, "")
-      .replace(/&nbsp;/g, " ")
-      .replace(/&amp;/g, "&")
-      .replace(/\n{3,}/g, "\n\n");
+    return htmlToText(decodeBase64Url(payload.body.data));
   }
   if (payload.body?.data) return decodeBase64Url(payload.body.data);
   return "";
+}
+
+function htmlToText(html) {
+  return (html || "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, "\n\n");
 }
 
 function headerValue(headers, name) {
@@ -328,7 +337,52 @@ function headerValue(headers, name) {
 
 const MAX_BODY_CHARS = 1500;
 
-export async function fetchGmailThreadWith(accessToken, contactEmail, maxResults = 8) {
+// Point d'entrée unique — Gmail et Outlook renvoient le même format de message.
+export async function fetchEmailThreadWith(provider, accessToken, contactEmail, maxResults = 8) {
+  if (provider === "google") return fetchGmailThreadWith(accessToken, contactEmail, maxResults);
+  if (provider === "microsoft") return fetchOutlookThreadWith(accessToken, contactEmail, maxResults);
+  return [];
+}
+
+async function fetchOutlookThreadWith(accessToken, contactEmail, maxResults = 8) {
+  const safeEmail = contactEmail.replace(/["\\]/g, "");
+  const url = new URL("https://graph.microsoft.com/v1.0/me/messages");
+  // $search couvre expéditeur et destinataires en une requête ; il interdit $orderby,
+  // le tri est donc fait côté serveur Closia juste après.
+  url.searchParams.set("$search", `"participants:${safeEmail}"`);
+  url.searchParams.set("$select", "id,subject,from,toRecipients,receivedDateTime,bodyPreview,body");
+  url.searchParams.set("$top", String(maxResults));
+
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) {
+    const detail = await res.text();
+    const err = new Error("outlook_list_failed");
+    err.status = res.status;
+    err.detail = detail;
+    throw err;
+  }
+  const { value = [] } = await res.json();
+
+  return value
+    .map((m) => {
+      const raw = m.body?.contentType === "html" ? htmlToText(m.body?.content) : m.body?.content || m.bodyPreview || "";
+      const body = raw.trim();
+      const fromAddr = m.from?.emailAddress;
+      return {
+        id: m.id,
+        from: fromAddr ? `${fromAddr.name || ""} <${fromAddr.address || ""}>`.trim() : "",
+        to: (m.toRecipients || []).map((r) => r.emailAddress?.address).filter(Boolean).join(", "),
+        subject: m.subject || "",
+        date: m.receivedDateTime || "",
+        sentAt: m.receivedDateTime || null,
+        snippet: m.bodyPreview || "",
+        body: body.length > MAX_BODY_CHARS ? `${body.slice(0, MAX_BODY_CHARS)}…` : body,
+      };
+    })
+    .sort((a, b) => new Date(b.sentAt || 0) - new Date(a.sentAt || 0));
+}
+
+async function fetchGmailThreadWith(accessToken, contactEmail, maxResults = 8) {
   const safeEmail = contactEmail.replace(/["\\]/g, "");
   const listUrl = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages");
   listUrl.searchParams.set("q", `from:"${safeEmail}" OR to:"${safeEmail}"`);

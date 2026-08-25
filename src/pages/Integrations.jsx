@@ -8,15 +8,14 @@ function badgeColor(label) {
   return BADGE_COLORS[Math.abs(hash) % BADGE_COLORS.length];
 }
 
-const CATEGORIES = ["Toutes", "Agenda", "CRM", "Email", "Productivité"];
+const CATEGORIES = ["Toutes", "Agenda & Email", "CRM", "Productivité"];
 
 const CATALOG = [
-  { key: "google", label: "Google Calendar & Gmail", category: "Agenda", desc: "Synchronisez vos rendez-vous, envoyez vos relances depuis Gmail, et permettez à Closia de s'appuyer sur vos échanges réels pour les rédiger.", real: true, permissions: "Lecture de l'agenda (calendar.readonly), envoi d'email (gmail.send), synchronisation de signature (gmail.settings.basic) et lecture des échanges avec vos prospects (gmail.readonly)" },
-  { key: "microsoft", label: "Outlook Calendar", category: "Agenda", desc: "Synchronisez vos événements et envoyez vos relances directement depuis Outlook.", real: true, permissions: "Lecture de l'agenda (Calendars.Read) et envoi d'email (Mail.Send)" },
+  { key: "google", label: "Google Calendar & Gmail", category: "Agenda & Email", desc: "Synchronisez vos rendez-vous, envoyez vos relances depuis Gmail, et permettez à Closia de s'appuyer sur vos échanges réels pour les rédiger.", real: true, permissions: "Lecture de l'agenda (calendar.readonly), envoi d'email (gmail.send), synchronisation de signature (gmail.settings.basic) et lecture des échanges avec vos prospects (gmail.readonly)" },
+  { key: "microsoft", label: "Outlook Calendar & Mail", category: "Agenda & Email", desc: "Synchronisez vos événements, envoyez vos relances depuis Outlook, et permettez à Closia de s'appuyer sur vos échanges réels pour les rédiger.", real: true, permissions: "Lecture de l'agenda (Calendars.Read), envoi d'email (Mail.Send) et lecture des échanges avec vos prospects (Mail.Read)" },
   { key: "hubspot", label: "HubSpot", category: "CRM", desc: "Reprenez vos contacts, entreprises et opportunités HubSpot dans Closia — exportez-les en CSV depuis HubSpot, puis importez le fichier.", importable: true },
   { key: "salesforce", label: "Salesforce", category: "CRM", desc: "Reprenez vos comptes, contacts et opportunités Salesforce — exportez-les en CSV depuis Salesforce, puis importez le fichier.", importable: true },
   { key: "pipedrive", label: "Pipedrive", category: "CRM", desc: "Reprenez vos prospects et opportunités Pipedrive — exportez-les en CSV depuis Pipedrive, puis importez le fichier.", importable: true },
-  { key: "outlook_mail", label: "Outlook", category: "Email", desc: "Connectez votre boîte Outlook et centralisez vos échanges commerciaux." },
   { key: "aircall", label: "Aircall", category: "Productivité", desc: "Logger automatiquement vos appels." },
   { key: "notion", label: "Notion", category: "Productivité", desc: "Exporter comptes-rendus et notes vers Notion." },
   { key: "stripe", label: "Stripe", category: "Productivité", desc: "Suivre les paiements liés à vos deals gagnés." },

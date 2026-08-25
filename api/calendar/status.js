@@ -1,5 +1,5 @@
 import { supabaseAdmin, getUserFromToken, bearerToken } from "../_lib/supabase.js";
-import { ensureFreshToken, sendEmail, listRecentMessages, setGmailSignature, getGmailSignature, fetchGmailThreadWith } from "../_lib/providers.js";
+import { ensureFreshToken, sendEmail, listRecentMessages, setGmailSignature, getGmailSignature, fetchEmailThreadWith } from "../_lib/providers.js";
 
 function buildVacationReply(s) {
   const lines = [(s.vacation_message || "").trim() || "Je suis actuellement absent(e)."];
@@ -73,22 +73,27 @@ export default async function handler(req, res) {
     if (!email) return res.status(400).json({ error: "Email du contact manquant" });
 
     const admin = supabaseAdmin();
-    const { data: conn } = await admin.from("calendar_connections").select("*").eq("user_id", user.id).eq("provider", "google").maybeSingle();
-    if (!conn) return res.status(200).json({ messages: [], notConnected: true });
+    const { data: conns } = await admin.from("calendar_connections").select("*").eq("user_id", user.id);
+    if (!conns?.length) return res.status(200).json({ messages: [], notConnected: true });
 
-    try {
-      const accessToken = await ensureFreshToken(admin, conn);
-      const messages = await fetchGmailThreadWith(accessToken, email);
-      return res.status(200).json({ messages });
-    } catch (e) {
-      const insufficientScope = e.status === 403 || /insufficient|scope|permission/i.test(`${e.message} ${e.detail || ""}`);
-      return res.status(200).json({
-        messages: [],
-        error: insufficientScope
-          ? "Permission de lecture manquante — déconnecte puis reconnecte Google dans Intégrations pour autoriser la lecture des échanges."
-          : "La récupération des échanges a échoué.",
-      });
+    const messages = [];
+    let lastError = "";
+
+    for (const conn of conns) {
+      try {
+        const accessToken = await ensureFreshToken(admin, conn);
+        messages.push(...(await fetchEmailThreadWith(conn.provider, accessToken, email)));
+      } catch (e) {
+        const insufficientScope = e.status === 403 || /insufficient|scope|permission/i.test(`${e.message} ${e.detail || ""}`);
+        lastError = insufficientScope
+          ? `Permission de lecture manquante — déconnecte puis reconnecte ${conn.provider === "google" ? "Google" : "Outlook"} dans Intégrations pour autoriser la lecture des échanges.`
+          : "La récupération des échanges a échoué.";
+      }
     }
+
+    messages.sort((a, b) => new Date(b.sentAt || 0) - new Date(a.sentAt || 0));
+    // Une erreur sur un fournisseur ne masque pas les messages trouvés sur l'autre.
+    return res.status(200).json({ messages, error: messages.length ? "" : lastError });
   }
 
   if (req.method === "POST") {
