@@ -995,6 +995,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
   const [quickAction, setQuickAction] = useState(null);
   const [showDevis, setShowDevis] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [playbookStage, setPlaybookStage] = useState(null);
   const [tab, setTab] = useState(initialTab && initialTab !== "historique" ? initialTab : "email");
   const [dealValueInput, setDealValueInput] = useState(prospect.deal_value ?? 0);
   const [taskVersion, setTaskVersion] = useState(0);
@@ -1022,12 +1023,19 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
   const bumpTasks = () => setTaskVersion((v) => v + 1);
 
   async function handleStageChange(stage) {
+    if (stage === prospect.stage) return;
     const changes = { stage };
     if (CLOSED_STAGES.includes(stage) && !CLOSED_STAGES.includes(prospect.stage)) {
       changes.closed_at = new Date().toISOString();
       await onLogActivity(stage === "Gagné" ? "deal_gagne" : "deal_perdu");
+    } else {
+      // Chaque passage d'étape laisse une trace : l'historique doit raconter la
+      // progression du deal, pas seulement son issue.
+      await onLogActivity("note", `Étape passée de « ${prospect.stage} » à « ${stage} »`);
     }
-    onUpdate(changes);
+    await onUpdate(changes);
+    history.reload();
+    if (STAGE_PLAYBOOK[stage]) setPlaybookStage(stage);
   }
 
   const starred = (prospect.priority || 0) >= 75;
@@ -1219,6 +1227,17 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
           </div>
         </div>
       </div>
+      {playbookStage && (
+        <StagePlaybookModal
+          prospect={prospect}
+          stage={playbookStage}
+          session={session}
+          settings={settings}
+          onClose={() => setPlaybookStage(null)}
+          onDone={() => { bumpTasks(); history.reload(); }}
+        />
+      )}
+
       {showDevis && <DevisGenerator prospect={prospect} history={history} session={session} settings={settings} onClose={() => setShowDevis(false)} />}
 
       {quickAction === "email" && <QuickEmailModal prospect={prospect} session={session} settings={settings} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
@@ -1925,6 +1944,96 @@ function ProspectNotesCard({ prospect, onUpdate }) {
         <div style={{ fontSize: "12.5px", color: "var(--text-faint)" }}>Aucune note pour l'instant.</div>
       )}
     </Card>
+  );
+}
+
+// Ce que chaque étape appelle logiquement ensuite. Proposé, jamais imposé :
+// le commercial garde la main sur le contenu, la date, ou peut simplement ignorer.
+const STAGE_PLAYBOOK = {
+  "Contact établi": {
+    type: "appel_telephone",
+    note: (p) => `Qualifier le besoin de ${p.company}`,
+    days: 2,
+    why: "Le contact est pris — l'étape suivante est de comprendre le besoin avant de proposer quoi que ce soit.",
+  },
+  "Rendez-vous prévu": {
+    type: "rdv_physique",
+    note: (p) => `Préparer le rendez-vous avec ${p.name}`,
+    days: 1,
+    why: "Un rendez-vous préparé (enjeux, objections, historique) convertit nettement mieux qu'un rendez-vous improvisé.",
+  },
+  "Proposition envoyée": {
+    type: "relance_email",
+    note: (p) => `Relancer ${p.company} sur la proposition`,
+    days: 5,
+    why: "Une proposition sans relance sous une semaine perd l'essentiel de ses chances d'aboutir.",
+  },
+  "Négociation": {
+    type: "appel_telephone",
+    note: (p) => `Appeler ${p.name} pour lever les derniers points`,
+    days: 3,
+    why: "En négociation, un appel lève les objections bien plus vite qu'un échange d'emails.",
+  },
+  "Gagné": {
+    type: "appel_telephone",
+    note: (p) => `Lancer le démarrage avec ${p.company}`,
+    days: 2,
+    why: "L'affaire est signée : la mise en route rapide conditionne la satisfaction et le renouvellement.",
+  },
+  "Perdu": {
+    type: "relance_email",
+    note: (p) => `Reprendre contact avec ${p.company}`,
+    days: 180,
+    why: "Un deal perdu n'est pas définitif — une reprise de contact à froid dans six mois rouvre souvent la porte.",
+  },
+};
+
+function StagePlaybookModal({ prospect, stage, session, settings, onClose, onDone }) {
+  const play = STAGE_PLAYBOOK[stage];
+  const defaultDate = new Date(Date.now() + (play?.days ?? 3) * 86400000);
+  const [type, setType] = useState(play?.type || "appel_telephone");
+  const [note, setNote] = useState(play ? play.note(prospect) : "");
+  const [date, setDate] = useState(defaultDate.toISOString().slice(0, 10));
+  const [busy, setBusy] = useState(false);
+
+  if (!play) return null;
+
+  async function create() {
+    if (!note.trim() || busy) return;
+    setBusy(true);
+    await supabase.from("tasks").insert({
+      user_id: session.user.id,
+      prospect_id: prospect.id,
+      team_id: prospect.team_id || null,
+      type,
+      note: note.trim(),
+      due_at: new Date(`${date}T${settings?.default_task_time || "09:00"}`).toISOString(),
+      priority: 75,
+    });
+    setBusy(false);
+    onDone?.();
+    onClose();
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <ModalTitle sub={`${prospect.company} est passé en « ${stage} »`}>Prochaine étape suggérée</ModalTitle>
+      <div style={{ display: "flex", gap: "9px", background: "var(--blue-dim)", borderRadius: "9px", padding: "11px 13px", marginBottom: "16px" }}>
+        <SparklesIcon size={13} color="var(--blue)" style={{ flexShrink: 0, marginTop: "2px" }} />
+        <div style={{ fontSize: "12.5px", color: "var(--blue-deep)", lineHeight: 1.5 }}>{play.why}</div>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        <select value={type} onChange={(e) => setType(e.target.value)} style={{ ...inputStyle, width: "100%" }}>
+          {Object.entries(TASK_TYPE_META).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}
+        </select>
+        <input value={note} onChange={(e) => setNote(e.target.value)} style={{ ...inputStyle, width: "100%" }} />
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...inputStyle, width: "100%" }} />
+      </div>
+      <ModalActions onCancel={onClose} onConfirm={create} confirmLabel="Créer la tâche" busy={busy} disabled={!note.trim()} />
+      <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px", textAlign: "center" }}>
+        Ignorer ne change rien : l'étape est déjà enregistrée.
+      </div>
+    </Modal>
   );
 }
 
