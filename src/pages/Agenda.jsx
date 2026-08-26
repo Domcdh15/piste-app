@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { callAI, parseJsonLoose, formatEuros, formatShortDate, Avatar, SparklesIcon, PhoneIcon, MailIcon, VideoIcon, PinIcon, CalendarIcon, CheckIcon, AlertIcon } from "../lib/ui.jsx";
+import { callAI, parseJsonLoose, formatEuros, formatShortDate, getFirstName, Avatar, SparklesIcon, PhoneIcon, MailIcon, VideoIcon, PinIcon, CalendarIcon, CheckIcon, AlertIcon } from "../lib/ui.jsx";
 
 const VIEWS = ["Liste", "Jour", "Semaine"];
 
@@ -103,6 +103,7 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
   const [showAddForm, setShowAddForm] = useState(false);
   const [showOrganize, setShowOrganize] = useState(false);
   const [panelTask, setPanelTask] = useState(null);
+  const [statusFilter, setStatusFilter] = useState("Tous");
 
   function toggleType(key) {
     setVisibleTypes((prev) => {
@@ -177,6 +178,25 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
   const startToday = startOfDay(now);
   const overdueTasks = tasks.filter((t) => t.due_at && new Date(t.due_at) < startToday);
   const todayTasks = tasks.filter((t) => t.due_at && new Date(t.due_at) >= startToday && new Date(t.due_at) <= endOfDay(now));
+  const upcomingTasks = tasks
+    .filter((t) => t.due_at && new Date(t.due_at) > endOfDay(now))
+    .sort((a, b) => new Date(a.due_at) - new Date(b.due_at));
+
+  // Valeur réellement en jeu : somme des deals distincts touchés par ce qui est
+  // en retard ou prévu aujourd'hui. Un même prospect n'est compté qu'une fois.
+  const focusValue = [...new Set([...overdueTasks, ...todayTasks].map((t) => t.prospect_id).filter(Boolean))]
+    .reduce((sum, id) => sum + (prospectById[id]?.deal_value || 0), 0);
+
+  // Les filtres de type et de statut se cumulent.
+  function passesStatus(task, bucket) {
+    if (statusFilter === "Tous") return true;
+    if (statusFilter === "En retard") return bucket === "overdue";
+    if (statusFilter === "Aujourd'hui") return bucket === "today";
+    if (statusFilter === "À venir") return bucket === "upcoming";
+    if (statusFilter === "Priorité haute") return (task.priority || 0) >= 75;
+    return true;
+  }
+  const applyFilters = (list, bucket) => list.filter((t) => visibleTypes.has(t.type) && passesStatus(t, bucket));
 
   async function reportTask(task, newDue) {
     await supabase.from("tasks").update({ due_at: newDue.toISOString() }).eq("id", task.id);
@@ -190,8 +210,19 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
         <div className="hero-card" style={{ padding: "26px 32px" }}>
           <div style={{ position: "relative", zIndex: 1, display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "12px", flexWrap: "wrap" }}>
             <div>
-              <div className="h2" style={{ color: "#fff" }}>Agenda</div>
-              <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "13px", marginTop: "4px" }}>{rangeLabel(view, refDate)}</div>
+              <div className="h2" style={{ color: "#fff" }}>Bonjour{getFirstName(session.user) ? ` ${getFirstName(session.user)}` : ""} 👋</div>
+              <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "13px", marginTop: "4px" }}>
+                {overdueTasks.length + todayTasks.length > 0 ? "Voici ce qui mérite votre attention aujourd'hui." : "Rien d'urgent aujourd'hui — le pipeline est à jour."}
+              </div>
+              <div style={{ display: "flex", gap: "20px", flexWrap: "wrap", marginTop: "14px" }}>
+                {overdueTasks.length > 0 && (
+                  <span style={{ fontSize: "13px", color: "#ffd9d4", fontWeight: 600 }}>{overdueTasks.length} en retard</span>
+                )}
+                <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.92)", fontWeight: 600 }}>{todayTasks.length} aujourd'hui</span>
+                {focusValue > 0 && (
+                  <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.92)", fontWeight: 600 }}>{formatEuros(focusValue)} d'opportunités concernées</span>
+                )}
+              </div>
             </div>
             <button
               className="focusable"
@@ -236,8 +267,29 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
         <AddActionForm prospects={prospects} session={session} onCreated={() => { loadTasks(); setShowAddForm(false); }} onCancel={() => setShowAddForm(false)} />
       )}
 
+      {view === "Liste" && (
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginBottom: "10px" }}>
+          <span style={{ fontSize: "11px", color: "var(--text-faint)", marginRight: "2px" }}>Afficher :</span>
+          {["Tous", "En retard", "Aujourd'hui", "À venir", "Priorité haute"].map((f) => (
+            <button
+              key={f}
+              className="focusable"
+              onClick={() => setStatusFilter(f)}
+              style={{
+                padding: "4px 11px", borderRadius: "999px", fontSize: "11px", fontWeight: 600,
+                background: statusFilter === f ? "var(--blue-dim)" : "var(--panel2)",
+                color: statusFilter === f ? "var(--blue)" : "var(--text-faint)",
+                border: `0.5px solid ${statusFilter === f ? "#147ff555" : "var(--hairline)"}`,
+              }}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginBottom: "18px" }}>
-        <span style={{ fontSize: "11px", color: "var(--text-faint)", marginRight: "2px" }}>Types affichés :</span>
+        <span style={{ fontSize: "11px", color: "var(--text-faint)", marginRight: "2px" }}>Types :</span>
         {TASK_TYPE_KEYS.map((key) => {
           const meta = TASK_TYPE_META[key];
           const on = visibleTypes.has(key);
@@ -267,15 +319,18 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
             <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Chargement...</div>
           ) : view === "Liste" ? (
             <ListView
-              overdueTasks={overdueTasks.filter((t) => visibleTypes.has(t.type))}
-              todayTasks={todayTasks.filter((t) => visibleTypes.has(t.type))}
-              events={events.filter((e) => e.start && e.start.length > 10)}
+              overdueTasks={applyFilters(overdueTasks, "overdue")}
+              todayTasks={applyFilters(todayTasks, "today")}
+              upcomingTasks={applyFilters(upcomingTasks, "upcoming")}
+              events={statusFilter === "Tous" || statusFilter === "Aujourd'hui" ? events.filter((e) => e.start && e.start.length > 10) : []}
               prospectById={prospectById}
               matchProspect={matchProspect}
               onToggleTask={toggleTaskDone}
               onOpenProspect={onOpenProspect}
               onOpenPanel={setPanelTask}
               onSelectEvent={setSelectedEventId}
+              onReport={(task, date) => reportTask(task, date)}
+              onAdd={() => setShowAddForm(true)}
             />
           ) : (
             <TimeGrid events={events} tasks={visibleTasks} view={view} refDate={refDate} onSelect={setSelectedEventId} selectedId={selectedEventId} matchProspect={matchProspect} prospectById={prospectById} onToggleTask={toggleTaskDone} onOpenProspect={onOpenProspect} />
@@ -661,45 +716,121 @@ function daysSince(iso) {
 
 const ACTION_VERB = { appel_telephone: "Appeler", appel_visio: "Appel visio avec", rdv_physique: "RDV avec", relance_email: "Relancer" };
 
-function TaskActionCard({ task, prospect, overdue, onToggleTask, onOpenPanel, onOpenProspect }) {
+// Report proposé directement sur la carte : reporter est le geste le plus fréquent
+// quand on traite sa liste du matin, il ne doit pas demander d'ouvrir un panneau.
+const QUICK_REPORT = [
+  { label: "Plus tard aujourd'hui", compute: () => { const d = new Date(); d.setHours(Math.min(21, d.getHours() + 3), 0, 0, 0); return d; } },
+  { label: "Demain", compute: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); return d; } },
+  { label: "Dans 3 jours", compute: () => { const d = new Date(); d.setDate(d.getDate() + 3); d.setHours(9, 0, 0, 0); return d; } },
+];
+
+const PRIMARY_ACTION = {
+  appel_telephone: { label: "Appeler", ai: "Préparer l'appel", aiTab: "script" },
+  appel_visio: { label: "Voir le RDV", ai: "Préparer la visio", aiTab: "script" },
+  rdv_physique: { label: "Voir le RDV", ai: "Préparer le RDV", aiTab: "script" },
+  relance_email: { label: "Envoyer", ai: "Générer l'email", aiTab: "email" },
+};
+
+function TaskActionCard({ task, prospect, bucket, onToggleTask, onOpenPanel, onOpenProspect, onReport }) {
+  const [reporting, setReporting] = useState(false);
+  const [customDate, setCustomDate] = useState("");
   const meta = TASK_TYPE_META[task.type] || TASK_TYPE_META.appel_telephone;
+  const action = PRIMARY_ACTION[task.type] || { label: "Faire maintenant", ai: "Préparer avec l'IA", aiTab: "script" };
+  const overdue = bucket === "overdue";
   const days = prospect?.last_contact_at ? daysSince(prospect.last_contact_at) : null;
 
+  // L'accent rouge est réservé au retard ; le reste garde un traitement neutre.
+  const accent = overdue ? "var(--red)" : bucket === "today" ? meta.color : "var(--hairline-strong)";
+
+  function doPrimary() {
+    if (!prospect) return onOpenPanel(task);
+    if (task.type === "appel_telephone" && prospect.phone) {
+      window.location.href = `tel:${prospect.phone}`;
+      return;
+    }
+    if (task.type === "relance_email") return onOpenProspect?.(prospect.id, "email");
+    onOpenProspect?.(prospect.id);
+  }
+
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", background: "var(--panel)", border: `0.5px solid ${overdue ? "var(--red)55" : "var(--hairline)"}`, borderLeft: `3px solid ${overdue ? "var(--red)" : meta.color}`, borderRadius: "10px", padding: "14px" }}>
-      <button className="focusable" onClick={() => onToggleTask(task)} style={{ background: "none", border: "none", padding: 0, marginTop: "2px" }} title="Terminer">
-        <span style={{ width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid var(--hairline-strong, var(--hairline))" }}>
-          <CheckIcon size={11} color="var(--text-faint)" />
-        </span>
-      </button>
-
-      <button className="focusable" onClick={() => onOpenPanel(task)} style={{ flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "2px" }}>
-          <meta.Icon size={12} color={meta.color} />
-          <span className="mono" style={{ fontSize: "11px", color: overdue ? "var(--red)" : "var(--text-faint)", fontWeight: 700 }}>
-            {overdue ? `En retard · ${formatShortDate(task.due_at)}` : formatTime(task.due_at)}
+    <div style={{ background: "var(--panel)", border: `0.5px solid ${overdue ? "var(--red)33" : "var(--hairline)"}`, borderLeft: `3px solid ${accent}`, borderRadius: "10px", padding: "14px 16px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+        <button className="focusable" onClick={() => onToggleTask(task)} style={{ background: "none", border: "none", padding: 0, marginTop: "2px", flexShrink: 0 }} title="Marquer fait">
+          <span style={{ width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid var(--hairline-strong)" }}>
+            <CheckIcon size={11} color="var(--text-faint)" />
           </span>
-        </div>
-        <div style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--text)" }}>{task.note}</div>
-        {prospect && (
-          <div style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "2px" }}>
-            {prospect.name} · {prospect.company}{prospect.deal_value > 0 ? ` · ${formatEuros(prospect.deal_value)}` : ""}
-          </div>
-        )}
-        {days !== null && days >= 3 && (
-          <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginTop: "2px" }}>Dernier échange il y a {days} jour{days > 1 ? "s" : ""}.</div>
-        )}
-      </button>
+        </button>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "4px", flexShrink: 0 }}>
-        {task.type === "appel_telephone" || task.type === "appel_visio" ? (
-          prospect?.phone && <a href={`tel:${prospect.phone}`} className="focusable" style={{ fontSize: "11.5px", fontWeight: 600, background: meta.dim, color: meta.color, border: "none", borderRadius: "6px", padding: "6px 10px", textDecoration: "none", textAlign: "center" }}>Appeler</a>
-        ) : task.type === "relance_email" ? (
-          <button className="focusable" onClick={() => prospect && onOpenProspect?.(prospect.id, "email")} style={{ fontSize: "11.5px", fontWeight: 600, background: meta.dim, color: meta.color, border: "none", borderRadius: "6px", padding: "6px 10px" }}>Générer avec l'IA</button>
-        ) : (
-          <button className="focusable" onClick={() => prospect && onOpenProspect?.(prospect.id, "script")} style={{ fontSize: "11.5px", fontWeight: 600, background: meta.dim, color: meta.color, border: "none", borderRadius: "6px", padding: "6px 10px" }}>Préparer avec l'IA</button>
+        <button className="focusable" onClick={() => onOpenPanel(task)} style={{ flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, textAlign: "left" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
+            <meta.Icon size={12} color={meta.color} />
+            <span className="mono" style={{ fontSize: "11px", color: "var(--text-faint)", fontWeight: 700 }}>
+              {bucket === "upcoming" ? formatShortDate(task.due_at) : formatTime(task.due_at)}
+            </span>
+            {overdue && (
+              <span style={{ fontSize: "9.5px", fontWeight: 700, letterSpacing: "0.04em", color: "var(--red)", background: "var(--red-dim)", borderRadius: "4px", padding: "2px 7px" }}>
+                EN RETARD · {formatShortDate(task.due_at)}
+              </span>
+            )}
+            {(task.priority || 0) >= 75 && !overdue && (
+              <span style={{ fontSize: "9.5px", fontWeight: 700, letterSpacing: "0.04em", color: "var(--blue)", background: "var(--blue-dim)", borderRadius: "4px", padding: "2px 7px" }}>PRIORITAIRE</span>
+            )}
+          </div>
+
+          <div style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--text)" }}>{task.note}</div>
+
+          {prospect && (
+            <div style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "3px" }}>
+              {prospect.name} · {prospect.company}
+            </div>
+          )}
+          {prospect && (prospect.deal_value > 0 || prospect.stage) && (
+            <div style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "1px" }}>
+              {[prospect.deal_value > 0 ? formatEuros(prospect.deal_value) : null, prospect.stage].filter(Boolean).join(" · ")}
+            </div>
+          )}
+          {days !== null && days >= 3 && (
+            <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginTop: "3px" }}>Dernier contact : il y a {days} jours</div>
+          )}
+        </button>
+      </div>
+
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "12px", paddingLeft: "32px" }}>
+        <button className="focusable" onClick={doPrimary} style={{ fontSize: "11.5px", fontWeight: 600, background: meta.dim, color: meta.color, border: "none", borderRadius: "7px", padding: "7px 13px" }}>
+          {action.label}
+        </button>
+        <button className="focusable" onClick={() => setReporting((r) => !r)} style={{ fontSize: "11.5px", fontWeight: 600, background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "7px", padding: "7px 13px" }}>
+          Reporter
+        </button>
+        {prospect && (
+          <button className="focusable" onClick={() => onOpenProspect?.(prospect.id, action.aiTab)} style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "11.5px", fontWeight: 600, background: "none", color: "var(--violet)", border: "none", borderRadius: "7px", padding: "7px 6px" }}>
+            <SparklesIcon size={11} color="var(--violet)" /> {action.ai}
+          </button>
         )}
       </div>
+
+      {reporting && (
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", marginTop: "10px", marginLeft: "32px", padding: "10px 12px", background: "var(--panel2)", borderRadius: "8px" }}>
+          {QUICK_REPORT.map((opt) => (
+            <button key={opt.label} className="focusable" onClick={() => { onReport(task, opt.compute()); setReporting(false); }} style={{ fontSize: "11.5px", fontWeight: 600, background: "var(--panel)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "6px", padding: "6px 10px" }}>
+              {opt.label}
+            </button>
+          ))}
+          <input
+            type="date"
+            value={customDate}
+            onChange={(e) => {
+              setCustomDate(e.target.value);
+              if (e.target.value) {
+                const d = new Date(`${e.target.value}T09:00`);
+                onReport(task, d);
+                setReporting(false);
+              }
+            }}
+            style={{ fontSize: "11.5px", padding: "5px 8px", borderRadius: "6px", border: "0.5px solid var(--hairline)", background: "var(--panel)", color: "var(--text)" }}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -719,49 +850,96 @@ function EventActionCard({ event, prospect, onSelectEvent }) {
   );
 }
 
-function ListView({ overdueTasks, todayTasks, events, prospectById, matchProspect, onToggleTask, onOpenProspect, onOpenPanel, onSelectEvent }) {
+function SectionHeader({ dot, label, count, hint }) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginBottom: "10px", flexWrap: "wrap" }}>
+      <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: dot, alignSelf: "center" }} />
+      <span className="display" style={{ fontWeight: 700, fontSize: "12px", letterSpacing: "0.03em" }}>{label}</span>
+      <span className="mono" style={{ fontSize: "11px", color: "var(--text-faint)" }}>{count}</span>
+      {hint && <span style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>{hint}</span>}
+    </div>
+  );
+}
+
+const UPCOMING_INITIAL = 5;
+
+function ListView({ overdueTasks, todayTasks, upcomingTasks, events, prospectById, matchProspect, onToggleTask, onOpenProspect, onOpenPanel, onSelectEvent, onReport, onAdd }) {
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
+
   const todayItems = [
     ...todayTasks.map((t) => ({ kind: "task", time: new Date(t.due_at), data: t })),
     ...events.map((e) => ({ kind: "event", time: new Date(e.start), data: e })),
   ].sort((a, b) => a.time - b.time);
 
-  if (overdueTasks.length === 0 && todayItems.length === 0) {
+  const visibleUpcoming = showAllUpcoming ? upcomingTasks : upcomingTasks.slice(0, UPCOMING_INITIAL);
+  const nothingAtAll = overdueTasks.length === 0 && todayItems.length === 0 && upcomingTasks.length === 0;
+
+  if (nothingAtAll) {
     return (
-      <div style={{ textAlign: "center", padding: "48px 0", color: "var(--text-faint)" }}>
-        <div style={{ fontSize: "28px", marginBottom: "8px" }}>🎉</div>
-        <div style={{ fontSize: "13px" }}>Rien de prévu aujourd'hui.</div>
+      <div style={{ textAlign: "center", padding: "56px 20px", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px" }}>
+        <SparklesIcon size={20} color="var(--blue)" />
+        <div className="display" style={{ fontWeight: 700, fontSize: "15px", marginTop: "10px" }}>Rien à traiter aujourd'hui</div>
+        <div style={{ fontSize: "13px", color: "var(--text-dim)", marginTop: "5px", marginBottom: "16px" }}>Toutes vos actions sont à jour.</div>
+        <button className="focusable" onClick={onAdd} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "9px 18px", fontSize: "13px", fontWeight: 600 }}>
+          + Ajouter une action
+        </button>
       </div>
     );
   }
 
+  const cardProps = { onToggleTask, onOpenPanel, onOpenProspect, onReport };
+
   return (
-    <div style={{ maxWidth: "720px" }}>
+    <div style={{ maxWidth: "760px" }}>
       {overdueTasks.length > 0 && (
-        <div style={{ marginBottom: "22px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
-            <AlertIcon size={12} color="var(--red)" />
-            <span className="display" style={{ fontWeight: 700, fontSize: "12px", color: "var(--red)", letterSpacing: "0.02em" }}>EN RETARD ({overdueTasks.length})</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        <div style={{ marginBottom: "26px" }}>
+          <SectionHeader dot="var(--red)" label="À TRAITER" count={overdueTasks.length} hint="en retard ou oublié" />
+          <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
             {overdueTasks.map((t) => (
-              <TaskActionCard key={t.id} task={t} prospect={prospectById[t.prospect_id]} overdue onToggleTask={onToggleTask} onOpenPanel={onOpenPanel} onOpenProspect={onOpenProspect} />
+              <TaskActionCard key={t.id} task={t} prospect={prospectById[t.prospect_id]} bucket="overdue" {...cardProps} />
             ))}
           </div>
         </div>
       )}
 
+      <div style={{ marginBottom: "26px" }}>
+        <SectionHeader dot="var(--blue)" label="AUJOURD'HUI" count={todayItems.length} />
+        {todayItems.length === 0 ? (
+          <div style={{ fontSize: "12.5px", color: "var(--text-faint)", padding: "10px 0" }}>Rien de prévu aujourd'hui.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
+            {todayItems.map((item) =>
+              item.kind === "task" ? (
+                <TaskActionCard key={`t-${item.data.id}`} task={item.data} prospect={prospectById[item.data.prospect_id]} bucket="today" {...cardProps} />
+              ) : (
+                <EventActionCard key={`e-${item.data.id}`} event={item.data} prospect={matchProspect(item.data)} onSelectEvent={onSelectEvent} />
+              )
+            )}
+          </div>
+        )}
+      </div>
+
       <div>
-        <div className="display" style={{ fontWeight: 700, fontSize: "12px", color: "var(--text-dim)", letterSpacing: "0.02em", marginBottom: "10px" }}>AUJOURD'HUI ({todayItems.length})</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {todayItems.map((item) =>
-            item.kind === "task" ? (
-              <TaskActionCard key={`t-${item.data.id}`} task={item.data} prospect={prospectById[item.data.prospect_id]} onToggleTask={onToggleTask} onOpenPanel={onOpenPanel} onOpenProspect={onOpenProspect} />
-            ) : (
-              <EventActionCard key={`e-${item.data.id}`} event={item.data} prospect={matchProspect(item.data)} onSelectEvent={onSelectEvent} />
-            )
-          )}
-          {todayItems.length === 0 && <div style={{ fontSize: "12.5px", color: "var(--text-faint)" }}>Rien d'autre prévu aujourd'hui.</div>}
-        </div>
+        <SectionHeader dot="var(--success)" label="À VENIR" count={upcomingTasks.length} />
+        {upcomingTasks.length === 0 ? (
+          <div style={{ fontSize: "12.5px", color: "var(--text-faint)", padding: "10px 0" }}>
+            Aucune action planifiée.{" "}
+            <button className="focusable" onClick={onAdd} style={{ background: "none", border: "none", padding: 0, color: "var(--blue)", fontSize: "12.5px", fontWeight: 600 }}>+ Ajouter une action</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
+              {visibleUpcoming.map((t) => (
+                <TaskActionCard key={t.id} task={t} prospect={prospectById[t.prospect_id]} bucket="upcoming" {...cardProps} />
+              ))}
+            </div>
+            {upcomingTasks.length > UPCOMING_INITIAL && (
+              <button className="focusable" onClick={() => setShowAllUpcoming((v) => !v)} style={{ background: "none", border: "none", padding: "12px 0 0", color: "var(--blue)", fontSize: "12.5px", fontWeight: 600 }}>
+                {showAllUpcoming ? "Réduire" : `Voir toutes les actions (${upcomingTasks.length})`}
+              </button>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
