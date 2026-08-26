@@ -873,6 +873,12 @@ function OpportunityCard({ prospect: p, nextTask, onOpen, onDragStart, onDragEnd
   );
 }
 
+// Un seul gabarit pour l'en-tête et les lignes : deux définitions séparées
+// finiraient tôt ou tard désalignées.
+function listGrid(showOwners) {
+  return `14px minmax(0,1.2fr) minmax(0,0.9fr) 92px 104px 104px 118px${showOwners ? " 44px" : ""}`;
+}
+
 function OpportunityList({ groups, nextTaskByProspect, onOpen, team, showOwners, sortField }) {
   return (
     <div>
@@ -881,6 +887,16 @@ function OpportunityList({ groups, nextTaskByProspect, onOpen, team, showOwners,
           <div style={{ display: "flex", alignItems: "baseline", gap: "8px", padding: "0 4px 7px", borderBottom: "0.5px solid var(--hairline)", marginBottom: "1px" }}>
             <span style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.06em", color: "var(--text-faint)" }}>{g.label}</span>
             <span className="mono" style={{ fontSize: "11px", color: "var(--text-faint)" }}>{g.items.length}</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: listGrid(showOwners), gap: "12px", padding: "5px 4px 6px" }}>
+            <span />
+            <span className="section-eyebrow">Entreprise</span>
+            <span className="section-eyebrow">Contact</span>
+            <span className="section-eyebrow" style={{ textAlign: "right" }}>Montant</span>
+            <span className="section-eyebrow">Dern. activité</span>
+            <span className="section-eyebrow">Proch. activité</span>
+            <span className="section-eyebrow">Étape</span>
+            {showOwners && <span />}
           </div>
           {g.items.map((p) => (
             <OpportunityRow
@@ -911,6 +927,10 @@ function OpportunityRow({ p, nextTask, onClick, team, showOwners, sortField }) {
   const priorityInfo = PRIORITY_LEVELS.find((l) => l.value === (p.priority || 50)) || PRIORITY_LEVELS[1];
   const showNextAction = sortField === "nextAction";
   const info = showNextAction ? nextActionInfo(p, nextTask) : null;
+  // La prochaine échéance vient de la tâche ouverte, sinon du rappel posé
+  // directement sur la fiche.
+  const nextDue = nextTask?.due_at || p.next_contact_at || null;
+  const nextOverdue = nextDue ? isOverdue(nextDue) : false;
   return (
     <div
       role="button"
@@ -920,7 +940,7 @@ function OpportunityRow({ p, nextTask, onClick, team, showOwners, sortField }) {
       className="focusable row-hover"
       style={{
         display: "grid",
-        gridTemplateColumns: showOwners ? "14px minmax(0,1.3fr) minmax(0,1fr) 92px 150px 44px" : "14px minmax(0,1.3fr) minmax(0,1fr) 92px 150px",
+        gridTemplateColumns: listGrid(showOwners),
         alignItems: "center",
         gap: "12px",
         padding: "9px 4px",
@@ -939,6 +959,12 @@ function OpportunityRow({ p, nextTask, onClick, team, showOwners, sortField }) {
       </div>
       <span style={{ color: "var(--text-dim)", fontSize: "13px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
       <span className="mono" style={{ fontSize: "13px", color: "var(--text)", textAlign: "right" }}>{formatEuros(p.deal_value)}</span>
+      <span className="mono" style={{ fontSize: "12px", color: p.last_contact_at ? "var(--text-dim)" : "var(--text-faint)", whiteSpace: "nowrap" }}>
+        {p.last_contact_at ? formatShortDate(p.last_contact_at) : "—"}
+      </span>
+      <span className="mono" style={{ fontSize: "12px", color: nextDue ? (nextOverdue ? "var(--red)" : "var(--text-dim)") : "var(--text-faint)", fontWeight: nextOverdue ? 700 : 400, whiteSpace: "nowrap" }}>
+        {nextDue ? formatShortDate(nextDue) : "—"}
+      </span>
       <span style={{ fontSize: "12.5px", color: "var(--text-faint)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.stage === "Gagné" ? "Client" : p.stage}</span>
       {showOwners && <OwnerBadges team={team} prospect={p} />}
     </div>
