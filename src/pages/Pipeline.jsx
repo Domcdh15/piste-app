@@ -1240,7 +1240,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
 
       {showDevis && <DevisGenerator prospect={prospect} history={history} session={session} settings={settings} onClose={() => setShowDevis(false)} />}
 
-      {quickAction === "email" && <QuickEmailModal prospect={prospect} session={session} settings={settings} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
+      {quickAction === "email" && <QuickEmailModal prospect={prospect} session={session} settings={settings} history={history} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
       {quickAction === "call" && <QuickCallModal prospect={prospect} session={session} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
       {quickAction === "note" && <QuickNoteModal prospect={prospect} session={session} settings={settings} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
       {quickAction === "task" && <QuickTaskModal prospect={prospect} session={session} settings={settings} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); bumpTasks(); }} />}
@@ -2394,11 +2394,48 @@ function QuickCallModal({ prospect, session, onClose, onDone }) {
   );
 }
 
-function QuickEmailModal({ prospect, session, settings, onClose, onDone }) {
+function QuickEmailModal({ prospect, session, settings, history, onClose, onDone }) {
   const [subject, setSubject] = useState(`${prospect.company || ""} — suivi`.trim());
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
+
+  async function generate() {
+    if (generating) return;
+    setGenerating(true);
+    setError("");
+    try {
+      const tone = (settings?.ai_default_tone || "Professionnel").toLowerCase();
+      const lengthGuide = { Court: "3-4 phrases maximum", Équilibré: "5 à 6 phrases maximum", Détaillé: "8 à 10 phrases" }[settings?.ai_detail_level] || "5 à 6 phrases maximum";
+
+      // Même contexte que le générateur de l'onglet Email : notes internes et,
+      // si la boîte est connectée, les emails réellement échangés.
+      const thread = await fetchEmailThread(prospect.email, session.access_token);
+      const threadContext = (thread.messages || []).length
+        ? `\n\nEmails réellement échangés avec ce contact (du plus récent au plus ancien) :\n${thread.messages
+            .map((m) => `— ${formatThreadDate(m.sentAt)} · de ${senderLabel(m.from || "")} · objet "${m.subject || "(sans objet)"}"\n${(m.body || m.snippet || "").trim()}`)
+            .join("\n\n")}`
+        : "";
+
+      const prompt = `Tu es un assistant commercial. Rédige un email en français, ton ${tone}, ${lengthGuide}. Ne mets pas d'objet, uniquement le corps de l'email, termine par une formule de politesse simple, sans nom ni signature — elle sera ajoutée automatiquement. Ne répète pas ce qui a déjà été dit, et reprends le fil de la conversation réelle si des emails sont fournis.
+
+Nom du contact : ${prospect.name}
+Entreprise : ${prospect.company}
+Étape du pipeline : ${prospect.stage}
+Statut : ${prospect.status}
+
+Historique des échanges avec ce prospect :
+${buildHistoryContext(history)}${threadContext}`;
+
+      const text = await callAI(prompt, session.access_token);
+      setBody(text.trim());
+    } catch (e) {
+      setError(e.message || "La génération a échoué. Réessaie.");
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   async function send() {
     if (!body.trim() || busy) return;
@@ -2436,10 +2473,19 @@ function QuickEmailModal({ prospect, session, settings, onClose, onDone }) {
   return (
     <Modal onClose={onClose}>
       <ModalTitle sub={`À : ${prospect.email}`}>Envoyer un email</ModalTitle>
+      <button
+        className="focusable"
+        onClick={generate}
+        disabled={generating}
+        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "7px", background: "var(--violet-dim)", color: "var(--violet)", border: "0.5px solid var(--violet-border)", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, marginBottom: "12px", opacity: generating ? 0.6 : 1 }}
+      >
+        <SparklesIcon size={13} color="var(--violet)" />
+        {generating ? "Rédaction…" : body.trim() ? "Régénérer avec l'IA" : "Rédiger avec l'IA"}
+      </button>
+
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         <input placeholder="Objet" value={subject} onChange={(e) => setSubject(e.target.value)} style={{ ...inputStyle, width: "100%" }} />
         <textarea
-          autoFocus
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder="Votre message…"
@@ -2448,7 +2494,7 @@ function QuickEmailModal({ prospect, session, settings, onClose, onDone }) {
       </div>
       {error && <div style={{ fontSize: "12px", color: "var(--red)", marginTop: "8px" }}>{error}</div>}
       <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginTop: "8px" }}>
-        Votre signature est ajoutée automatiquement. Pour un email rédigé par l'IA, utilisez l'onglet Email plus bas.
+        Votre signature est ajoutée automatiquement. L'IA s'appuie sur vos notes et, si votre boîte est connectée, sur vos échanges réels avec ce contact.
       </div>
       <ModalActions onCancel={onClose} onConfirm={send} confirmLabel="Envoyer" busy={busy} disabled={!body.trim()} />
     </Modal>
