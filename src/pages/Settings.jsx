@@ -382,7 +382,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
               <>
       {isAdmin && (
         <Section title="Équipe">
-          <TeamPanel session={session} team={team} reloadTeam={reloadTeam} hasTeamControls={hasTeamControls} />
+          <TeamPanel session={session} team={team} reloadTeam={reloadTeam} hasTeamControls={hasTeamControls} mailConnected={mailConnected} />
         </Section>
       )}
               </>
@@ -656,14 +656,18 @@ const VISIBILITY_HINT = {
   team_detail: "Chacun voit le classement nominatif. Motivant dans une équipe soudée, pesant ailleurs.",
 };
 
-export function TeamPanel({ session, team, reloadTeam, hasTeamControls }) {
+export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConnected }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("sales");
   const [overageInfo, setOverageInfo] = useState(null);
-  const [inviteSuccess, setInviteSuccess] = useState("");
+  // L'invitation produit un lien : on le garde sous la main tant que l'admin
+  // ne l'a pas transmis, par copie ou depuis sa propre boîte.
+  const [invited, setInvited] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [mailState, setMailState] = useState("");
 
   if (!team) return <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Chargement...</div>;
 
@@ -692,7 +696,9 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls }) {
 
   async function submitInvite(confirmOverage) {
     if (!inviteEmail.trim()) return;
-    setInviteSuccess("");
+    setInvited(null);
+    setMailState("");
+    setCopied(false);
     const data = await call({ action: "invite_member", email: inviteEmail.trim(), role: inviteRole, confirmOverage });
     if (!data) return;
     if (data.needsConfirmation) {
@@ -700,9 +706,59 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls }) {
       return;
     }
     setOverageInfo(null);
-    setInviteSuccess(`Invitation envoyée à ${data.invitedEmail} — un email lui a été envoyé pour créer son mot de passe.`);
+    setInvited({ email: data.invitedEmail, link: data.inviteLink });
     setInviteEmail("");
     setShowInvite(false);
+  }
+
+  const mailProvider = mailConnected?.google ? "google" : mailConnected?.microsoft ? "microsoft" : null;
+
+  async function sendInviteByEmail() {
+    if (!invited?.link || !mailProvider) return;
+    setMailState("sending");
+    const me = (team.members || []).find((m) => m.user_id === session.user.id);
+    const signer = me && (me.first_name || me.last_name) ? `${me.first_name || ""} ${me.last_name || ""}`.trim() : "";
+    const company = team.team?.company_name || team.team?.name || "notre équipe";
+    const lines = [
+      "Bonjour,",
+      "",
+      "Je vous invite à rejoindre notre espace Closia.",
+      "",
+      "Cliquez sur ce lien pour créer votre mot de passe et accéder à votre compte :",
+      invited.link,
+      "",
+      "À bientôt,",
+      signer,
+    ];
+    try {
+      const res = await fetch("/api/calendar/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          action: "send_email",
+          provider: mailProvider,
+          to: invited.email,
+          subject: `Rejoignez ${company} sur Closia`,
+          body: lines.join("\n").trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "L'envoi a échoué");
+      setMailState("sent");
+    } catch (e) {
+      setMailState(e.message || "L'envoi a échoué");
+    }
+  }
+
+  async function copyInviteLink() {
+    if (!invited?.link) return;
+    try {
+      await navigator.clipboard.writeText(invited.link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setMailState("La copie automatique a échoué — sélectionnez le lien à la main.");
+    }
   }
 
   return (
@@ -740,13 +796,58 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls }) {
             </div>
           ) : (
             <button className="focusable" disabled={busy || !inviteEmail.trim()} onClick={() => submitInvite(false)} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "6px", padding: "8px 14px", fontSize: "12.5px", fontWeight: 600, opacity: busy || !inviteEmail.trim() ? 0.6 : 1 }}>
-              {busy ? "Envoi..." : "Envoyer l'invitation"}
+              {busy ? "Création…" : "Créer l'invitation"}
             </button>
           )}
         </div>
       )}
 
-      {inviteSuccess && <div style={{ color: "#527a61", fontSize: "12px", marginBottom: "10px" }}>{inviteSuccess}</div>}
+      {invited && (
+        <div style={{ background: "var(--blue-dim)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "12px", marginBottom: "14px" }}>
+          <div style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text)", marginBottom: "3px" }}>
+            Compte créé pour {invited.email}
+          </div>
+          <div style={{ fontSize: "11.5px", color: "var(--text-dim)", marginBottom: "10px", lineHeight: 1.5 }}>
+            Transmettez-lui ce lien : il y créera son mot de passe, puis réglera son espace Closia.
+          </div>
+
+          <input
+            readOnly
+            value={invited.link || ""}
+            onClick={(e) => e.target.select()}
+            style={{ ...inputSm, width: "100%", fontSize: "11px", fontFamily: "JetBrains Mono, monospace", marginBottom: "9px" }}
+          />
+
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+            <button className="focusable" onClick={copyInviteLink} style={{ background: "var(--panel)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "6px", padding: "7px 12px", fontSize: "12px", fontWeight: 600 }}>
+              {copied ? "Lien copié" : "Copier le lien"}
+            </button>
+
+            {mailProvider ? (
+              <button className="focusable" disabled={mailState === "sending" || mailState === "sent"} onClick={sendInviteByEmail} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "6px", padding: "7px 12px", fontSize: "12px", fontWeight: 600, opacity: mailState === "sending" ? 0.6 : 1 }}>
+                {mailState === "sending" ? "Envoi…" : mailState === "sent" ? "Envoyé" : `Envoyer depuis ${mailProvider === "google" ? "Gmail" : "Outlook"}`}
+              </button>
+            ) : (
+              <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>
+                Connectez Gmail ou Outlook pour l'envoyer directement d'ici.
+              </span>
+            )}
+
+            <button className="focusable" onClick={() => { setInvited(null); setMailState(""); }} style={{ background: "none", border: "none", padding: 0, fontSize: "11.5px", color: "var(--text-faint)", fontWeight: 500, marginLeft: "auto" }}>
+              Terminé
+            </button>
+          </div>
+
+          {mailState && mailState !== "sending" && mailState !== "sent" && (
+            <div style={{ fontSize: "11.5px", color: "var(--red)", marginTop: "8px" }}>{mailState}</div>
+          )}
+          {mailState === "sent" && (
+            <div style={{ fontSize: "11.5px", color: "var(--success)", marginTop: "8px" }}>
+              Invitation envoyée depuis votre boîte — elle arrivera à votre nom, pas à celui d'un robot.
+            </div>
+          )}
+        </div>
+      )}
 
       {(team.members || []).map((m) => (
         <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", padding: "8px 0", borderBottom: "0.5px solid var(--hairline)" }}>

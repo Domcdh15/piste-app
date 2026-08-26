@@ -163,19 +163,32 @@ export default async function handler(req, res) {
       });
     }
 
-    const { data: created, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: APP_URL,
+    // On fabrique le lien sans l'envoyer : le SMTP par défaut de Supabase est
+    // bridé et réservé aux tests. L'admin le transmet lui-même, ou le fait
+    // partir depuis sa propre boîte Gmail/Outlook déjà connectée — auquel cas
+    // le coéquipier reçoit l'invitation d'un collègue, pas d'un noreply.
+    const { data: link, error: linkError } = await admin.auth.admin.generateLink({
+      type: "invite",
+      email,
+      options: { redirectTo: APP_URL },
     });
-    if (inviteError) return res.status(500).json({ error: inviteError.message || "L'invitation a échoué" });
+    if (linkError || !link?.user) {
+      const already = /already|exist/i.test(linkError?.message || "");
+      return res.status(400).json({
+        error: already
+          ? "Cette adresse a déjà un compte Closia."
+          : linkError?.message || "La création de l'invitation a échoué",
+      });
+    }
 
-    const { error: memberError } = await admin.from("team_members").insert({ team_id: membership.team_id, user_id: created.user.id, role });
+    const { error: memberError } = await admin.from("team_members").insert({ team_id: membership.team_id, user_id: link.user.id, role });
     if (memberError) return res.status(500).json({ error: "L'ajout à l'équipe a échoué" });
 
     if (willBeCount > tier.seats && confirmOverage) {
       await admin.from("teams").update({ plan_price: price + tier.overagePrice }).eq("id", membership.team_id);
     }
 
-    return res.status(200).json({ ok: true, invitedEmail: email });
+    return res.status(200).json({ ok: true, invitedEmail: email, inviteLink: link.properties?.action_link || null });
   }
 
   if (action === "change_plan") {
