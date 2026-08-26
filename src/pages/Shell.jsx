@@ -91,7 +91,7 @@ export default function Shell({ session, team, reloadTeam }) {
     const { data: overdue } = await supabase.from("tasks").select("*").eq("done", false).eq("missed", false).lt("due_at", startOfToday.toISOString());
     if (!overdue || overdue.length === 0) return;
 
-    const { data: userSettings } = await supabase.from("user_settings").select("work_days, auto_reschedule_missed_tasks, work_start, work_end").eq("user_id", session.user.id).maybeSingle();
+    const { data: userSettings } = await supabase.from("user_settings").select("work_days, auto_reschedule_missed_tasks, work_start, work_end, reschedule_mode, reschedule_time").eq("user_id", session.user.id).maybeSingle();
     if (userSettings?.auto_reschedule_missed_tasks === false) return;
     const workDays = userSettings?.work_days || ["Lun", "Mar", "Mer", "Jeu", "Ven"];
     const DAY_CODES = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
@@ -110,6 +110,10 @@ export default function Shell({ session, team, reloadTeam }) {
     };
     const dayStart = hourOf(userSettings?.work_start, { h: 8, m: 0 });
     const dayEnd = hourOf(userSettings?.work_end, { h: 19, m: 0 });
+    // L'utilisateur choisit : garder l'heure de la tâche, ou tout ramener
+    // à un même créneau pour traiter les reports en une fois.
+    const fixedMode = userSettings?.reschedule_mode === "fixed";
+    const fixedAt = hourOf(userSettings?.reschedule_time, { h: 8, m: 0 });
 
     for (const t of overdue) {
       await supabase.from("tasks").update({ missed: true, done: true }).eq("id", t.id);
@@ -117,15 +121,20 @@ export default function Shell({ session, team, reloadTeam }) {
 
       const previous = t.due_at ? new Date(t.due_at) : null;
       const target = new Date(nextWorkDay);
-      if (previous) target.setHours(previous.getHours(), previous.getMinutes(), 0, 0);
+      if (fixedMode) target.setHours(fixedAt.h, fixedAt.m, 0, 0);
+      else if (previous) target.setHours(previous.getHours(), previous.getMinutes(), 0, 0);
       else target.setHours(dayStart.h, dayStart.m, 0, 0);
 
       // Une tâche placée hors de la journée de travail est ramenée dedans.
-      const minutes = target.getHours() * 60 + target.getMinutes();
-      const minMinutes = dayStart.h * 60 + dayStart.m;
-      const maxMinutes = dayEnd.h * 60 + dayEnd.m;
-      if (minutes < minMinutes) target.setHours(dayStart.h, dayStart.m, 0, 0);
-      else if (minutes >= maxMinutes) target.setHours(dayEnd.h, Math.max(0, dayEnd.m - 30), 0, 0);
+      // Une heure fixe choisie explicitement est respectée telle quelle ;
+      // seule une heure héritée est ramenée dans la journée de travail.
+      if (!fixedMode) {
+        const minutes = target.getHours() * 60 + target.getMinutes();
+        const minMinutes = dayStart.h * 60 + dayStart.m;
+        const maxMinutes = dayEnd.h * 60 + dayEnd.m;
+        if (minutes < minMinutes) target.setHours(dayStart.h, dayStart.m, 0, 0);
+        else if (minutes >= maxMinutes) target.setHours(dayEnd.h, Math.max(0, dayEnd.m - 30), 0, 0);
+      }
 
       await supabase.from("tasks").insert({
         user_id: t.user_id,

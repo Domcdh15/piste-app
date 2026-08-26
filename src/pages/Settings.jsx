@@ -235,9 +235,35 @@ export default function Settings({ session, prospects, settings, reloadSettings,
           checked={local.auto_reschedule_missed_tasks !== false}
           onChange={(v) => set({ auto_reschedule_missed_tasks: v })}
         />
-        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "16px" }}>
-          {local.auto_reschedule_missed_tasks !== false ? "Report : prochain jour travaillé, 8h." : "Les tâches non terminées restent en retard sans être reportées automatiquement."}
-        </div>
+        {local.auto_reschedule_missed_tasks !== false ? (
+          <div style={{ marginBottom: "16px" }}>
+            <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "8px" }}>
+              Report au prochain jour travaillé. À quelle heure ?
+            </div>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+              <select
+                value={local.reschedule_mode || "same_time"}
+                onChange={(e) => set({ reschedule_mode: e.target.value })}
+                style={{ ...inputSm, width: "auto" }}
+              >
+                <option value="same_time">À son heure d'origine</option>
+                <option value="fixed">À une heure fixe</option>
+              </select>
+              {local.reschedule_mode === "fixed" && (
+                <input type="time" value={local.reschedule_time || "08:00"} onChange={(e) => set({ reschedule_time: e.target.value })} style={inputSm} />
+              )}
+            </div>
+            <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "8px", lineHeight: 1.5 }}>
+              {local.reschedule_mode === "fixed"
+                ? "Toutes les tâches manquées reviennent au même horaire. Pratique pour les traiter en une fois, mais votre agenda les empile sur une seule ligne."
+                : "Un appel manqué de 14h revient à 14h. Vos tâches restent réparties sur la journée."}
+            </div>
+          </div>
+        ) : (
+          <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "16px" }}>
+            Les tâches non terminées restent en retard sans être reportées automatiquement.
+          </div>
+        )}
 
         <div style={{ fontSize: "13px", color: "var(--text)", marginBottom: "8px" }}>Jours travaillés</div>
         <div style={{ display: "flex", gap: "4px", marginBottom: "10px" }}>
