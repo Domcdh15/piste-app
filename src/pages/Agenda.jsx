@@ -433,29 +433,88 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                   </div>
                 )}
 
-                {Object.values(
-                  laidTasks.reduce((acc, item) => {
-                    (acc[item.groupId] = acc[item.groupId] || []).push(item);
-                    return acc;
-                  }, {})
-                ).flatMap((clusterItems) => {
-                  const clusterKey = `${d.toDateString()}-${clusterItems[0].groupId}`;
-                  const dense = clusterItems.length > MAX_TASK_PILLS;
-                  const top = Math.max(0, topFor(clusterItems[0].event.due_at));
+                {(() => {
+                  // Chaque tâche est placée à son heure réelle. On ne regroupe que les
+                  // tâches qui tombent exactement à la même minute — sinon une tâche de
+                  // 8h et une de 8h40 se retrouvaient empilées à 8h.
+                  const byExactTime = new Map();
+                  for (const item of laidTasks) {
+                    const key = new Date(item.event.due_at).toISOString().slice(0, 16);
+                    if (!byExactTime.has(key)) byExactTime.set(key, []);
+                    byExactTime.get(key).push(item);
+                  }
 
-                  if (!dense) {
-                    return clusterItems.map(({ event: task, colIndex, colCount }) => {
+                  const nodes = [];
+                  for (const [timeKey, group] of byExactTime) {
+                    const top = Math.max(0, topFor(group[0].event.due_at));
+
+                    if (group.length > MAX_TASK_PILLS) {
+                      const clusterKey = `${d.toDateString()}-${timeKey}`;
+                      const isOpen = expandedCluster === clusterKey;
+                      nodes.push(
+                        <button
+                          key={clusterKey}
+                          className="focusable"
+                          onClick={() => setExpandedCluster(isOpen ? null : clusterKey)}
+                          title={`${group.length} tâches à ${formatTime(group[0].event.due_at)}`}
+                          style={{
+                            position: "absolute", top, height: "26px",
+                            left: "1px", width: `calc(${TASK_LANE_PCT}% - 2px)`,
+                            background: isOpen ? "var(--blue)" : "var(--panel2)", color: isOpen ? "#fff" : "var(--text-dim)",
+                            border: `0.5px solid ${isOpen ? "var(--blue)" : "var(--hairline-strong)"}`, borderRadius: "5px",
+                            fontSize: "10px", fontWeight: 700, zIndex: 2, textAlign: "left", padding: "0 5px",
+                          }}
+                        >
+                          {group.length} tâches
+                        </button>
+                      );
+                      if (isOpen) {
+                        nodes.push(
+                          <div
+                            key={`${clusterKey}-popover`}
+                            style={{
+                              position: "absolute", top: top + 28, left: "1px", width: "220px", zIndex: 10,
+                              background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "8px",
+                              boxShadow: "var(--shadow-md)", padding: "6px", display: "flex", flexDirection: "column", gap: "2px",
+                            }}
+                          >
+                            {group.map(({ event: task }) => {
+                              const meta = TASK_TYPE_META[task.type] || TASK_TYPE_META.appel_telephone;
+                              const prospect = prospectById?.[task.prospect_id];
+                              return (
+                                <div key={task.id} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 6px", borderRadius: "5px", background: meta.dim }}>
+                                  <button className="focusable" onClick={() => onToggleTask(task)} style={{ width: "10px", height: "10px", borderRadius: "50%", border: `1.3px solid ${meta.color}`, background: "transparent", flexShrink: 0, padding: 0 }} title="Marquer comme fait" />
+                                  <button
+                                    className="focusable"
+                                    onClick={() => prospect && onOpenProspect?.(prospect.id)}
+                                    style={{ flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, textAlign: "left", fontSize: "11px", color: meta.color, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: prospect ? "pointer" : "default" }}
+                                  >
+                                    {task.note}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      }
+                      continue;
+                    }
+
+                    for (const { event: task, colIndex, colCount } of group) {
                       const prospect = prospectById?.[task.prospect_id];
                       const meta = TASK_TYPE_META[task.type] || TASK_TYPE_META.appel_telephone;
                       const height = Math.max(26, heightFor(task.start, task.end));
-                      const widthPct = TASK_LANE_PCT / colCount;
-                      return (
+                      // Les colonnes ne servent qu'aux tâches réellement simultanées.
+                      const cols = Math.min(colCount, group.length);
+                      const widthPct = TASK_LANE_PCT / cols;
+                      const col = Math.min(colIndex, cols - 1);
+                      nodes.push(
                         <div
                           key={task.id}
                           title={`${meta.label} · ${formatTime(task.due_at)} · ${task.note}`}
                           style={{
-                            position: "absolute", top, height,
-                            left: `calc(${colIndex * widthPct}% + 1px)`, width: `calc(${widthPct}% - 2px)`,
+                            position: "absolute", top: Math.max(0, topFor(task.due_at)), height,
+                            left: `calc(${col * widthPct}% + 1px)`, width: `calc(${widthPct}% - 2px)`,
                             background: meta.dim, border: `0.5px solid ${meta.color}55`, borderRadius: "5px",
                             padding: "2px 3px", overflow: "hidden", zIndex: 2, display: "flex", alignItems: "flex-start", gap: "2px",
                           }}
@@ -470,56 +529,10 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                           </button>
                         </div>
                       );
-                    });
+                    }
                   }
-
-                  const isOpen = expandedCluster === clusterKey;
-                  return [
-                    <button
-                      key={clusterKey}
-                      className="focusable"
-                      onClick={() => setExpandedCluster(isOpen ? null : clusterKey)}
-                      title={`${clusterItems.length} tâches à ${formatTime(clusterItems[0].event.due_at)}`}
-                      style={{
-                        position: "absolute", top, height: "26px",
-                        left: "1px", width: `calc(${TASK_LANE_PCT}% - 2px)`,
-                        background: isOpen ? "var(--blue)" : "var(--panel2)", color: isOpen ? "#fff" : "var(--text-dim)",
-                        border: `0.5px solid ${isOpen ? "var(--blue)" : "var(--hairline-strong, var(--hairline))"}`, borderRadius: "5px",
-                        fontSize: "10px", fontWeight: 700, zIndex: 2, textAlign: "left", padding: "0 5px",
-                      }}
-                    >
-                      {clusterItems.length} tâches
-                    </button>,
-                    isOpen && (
-                      <div
-                        key={`${clusterKey}-popover`}
-                        style={{
-                          position: "absolute", top: top + 28, left: "1px", width: "220px", zIndex: 10,
-                          background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "8px",
-                          boxShadow: "var(--shadow-md)", padding: "6px", display: "flex", flexDirection: "column", gap: "2px",
-                        }}
-                      >
-                        {clusterItems.map(({ event: task }) => {
-                          const prospect = prospectById?.[task.prospect_id];
-                          const meta = TASK_TYPE_META[task.type] || TASK_TYPE_META.appel_telephone;
-                          return (
-                            <div key={task.id} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px", borderRadius: "5px" }}>
-                              <button className="focusable" onClick={() => onToggleTask(task)} style={{ width: "10px", height: "10px", borderRadius: "50%", border: `1.3px solid ${meta.color}`, background: "transparent", flexShrink: 0, padding: 0 }} title="Marquer comme fait" />
-                              <meta.Icon size={11} color={meta.color} />
-                              <button
-                                className="focusable"
-                                onClick={() => prospect && onOpenProspect?.(prospect.id)}
-                                style={{ flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, textAlign: "left", fontSize: "11px", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: prospect ? "pointer" : "default" }}
-                              >
-                                {task.note}
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ),
-                  ];
-                })}
+                  return nodes;
+                })()}
 
                 {laid.map(({ event, colIndex, colCount }) => {
                   const prospect = matchProspect(event);
