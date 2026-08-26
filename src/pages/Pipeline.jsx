@@ -29,6 +29,7 @@ import {
   LinkedinIcon,
   ArrowLeftIcon,
   ListIcon,
+  KanbanIcon,
   UsersIcon,
   BriefcaseIcon,
   PlugIcon,
@@ -401,6 +402,12 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
   const [search, setSearch] = useState("");
   const [openTasks, setOpenTasks] = useState([]);
   const [quickFilter, setQuickFilter] = useState("toutes");
+  // Le choix de vue est une préférence durable, pas un état de navigation.
+  const [viewMode, setViewModeState] = useState(() => (localStorage.getItem("closia:pipelineView") === "kanban" ? "kanban" : "liste"));
+  function setViewMode(mode) {
+    setViewModeState(mode);
+    localStorage.setItem("closia:pipelineView", mode);
+  }
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState("desc");
   const [showOptimize, setShowOptimize] = useState(false);
@@ -501,6 +508,28 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
 
   const sortComparator = buildSortComparator(sortField, sortDir, nextTaskByProspect);
   const stageGroups = groupByStage(quickFiltered, sortComparator);
+  // Contrairement à la liste, le tableau garde ses colonnes vides : elles
+  // montrent le chemin qu'un deal doit encore parcourir.
+  const kanbanColumns = STAGE_GROUP_ORDER.map((stage) => ({
+    stage,
+    label: STAGE_GROUP_LABEL[stage] || stage,
+    items: quickFiltered.filter((p) => p.stage === stage).sort(sortComparator),
+  }));
+
+  // Reprend la logique de la fiche : une étape franchie laisse une trace, et
+  // une clôture est datée.
+  async function moveProspectToStage(id, stage) {
+    const p = prospects.find((x) => x.id === id);
+    if (!p || p.stage === stage) return;
+    const changes = { stage };
+    if (CLOSED_STAGES.includes(stage) && !CLOSED_STAGES.includes(p.stage)) {
+      changes.closed_at = new Date().toISOString();
+      await logActivity(id, stage === "Gagné" ? "deal_gagne" : "deal_perdu", null);
+    } else {
+      await logActivity(id, "note", `Étape passée de « ${p.stage} » à « ${stage} »`);
+    }
+    await handleUpdateProspect(id, changes);
+  }
   const priorityLabel =
     presetFilter === "chauds" ? "Prospects chauds" : presetFilter === "a-sauver" ? "Deals à sauver" : "Opportunités";
 
@@ -585,12 +614,33 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
             </button>
           ))}
         </div>
-        <input
-          placeholder="Rechercher…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ ...inputStyle, width: "220px" }}
-        />
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div style={{ display: "flex", gap: "2px", background: "var(--panel2)", borderRadius: "9px", padding: "3px" }}>
+            {[["liste", "Liste", ListIcon], ["kanban", "Tableau", KanbanIcon]].map(([key, label, Icon]) => (
+              <button
+                key={key}
+                className="focusable"
+                onClick={() => setViewMode(key)}
+                aria-pressed={viewMode === key}
+                style={{
+                  display: "flex", alignItems: "center", gap: "6px",
+                  padding: "5px 11px", borderRadius: "7px", fontSize: "12.5px", fontWeight: 600,
+                  background: viewMode === key ? "var(--panel)" : "transparent",
+                  color: viewMode === key ? "var(--blue)" : "var(--text-dim)",
+                  boxShadow: viewMode === key ? "var(--shadow-sm)" : "none",
+                }}
+              >
+                <Icon size={13} color={viewMode === key ? "var(--blue)" : "var(--text-dim)"} /> {label}
+              </button>
+            ))}
+          </div>
+          <input
+            placeholder="Rechercher…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ ...inputStyle, width: "220px" }}
+          />
+        </div>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
@@ -639,7 +689,11 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
       ) : quickFiltered.length === 0 ? (
         <div style={{ color: "var(--text-dim)", padding: "20px 2px", fontSize: "13px" }}>Aucun résultat pour cette recherche ou ce filtre.</div>
       ) : (
-        <OpportunityList groups={stageGroups} nextTaskByProspect={nextTaskByProspect} onOpen={setSelectedId} team={team} showOwners={showOwners} sortField={sortField} />
+        viewMode === "kanban" ? (
+          <KanbanBoard columns={kanbanColumns} nextTaskByProspect={nextTaskByProspect} onOpen={setSelectedId} onMove={moveProspectToStage} team={team} showOwners={showOwners} />
+        ) : (
+          <OpportunityList groups={stageGroups} nextTaskByProspect={nextTaskByProspect} onOpen={setSelectedId} team={team} showOwners={showOwners} sortField={sortField} />
+        )
       )}
       </div>
       {showImport && <ImportCsvModal session={session} onClose={() => setShowImport(false)} onImported={reload} />}
@@ -704,6 +758,117 @@ function SortToggleButton({ label, active, dir, onClick }) {
       {label}
       <span style={{ fontSize: "9px", opacity: active ? 1 : 0.5 }}>{active && dir === "asc" ? "▲" : "▼"}</span>
     </button>
+  );
+}
+
+// Vue tableau : les colonnes sont les étapes, et une carte se déplace à la
+// souris pour faire avancer un deal sans ouvrir sa fiche.
+function KanbanBoard({ columns, nextTaskByProspect, onOpen, onMove, team, showOwners }) {
+  const [dragOver, setDragOver] = useState(null);
+  const [dragging, setDragging] = useState(null);
+
+  function handleDrop(e, stage) {
+    e.preventDefault();
+    setDragOver(null);
+    setDragging(null);
+    const id = e.dataTransfer.getData("text/plain");
+    if (id) onMove(id, stage);
+  }
+
+  return (
+    <div style={{ display: "flex", gap: "12px", overflowX: "auto", paddingBottom: "10px", alignItems: "flex-start" }}>
+      {columns.map((col) => {
+        const total = col.items.reduce((sum, p) => sum + (p.deal_value || 0), 0);
+        const accent = col.stage === "Gagné" ? "var(--success)" : col.stage === "Perdu" ? "var(--text-faint)" : STAGE_META[col.stage]?.color || "var(--blue)";
+        const isTarget = dragOver === col.stage && dragging !== col.stage;
+        return (
+          <div
+            key={col.stage}
+            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOver(col.stage); }}
+            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver((d) => (d === col.stage ? null : d)); }}
+            onDrop={(e) => handleDrop(e, col.stage)}
+            style={{
+              width: "268px", minWidth: "268px", flexShrink: 0,
+              display: "flex", flexDirection: "column",
+              background: isTarget ? "var(--blue-dim)" : "var(--panel)",
+              border: `1px solid ${isTarget ? "var(--blue)" : "var(--hairline)"}`,
+              borderRadius: "var(--radius-lg)",
+              boxShadow: "var(--shadow-sm)",
+              transition: "background 140ms ease, border-color 140ms ease",
+            }}
+          >
+            <div style={{ padding: "12px 14px", borderBottom: "0.5px solid var(--hairline)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: accent, flexShrink: 0 }} />
+                <span className="section-eyebrow" style={{ color: "var(--text-dim)" }}>{col.label}</span>
+                <span className="mono" style={{ marginLeft: "auto", color: "var(--text-faint)", fontSize: "11px" }}>{col.items.length}</span>
+              </div>
+              <div className="mono" style={{ color: "var(--text-faint)", fontSize: "11px", marginTop: "4px" }}>
+                {total > 0 ? formatEuros(total) : "—"}
+              </div>
+            </div>
+
+            <div style={{ padding: "10px", display: "flex", flexDirection: "column", gap: "8px", minHeight: "80px", maxHeight: "62vh", overflowY: "auto" }}>
+              {col.items.length === 0 ? (
+                <div style={{ color: "var(--text-faint)", fontSize: "11.5px", padding: "10px 4px" }}>
+                  {isTarget ? "Déposer ici" : "Aucun deal"}
+                </div>
+              ) : (
+                col.items.map((p) => (
+                  <OpportunityCard
+                    key={p.id}
+                    prospect={p}
+                    nextTask={nextTaskByProspect[p.id]}
+                    onOpen={() => onOpen(p.id)}
+                    onDragStart={(e) => { e.dataTransfer.setData("text/plain", p.id); e.dataTransfer.effectAllowed = "move"; setDragging(col.stage); }}
+                    onDragEnd={() => { setDragging(null); setDragOver(null); }}
+                    team={team}
+                    showOwners={showOwners}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function OpportunityCard({ prospect: p, nextTask, onOpen, onDragStart, onDragEnd, team, showOwners }) {
+  const action = nextActionInfo(p, nextTask);
+  const days = p.last_contact_at ? Math.floor((Date.now() - new Date(p.last_contact_at)) / 86400000) : null;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={onOpen}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
+      className="focusable"
+      style={{ textAlign: "left", background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "11px 12px", display: "flex", flexDirection: "column", gap: "5px", cursor: "grab" }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+        <span className="display" style={{ fontWeight: 700, fontSize: "13px", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {p.company || p.name}
+        </span>
+        {showOwners && <OwnerBadges team={team} prospect={p} />}
+      </div>
+
+      {p.company && <div style={{ color: "var(--text-dim)", fontSize: "11.5px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>}
+
+      <div className="mono" style={{ fontWeight: 700, fontSize: "15px", color: "var(--text)" }}>{formatEuros(p.deal_value)}</div>
+
+      {/* Sans tâche, nextActionInfo dit déjà le délai : on ne le répète pas. */}
+      {nextTask && days !== null && <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>Contact il y a {days} j</div>}
+
+      <div style={{ fontSize: "11.5px", color: action.color, fontWeight: 600, marginTop: "1px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {action.text}
+      </div>
+    </div>
   );
 }
 
