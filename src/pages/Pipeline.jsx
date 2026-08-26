@@ -1059,117 +1059,97 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
 
   return (
     <div style={{ background: "var(--bg)", minHeight: "100%" }}>
-      <div style={{ padding: "22px 32px 0" }}>
-        <button className="focusable" onClick={onBack} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: "4px 0", marginBottom: "18px", color: "var(--text-dim)", fontSize: "13px" }}>
+      <div style={{ padding: "22px 32px 0", maxWidth: "1280px", margin: "0 auto" }}>
+        <button className="focusable" onClick={onBack} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: "4px 0", marginBottom: "16px", color: "var(--text-dim)", fontSize: "13px" }}>
           <ArrowLeftIcon size={14} color="var(--text-dim)" /> {backLabel || "Retour au pipeline"}
         </button>
 
-        {/* En-tête : identité à gauche, actions à droite */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "20px", flexWrap: "wrap", marginBottom: "20px" }}>
-          <div style={{ display: "flex", gap: "16px", alignItems: "center", minWidth: 0 }}>
-            <span style={{ width: "56px", height: "56px", borderRadius: "14px", background: "var(--blue-dim)", color: "var(--blue)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "18px", flexShrink: 0 }}>
-              {initialsOf(prospect.company, prospect.name)}
-            </span>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                <span className="display" style={{ fontWeight: 700, fontSize: "22px" }}>{prospect.company}</span>
-                <button className="star-toggle focusable" onClick={toggleStar} title={starred ? "Retirer la priorité" : "Marquer prioritaire"} style={{ background: "none", border: "none", padding: 0, fontSize: "16px", lineHeight: 1, color: starred ? "var(--blue)" : "var(--text-faint)" }}>
-                  {starred ? "★" : "☆"}
-                </button>
-              </div>
-              <div style={{ display: "flex", gap: "8px", marginTop: "7px", flexWrap: "wrap" }}>
-                <span style={{ fontSize: "11.5px", fontWeight: 600, background: stageMeta.dim || "var(--panel2)", color: stageMeta.color || "var(--text-dim)", borderRadius: "6px", padding: "4px 10px" }}>
+        {/* NIVEAU 1 — qui, où on en est, combien, quoi faire */}
+        <div className="dash-card" style={{ padding: "22px 24px", marginBottom: "18px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "24px", flexWrap: "wrap", alignItems: "flex-start" }}>
+            <div style={{ display: "flex", gap: "16px", alignItems: "center", minWidth: 0 }}>
+              <span style={{ width: "52px", height: "52px", borderRadius: "13px", background: "var(--blue-dim)", color: "var(--blue)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "17px", flexShrink: 0 }}>
+                {initialsOf(prospect.company, prospect.name)}
+              </span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "9px", flexWrap: "wrap" }}>
+                  <span className="display" style={{ fontWeight: 700, fontSize: "21px" }}>{prospect.company}</span>
+                  <button className="star-toggle focusable" onClick={toggleStar} title={starred ? "Retirer la priorité" : "Marquer prioritaire"} style={{ background: "none", border: "none", padding: 0, fontSize: "15px", lineHeight: 1, color: starred ? "var(--blue)" : "var(--text-faint)" }}>
+                    {starred ? "★" : "☆"}
+                  </button>
+                </div>
+                <div style={{ fontSize: "13.5px", color: "var(--text-dim)", marginTop: "3px" }}>
+                  {prospect.name}{prospect.job_title ? ` · ${prospect.job_title}` : ""}
+                </div>
+                <span style={{ display: "inline-block", marginTop: "8px", fontSize: "11.5px", fontWeight: 600, background: stageMeta.dim || "var(--panel2)", color: stageMeta.color || "var(--text-dim)", borderRadius: "6px", padding: "4px 10px" }}>
                   {isClient ? "Client" : prospect.stage}
                 </span>
-                {prospect.industry && (
-                  <span style={{ fontSize: "11.5px", fontWeight: 500, background: "var(--panel2)", color: "var(--text-dim)", borderRadius: "6px", padding: "4px 10px" }}>{prospect.industry}</span>
-                )}
-                {starred && (
-                  <span style={{ fontSize: "11.5px", fontWeight: 600, background: "var(--blue-dim)", color: "var(--blue)", borderRadius: "6px", padding: "4px 10px" }}>Prioritaire</span>
-                )}
               </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {prospect.phone && (
+                <button className="focusable" onClick={() => setQuickAction("call")} style={headerBtn}>
+                  <PhoneIcon size={13} color="var(--text-dim)" /> Appeler
+                </button>
+              )}
+              {prospect.email && (
+                <button className="focusable" onClick={() => setQuickAction("email")} style={headerBtn}>
+                  <MailIcon size={13} color="var(--text-dim)" /> Email
+                </button>
+              )}
+              <button className="focusable" onClick={() => setShowMore((m) => !m)} style={headerBtn}>Plus ▾</button>
+              <button className="focusable" onClick={() => setQuickAction("edit")} style={{ ...headerBtn, background: "var(--blue)", color: "#fff", border: "none" }}>Modifier</button>
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {prospect.phone && (
-              <button className="focusable" onClick={() => setQuickAction("call")} style={headerBtn}>
-                <PhoneIcon size={13} color="var(--text-dim)" /> Appeler
-              </button>
-            )}
-            {prospect.email && (
-              <button className="focusable" onClick={() => setQuickAction("email")} style={headerBtn}>
-                <MailIcon size={13} color="var(--text-dim)" /> Email
-              </button>
-            )}
-            <button className="focusable" onClick={() => setShowMore((m) => !m)} style={{ ...headerBtn, position: "relative" }}>
-              Plus ▾
-            </button>
-            <button className="focusable" onClick={() => setQuickAction("edit")} style={{ ...headerBtn, background: "var(--blue)", color: "#fff", border: "none" }}>
-              Modifier
-            </button>
+          <div style={{ display: "flex", gap: "40px", flexWrap: "wrap", marginTop: "20px", paddingTop: "18px", borderTop: "0.5px solid var(--hairline)" }}>
+            <div>
+              <div className="mono" style={{ fontSize: "24px", fontWeight: 700 }}>{formatEuros(prospect.deal_value)}</div>
+              <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>Valeur du deal</div>
+            </div>
+            <div>
+              <div className="mono" style={{ fontSize: "24px", fontWeight: 700, color: "var(--blue)" }}>{stageProgress} %</div>
+              <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>Avancement</div>
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <NextActionSummary prospect={prospect} refreshKey={taskVersion} />
+            </div>
           </div>
+
+          {showMore && (
+            <div style={{ display: "flex", gap: "18px", flexWrap: "wrap", marginTop: "16px", paddingTop: "14px", borderTop: "0.5px solid var(--hairline)" }}>
+              <button className="focusable" onClick={() => { setQuickAction("activity"); setShowMore(false); }} style={moreBtn}>Ajouter une activité</button>
+              <button className="focusable" onClick={() => { setQuickAction("task"); setShowMore(false); }} style={moreBtn}>Ajouter une tâche</button>
+              <button className="focusable" onClick={() => { setQuickAction("contacted"); setShowMore(false); }} style={moreBtn}>Marquer contacté</button>
+              <button className="focusable" onClick={() => { setShowDevis(true); setShowMore(false); }} style={moreBtn}>Créer un devis</button>
+              <button className="focusable" onClick={() => { setConfirmDelete(true); setShowMore(false); }} style={{ ...moreBtn, color: "var(--red)" }}>Supprimer la fiche</button>
+            </div>
+          )}
         </div>
 
-        {showMore && (
-          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px 16px", marginBottom: "18px" }}>
-            <button className="focusable" onClick={() => { setQuickAction("note"); setShowMore(false); }} style={moreBtn}>Ajouter une note</button>
-            <button className="focusable" onClick={() => { setQuickAction("task"); setShowMore(false); }} style={moreBtn}>Ajouter une tâche</button>
-            <button className="focusable" onClick={() => { setQuickAction("contacted"); setShowMore(false); }} style={moreBtn}>Marquer contacté</button>
-            <button className="focusable" onClick={() => { setShowDevis(true); setShowMore(false); }} style={moreBtn}>Créer un devis</button>
-            <button className="focusable" onClick={() => { setConfirmDelete(true); setShowMore(false); }} style={{ ...moreBtn, color: "var(--red)" }}>Supprimer la fiche</button>
-          </div>
-        )}
-
         {confirmDelete && (
-          <div style={{ display: "flex", alignItems: "center", gap: "14px", background: "var(--red-dim)", borderRadius: "10px", padding: "12px 16px", marginBottom: "18px", fontSize: "12.5px" }}>
-            <span style={{ color: "var(--text)" }}>Supprimer définitivement cette fiche et tout son historique ?</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "14px", background: "var(--red-dim)", borderRadius: "10px", padding: "12px 16px", marginBottom: "18px", fontSize: "12.5px", flexWrap: "wrap" }}>
+            <span>Supprimer définitivement cette fiche et tout son historique ?</span>
             <button className="focusable" onClick={onDelete} style={{ marginLeft: "auto", background: "var(--red)", color: "#fff", border: "none", borderRadius: "7px", padding: "7px 14px", fontSize: "12px", fontWeight: 600 }}>Supprimer</button>
             <button className="focusable" onClick={() => setConfirmDelete(false)} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: "12px" }}>Annuler</button>
           </div>
         )}
       </div>
 
-      {/* Corps : colonne principale + colonne latérale */}
-      <div style={{ padding: "0 32px 60px" }}>
-        <div className="detail-grid" style={{ gridTemplateColumns: "minmax(0,1.45fr) minmax(0,1fr)", gap: "18px" }}>
+      <div style={{ padding: "0 32px 60px", maxWidth: "1280px", margin: "0 auto" }}>
+        <div className="fiche-grid">
+          {/* Colonne principale */}
           <div style={{ display: "flex", flexDirection: "column", gap: "18px", minWidth: 0 }}>
-            <Card title="Informations générales" Icon={UsersIcon} action={<CardLink onClick={() => setQuickAction("edit")}>Modifier</CardLink>}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 20px" }}>
-                <InfoField Icon={UsersIcon} label="Contact">{[prospect.civility && prospect.civility !== "-" ? prospect.civility : "", prospect.name].filter(Boolean).join(" ")}</InfoField>
-                <InfoField Icon={PinIcon} label="Adresse">
-                  {[prospect.billing_address, [prospect.billing_postal_code, prospect.billing_city].filter(Boolean).join(" ")].filter(Boolean).join(", ") || null}
-                </InfoField>
-                <InfoField Icon={BriefcaseIcon} label="Fonction">{prospect.job_title}</InfoField>
-                <InfoField Icon={UsersIcon} label="Taille de l'entreprise">{prospect.company_size}</InfoField>
-                <InfoField Icon={PhoneIcon} label="Téléphone">
-                  {prospect.phone ? <a href={`tel:${prospect.phone}`} style={{ color: "var(--text)", textDecoration: "none" }}>{prospect.phone}</a> : null}
-                </InfoField>
-                <InfoField Icon={BriefcaseIcon} label="Secteur d'activité">{prospect.industry}</InfoField>
-                <InfoField Icon={MailIcon} label="Email">
-                  {prospect.email ? <a href={`mailto:${prospect.email}`} style={{ color: "var(--blue)", textDecoration: "none" }}>{prospect.email}</a> : null}
-                </InfoField>
-                <InfoField Icon={ListIcon} label="SIRET">{prospect.siret}</InfoField>
-                <InfoField Icon={LinkedinIcon} label="LinkedIn">
-                  {prospect.linkedin_url ? <a href={prospect.linkedin_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)", textDecoration: "none" }}>Voir le profil</a> : null}
-                </InfoField>
-                <InfoField Icon={PlugIcon} label="Site web">
-                  {prospect.website ? <a href={prospect.website.startsWith("http") ? prospect.website : `https://${prospect.website}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)", textDecoration: "none" }}>{prospect.website}</a> : null}
-                </InfoField>
-              </div>
-            </Card>
+            <GeneralInfoCard prospect={prospect} onEdit={() => setQuickAction("edit")} />
 
-            <div ref={noteRef} style={{ scrollMarginTop: "20px" }}>
-              <NoteAnalyzer prospect={prospect} history={history} session={session} onLogActivity={onLogActivity} onUpdate={onUpdate} settings={settings} onTaskCreated={bumpTasks} onOpenTab={goToTab} />
-            </div>
-
-            <Card title="Activité" Icon={ListIcon} action={<CardLink onClick={() => setQuickAction("note")}>+ Ajouter</CardLink>}>
+            <Card title="Activité" Icon={ListIcon} action={<CardLink onClick={() => setQuickAction("activity")}>+ Ajouter une activité</CardLink>}>
               <ActivityTimeline history={history} />
             </Card>
 
             <Card title="Outils" Icon={SparklesIcon} action={<CardLink onClick={() => setShowDevis(true)}>Créer un devis</CardLink>}>
               <div ref={toolsRef} style={{ display: "flex", gap: "16px", marginBottom: "14px", flexWrap: "wrap", scrollMarginTop: "20px" }}>
-                {[["email", "Email"], ["echanges", "Échanges"], ["script", "Script"], ["taches", "Tâches"]].map(([key, label]) => (
+                {[["email", "Email"], ["echanges", "Échanges"], ["script", "Scripts"], ["taches", "Tâches"], ["noteia", "Note IA"], ["analyse", "Analyse"]].map(([key, label]) => (
                   <button key={key} className="focusable" onClick={() => setTab(key)} style={{ background: "none", border: "none", padding: 0, fontSize: "13px", fontWeight: tab === key ? 600 : 400, color: tab === key ? "var(--blue)" : "var(--text-dim)" }}>
                     {label}
                   </button>
@@ -1179,53 +1159,39 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
               {tab === "echanges" && <EmailThreadTab prospect={prospect} session={session} />}
               {tab === "script" && <ScriptGenerator prospect={prospect} history={history} session={session} />}
               {tab === "taches" && <TasksTab prospect={prospect} session={session} settings={settings} onChange={bumpTasks} />}
+              {tab === "noteia" && (
+                <div ref={noteRef} style={{ scrollMarginTop: "20px" }}>
+                  <NoteAnalyzer prospect={prospect} history={history} session={session} onLogActivity={onLogActivity} onUpdate={onUpdate} settings={settings} onTaskCreated={bumpTasks} onOpenTab={goToTab} />
+                </div>
+              )}
+              {tab === "analyse" && <OpportunityAI prospect={prospect} history={history} session={session} onUpdate={onUpdate} />}
             </Card>
           </div>
 
+          {/* Colonne latérale */}
           <div style={{ display: "flex", flexDirection: "column", gap: "18px", minWidth: 0 }}>
             <Card title="Opportunité" Icon={TargetIcon}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "16px" }}>
+              <div style={{ display: "flex", gap: "24px", marginBottom: "16px", flexWrap: "wrap" }}>
                 <div>
-                  <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>Valeur du deal</div>
-                  <div className="mono" style={{ fontSize: "22px", fontWeight: 700, color: "var(--blue)" }}>{formatEuros(prospect.deal_value)}</div>
+                  <div className="mono" style={{ fontSize: "20px", fontWeight: 700 }}>{formatEuros(prospect.deal_value)}</div>
+                  <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>Valeur</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>Avancement</div>
-                  <div className="mono" style={{ fontSize: "22px", fontWeight: 700, color: "var(--blue)" }}>{stageProgress} %</div>
-                  <div style={{ fontSize: "10.5px", color: "var(--text-faint)" }}>selon l'étape</div>
+                  <div className="mono" style={{ fontSize: "20px", fontWeight: 700, color: "var(--blue)" }}>{stageProgress} %</div>
+                  <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>Avancement</div>
                 </div>
               </div>
-              <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginBottom: "8px" }}>Étape du pipeline</div>
+              <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginBottom: "9px" }}>Étape du pipeline</div>
               <PipelineStepper stage={prospect.stage} onChange={handleStageChange} />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginTop: "16px" }}>
-                <div>
-                  <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>Source</div>
-                  <div style={{ fontSize: "13px" }}>{prospect.source || "—"}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>Ajouté le</div>
-                  <div style={{ fontSize: "13px" }}>{prospect.created_at ? formatShortDate(prospect.created_at) : "—"}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>Dernier contact</div>
-                  <div style={{ fontSize: "13px" }}>{prospect.last_contact_at ? formatShortDate(prospect.last_contact_at) : "jamais"}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>Priorité</div>
-                  <div style={{ fontSize: "13px" }}>{(PRIORITY_LEVELS.find((l) => l.value === nearestPriorityLevel(prospect.priority)) || {}).label || "—"}</div>
-                </div>
-              </div>
             </Card>
 
             <Card title="Prochaine action" Icon={CalendarIcon}>
-              <NextActionCard prospect={prospect} refreshKey={taskVersion} onOpenTab={goToTab} onDoAction={doNextAction} bare />
+              <NextActionCard prospect={prospect} refreshKey={taskVersion} onOpenTab={goToTab} onDoAction={doNextAction} onAdd={() => setQuickAction("task")} bare />
             </Card>
 
             <ProspectNotesCard prospect={prospect} onUpdate={onUpdate} />
 
             <DocumentsCard prospect={prospect} session={session} team={team} />
-
-            <OpportunityAI prospect={prospect} history={history} session={session} onUpdate={onUpdate} />
 
             {showOwners && (
               <Card title="Équipe" Icon={UsersIcon}>
@@ -1235,6 +1201,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
           </div>
         </div>
       </div>
+
       {playbookStage && (
         <StagePlaybookModal
           prospect={prospect}
@@ -1250,6 +1217,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
 
       {quickAction === "email" && <QuickEmailModal prospect={prospect} session={session} settings={settings} history={history} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
       {quickAction === "call" && <QuickCallModal prospect={prospect} session={session} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
+      {quickAction === "activity" && <QuickActivityModal prospect={prospect} session={session} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
       {quickAction === "note" && <QuickNoteModal prospect={prospect} session={session} settings={settings} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
       {quickAction === "task" && <QuickTaskModal prospect={prospect} session={session} settings={settings} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); bumpTasks(); }} />}
       {quickAction === "contacted" && <QuickContactedModal prospect={prospect} session={session} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
@@ -1326,7 +1294,7 @@ const DO_ACTION_LABEL = {
   rdv_physique: "Préparer le RDV",
 };
 
-function NextActionCard({ prospect, refreshKey, onOpenTab, onDoAction, bare }) {
+function NextActionCard({ prospect, refreshKey, onOpenTab, onDoAction, onAdd, bare }) {
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -1385,9 +1353,9 @@ function NextActionCard({ prospect, refreshKey, onOpenTab, onDoAction, bare }) {
         </>
       ) : (
         <>
-          <div style={{ fontSize: "13px", color: "var(--text-dim)", marginBottom: "10px" }}>Aucune action planifiée.</div>
-          <button className="btn-primary focusable" onClick={() => onOpenTab?.("taches")} style={{ height: "auto", padding: "8px 14px" }}>
-            Planifier une action
+          <div style={{ fontSize: "13px", color: "var(--text-faint)", marginBottom: "12px" }}>Aucune prochaine action.</div>
+          <button className="btn-primary focusable" onClick={() => (onAdd ? onAdd() : onOpenTab?.("taches"))} style={{ height: "auto", padding: "8px 16px" }}>
+            + Ajouter une action
           </button>
         </>
       )}
@@ -1887,6 +1855,98 @@ function Card({ title, Icon, action, children, style }) {
   );
 }
 
+// Résumé d'une ligne dans l'en-tête : ce qu'il faut faire, sans les boutons —
+// l'action complète vit dans la carte de la colonne latérale.
+function NextActionSummary({ prospect, refreshKey }) {
+  const [task, setTask] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("tasks")
+      .select("*")
+      .eq("prospect_id", prospect.id)
+      .eq("done", false)
+      .not("due_at", "is", null)
+      .order("due_at", { ascending: true })
+      .limit(1)
+      .then(({ data }) => {
+        if (cancelled) return;
+        setTask(data?.[0] || null);
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [prospect.id, refreshKey]);
+
+  if (loading) return null;
+
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: "15px", fontWeight: 600, color: task ? "var(--text)" : "var(--text-faint)", overflow: "hidden", textOverflow: "ellipsis" }}>
+        {task ? task.note : "Aucune action planifiée"}
+      </div>
+      <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>
+        {task ? <span className="mono" style={{ color: isOverdue(task.due_at) ? "var(--red)" : "var(--text-faint)", textTransform: "capitalize" }}>{formatDayTime(task.due_at)}</span> : "Prochaine action"}
+      </div>
+    </div>
+  );
+}
+
+// Les quatre informations de contact d'abord ; le reste sous « Voir plus ».
+function GeneralInfoCard({ prospect, onEdit }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const secondary = [
+    ["Adresse", [prospect.billing_address, [prospect.billing_postal_code, prospect.billing_city].filter(Boolean).join(" ")].filter(Boolean).join(", "), PinIcon],
+    ["Site web", prospect.website, PlugIcon],
+    ["Taille de l'entreprise", prospect.company_size, UsersIcon],
+    ["Secteur", prospect.industry, BriefcaseIcon],
+    ["SIRET", prospect.siret, ListIcon],
+    ["Source", prospect.source, TargetIcon],
+    ["Ajouté le", prospect.created_at ? formatShortDate(prospect.created_at) : "", CalendarIcon],
+    ["Priorité", (PRIORITY_LEVELS.find((l) => l.value === nearestPriorityLevel(prospect.priority)) || {}).label, SparklesIcon],
+  ].filter(([, value]) => value);
+
+  return (
+    <Card title="Informations générales" Icon={UsersIcon} action={<CardLink onClick={onEdit}>Modifier</CardLink>}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 20px" }}>
+        <InfoField Icon={UsersIcon} label="Contact">{[prospect.civility && prospect.civility !== "-" ? prospect.civility : "", prospect.name].filter(Boolean).join(" ")}</InfoField>
+        <InfoField Icon={BriefcaseIcon} label="Fonction">{prospect.job_title}</InfoField>
+        <InfoField Icon={PhoneIcon} label="Téléphone">
+          {prospect.phone ? <a href={`tel:${prospect.phone}`} style={{ color: "var(--text)", textDecoration: "none" }}>{prospect.phone}</a> : null}
+        </InfoField>
+        <InfoField Icon={MailIcon} label="Email">
+          {prospect.email ? <a href={`mailto:${prospect.email}`} style={{ color: "var(--blue)", textDecoration: "none" }}>{prospect.email}</a> : null}
+        </InfoField>
+      </div>
+
+      {expanded && secondary.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 20px", marginTop: "14px", paddingTop: "14px", borderTop: "0.5px solid var(--hairline)" }}>
+          {secondary.map(([label, value, Ico]) => (
+            <InfoField key={label} Icon={Ico} label={label}>
+              {label === "Site web" ? (
+                <a href={value.startsWith("http") ? value : `https://${value}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)", textDecoration: "none" }}>{value}</a>
+              ) : value}
+            </InfoField>
+          ))}
+          {prospect.linkedin_url && (
+            <InfoField Icon={LinkedinIcon} label="LinkedIn">
+              <a href={prospect.linkedin_url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue)", textDecoration: "none" }}>Voir le profil</a>
+            </InfoField>
+          )}
+        </div>
+      )}
+
+      {(secondary.length > 0 || prospect.linkedin_url) && (
+        <button className="focusable" onClick={() => setExpanded((e) => !e)} style={{ background: "none", border: "none", padding: 0, marginTop: "14px", color: "var(--blue)", fontSize: "12px", fontWeight: 600 }}>
+          {expanded ? "Voir moins" : "Voir plus"}
+        </button>
+      )}
+    </Card>
+  );
+}
+
 function CardLink({ children, onClick }) {
   return (
     <button className="focusable" onClick={onClick} style={{ background: "none", border: "none", padding: 0, color: "var(--blue)", fontSize: "12px", fontWeight: 600 }}>
@@ -2274,6 +2334,66 @@ function QuickNoteModal({ prospect, session, settings, onClose, onDone }) {
         style={{ width: "100%", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", lineHeight: 1.5, padding: "10px 12px", minHeight: "110px", resize: "vertical", fontFamily: "Inter, sans-serif", boxSizing: "border-box" }}
       />
       <ModalActions onCancel={onClose} onConfirm={submit} confirmLabel="Enregistrer la note" busy={busy} disabled={!note.trim()} />
+    </Modal>
+  );
+}
+
+function QuickActivityModal({ prospect, session, onClose, onDone }) {
+  const [type, setType] = useState("appel_abouti");
+  const [note, setNote] = useState("");
+  const [date, setDate] = useState(todayISO());
+  const [time, setTime] = useState(new Date().toTimeString().slice(0, 5));
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    if (!note.trim() || busy) return;
+    setBusy(true);
+    const when = new Date(`${date}T${time || "12:00"}`).toISOString();
+    await supabase.from("activities").insert({
+      user_id: session.user.id,
+      prospect_id: prospect.id,
+      team_id: prospect.team_id || null,
+      type,
+      note: note.trim(),
+      source: "manual",
+      created_at: when,
+    });
+    // Une activité enregistrée vaut contact : la fiche ne doit pas rester « sans suivi ».
+    if (type !== "appel_manque") {
+      await supabase.from("prospects").update({ last_contact_at: when }).eq("id", prospect.id);
+    }
+    setBusy(false);
+    onDone?.();
+    onClose();
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <ModalTitle sub={`${prospect.name} · ${prospect.company}`}>Ajouter une activité</ModalTitle>
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
+        {ACTION_TYPES.map(({ key, label, Icon }) => (
+          <button
+            key={key}
+            className="focusable"
+            onClick={() => setType(key)}
+            style={{ display: "flex", alignItems: "center", gap: "5px", background: type === key ? "var(--blue-dim)" : "var(--panel2)", color: type === key ? "var(--blue)" : "var(--text-dim)", border: type === key ? "0.5px solid #147ff555" : "0.5px solid var(--hairline)", borderRadius: "999px", padding: "6px 11px", fontSize: "12px" }}
+          >
+            <Icon size={12} /> {label}
+          </button>
+        ))}
+      </div>
+      <textarea
+        autoFocus
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Ce qui s'est passé, ce qu'il faut retenir…"
+        style={{ width: "100%", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", lineHeight: 1.5, padding: "10px 12px", minHeight: "100px", resize: "vertical", fontFamily: "Inter, sans-serif", boxSizing: "border-box", marginBottom: "10px" }}
+      />
+      <div style={{ display: "flex", gap: "8px" }}>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+        <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+      </div>
+      <ModalActions onCancel={onClose} onConfirm={submit} confirmLabel="Ajouter" busy={busy} disabled={!note.trim()} />
     </Modal>
   );
 }
