@@ -240,7 +240,7 @@ function ImportCsvModal({ session, onClose, onImported }) {
     let inserted = 0;
     let failed = false;
     for (let i = 0; i < toInsert.length; i += 250) {
-      const { error } = await supabase.from("prospects").insert(toInsert.slice(i, i + 250));
+      const { error } = await supabase.from("prospects").insert(toInsert.slice(i, i + 250).map((r) => ({ ...r, created_via: "import" })));
       if (error) {
         failed = true;
         break;
@@ -429,6 +429,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
     setSaving(true);
     const { error } = await supabase.from("prospects").insert({
       user_id: session.user.id,
+      created_via: "manuel",
       name: `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
       civility: form.civility,
       company: form.company,
@@ -1264,7 +1265,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
             <GeneralInfoCard prospect={prospect} onEdit={() => setQuickAction("edit")} />
 
             <Card title="Activité" Icon={ListIcon} action={<CardLink onClick={() => setQuickAction("activity")}>+ Ajouter une activité</CardLink>}>
-              <ActivityTimeline history={history} />
+              <ActivityTimeline history={history} prospect={prospect} team={team} session={session} />
             </Card>
 
             <Card title="Outils" Icon={SparklesIcon}>
@@ -3166,6 +3167,14 @@ const HISTORIQUE_FILTER_BY_TYPE = {
   reassignation: "Équipe",
 };
 
+const CREATED_VIA_LABEL = {
+  manuel: "Ajouté manuellement",
+  import: "Importé depuis un fichier",
+  back_office: "Créé depuis le back office",
+  site: "Reçu depuis le site internet",
+  email: "Créé depuis un email",
+};
+
 const HISTORIQUE_FILTERS = ["Tous", "Appels", "RDV & Visio", "LinkedIn", "Notes", "Deals", "IA", "Équipe"];
 
 const TIMELINE_ICON = {
@@ -3187,7 +3196,35 @@ function timelineDayLabel(iso) {
   return d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "short" });
 }
 
-function ActivityTimeline({ history }) {
+// L'arrivée du prospect est un événement comme un autre : elle prend sa place
+// au bas de la frise, à sa date réelle, plutôt que dans un encadré à part.
+function creationItem(prospect, team, session) {
+  if (!prospect?.created_at) return [];
+
+  const authorId = prospect.user_id;
+  let author = null;
+  if (authorId && authorId === session?.user?.id) {
+    author = "vous";
+  } else if (authorId) {
+    const m = (team?.members || []).find((x) => x.user_id === authorId);
+    if (m) author = m.first_name || m.last_name ? `${m.first_name || ""} ${m.last_name || ""}`.trim() : m.email;
+  }
+
+  const how = CREATED_VIA_LABEL[prospect.created_via] || "Origine non renseignée";
+  // La provenance commerciale déclarée complète le mode d'entrée sans le remplacer.
+  const declared = prospect.source ? ` · Provenance déclarée : ${prospect.source}` : "";
+
+  return [{
+    id: "creation",
+    created_at: prospect.created_at,
+    kind: "Prospect ajouté",
+    content: `${how}${author ? ` par ${author}` : ""}${declared}`,
+    filterKey: "Notes",
+    Icon: UsersIcon,
+  }];
+}
+
+function ActivityTimeline({ history, prospect, team, session }) {
   const [filter, setFilter] = useState("Tous");
   if (history.loading) return <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Chargement...</div>;
 
@@ -3196,6 +3233,7 @@ function ActivityTimeline({ history }) {
     ...history.scripts.map((x) => ({ ...x, kind: `Script préparé — ${x.section}`, filterKey: "IA", Icon: CalendarIcon })),
     ...history.analyses.map((x) => ({ ...x, kind: x.type === "opportunite" ? "Analyse Closia" : "Analyse", filterKey: "IA", Icon: SparklesIcon })),
     ...history.activities.map((x) => ({ ...x, kind: ACTIVITY_LABEL[x.type] || x.type, content: x.note || "", filterKey: HISTORIQUE_FILTER_BY_TYPE[x.type] || "Notes", Icon: TIMELINE_ICON[x.type] || ListIcon })),
+    ...creationItem(prospect, team, session),
   ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
   const visible = filter === "Tous" ? items : items.filter((i) => i.filterKey === filter);

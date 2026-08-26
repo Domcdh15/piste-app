@@ -91,6 +91,7 @@ export default async function handler(req, res) {
 
     await admin.from("prospects").insert({
       user_id: PRO_ACCOUNT_USER_ID,
+      created_via: "back_office",
       name: `${firstName} ${lastName}`,
       company: companyName,
       email,
