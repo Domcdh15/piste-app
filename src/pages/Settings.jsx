@@ -242,21 +242,21 @@ export default function Settings({ session, prospects, settings, reloadSettings,
             </div>
             <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
               <select
-                value={local.reschedule_mode || "same_time"}
+                value={local.reschedule_mode || "fixed"}
                 onChange={(e) => set({ reschedule_mode: e.target.value })}
                 style={{ ...inputSm, width: "auto" }}
               >
+                <option value="fixed">À partir d'un horaire que je choisis</option>
                 <option value="same_time">À son heure d'origine</option>
-                <option value="fixed">À une heure fixe</option>
               </select>
-              {local.reschedule_mode === "fixed" && (
+              {local.reschedule_mode !== "same_time" && (
                 <input type="time" value={local.reschedule_time || "08:00"} onChange={(e) => set({ reschedule_time: e.target.value })} style={inputSm} />
               )}
             </div>
             <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "8px", lineHeight: 1.5 }}>
-              {local.reschedule_mode === "fixed"
-                ? "Toutes les tâches manquées reviennent au même horaire. Pratique pour les traiter en une fois, mais votre agenda les empile sur une seule ligne."
-                : "Un appel manqué de 14h revient à 14h. Vos tâches restent réparties sur la journée."}
+              {local.reschedule_mode !== "same_time"
+                ? "Les tâches oubliées repartent à partir de cet horaire, espacées les unes des autres pour rester lisibles. Elles ne viennent pas se poser sur vos rendez-vous déjà pris."
+                : "Un appel manqué de 14h revient à 14h. Au risque de tomber sur un rendez-vous entre-temps ajouté au même moment."}
             </div>
           </div>
         ) : (

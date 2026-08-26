@@ -112,18 +112,34 @@ export default function Shell({ session, team, reloadTeam }) {
     const dayEnd = hourOf(userSettings?.work_end, { h: 19, m: 0 });
     // L'utilisateur choisit : garder l'heure de la tâche, ou tout ramener
     // à un même créneau pour traiter les reports en une fois.
-    const fixedMode = userSettings?.reschedule_mode === "fixed";
+    const fixedMode = userSettings?.reschedule_mode !== "same_time";
     const fixedAt = hourOf(userSettings?.reschedule_time, { h: 8, m: 0 });
 
+    // Toutes les tâches oubliées au même horaire redonneraient la pile qu'on
+    // vient de défaire. On les espace dans le créneau choisi, en resserrant
+    // l'intervalle si elles ne tiennent pas avant la fin de journée.
+    const slotStart = fixedAt.h * 60 + fixedAt.m;
+    const slotEnd = dayEnd.h * 60 + dayEnd.m;
+    const spacing = overdue.length > 1
+      ? Math.max(5, Math.min(15, Math.floor((slotEnd - slotStart) / (overdue.length - 1)) || 5))
+      : 0;
+
+    let index = 0;
     for (const t of overdue) {
       await supabase.from("tasks").update({ missed: true, done: true }).eq("id", t.id);
       const note = t.note?.startsWith("Tâche oubliée : ") ? t.note : `Tâche oubliée : ${t.note}`;
 
       const previous = t.due_at ? new Date(t.due_at) : null;
       const target = new Date(nextWorkDay);
-      if (fixedMode) target.setHours(fixedAt.h, fixedAt.m, 0, 0);
-      else if (previous) target.setHours(previous.getHours(), previous.getMinutes(), 0, 0);
-      else target.setHours(dayStart.h, dayStart.m, 0, 0);
+      if (fixedMode) {
+        const at = Math.min(slotStart + index * spacing, Math.max(slotStart, slotEnd - 5));
+        target.setHours(Math.floor(at / 60), at % 60, 0, 0);
+      } else if (previous) {
+        target.setHours(previous.getHours(), previous.getMinutes(), 0, 0);
+      } else {
+        target.setHours(dayStart.h, dayStart.m, 0, 0);
+      }
+      index++;
 
       // Une tâche placée hors de la journée de travail est ramenée dedans.
       // Une heure fixe choisie explicitement est respectée telle quelle ;
