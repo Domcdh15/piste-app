@@ -3,6 +3,17 @@ import { supabase } from "./lib/supabaseClient";
 import Login, { SetPassword } from "./pages/Login.jsx";
 import Shell from "./pages/Shell.jsx";
 
+// Le modèle d'email par défaut de Supabase renvoie le type dans le fragment
+// d'URL (#type=invite). supabase-js le consomme puis l'efface, donc on le lit
+// au chargement du module — avant lui. Ça évite d'avoir à personnaliser les
+// modèles d'email pour que l'invitation fonctionne.
+const URL_HASH_TYPE = (() => {
+  const m = /[#&]type=([a-z_]+)/.exec(window.location.hash || "");
+  return m ? m[1] : null;
+})();
+
+const NEEDS_PASSWORD_SETUP = URL_HASH_TYPE === "invite" || URL_HASH_TYPE === "recovery";
+
 export default function App() {
   const [session, setSession] = useState(undefined);
   const [team, setTeam] = useState(null);
@@ -57,13 +68,16 @@ export default function App() {
     } else {
       supabase.auth.getSession().then(({ data }) => {
         setSession(data.session);
+        // Arrivée par un lien d'invitation au format par défaut : on demande
+        // le mot de passe avant de laisser entrer.
+        if (data.session && NEEDS_PASSWORD_SETUP) setPasswordSetupMode(true);
         loadTeam(data.session);
       });
     }
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
-      if (event === "PASSWORD_RECOVERY") setPasswordSetupMode(true);
+      if (event === "PASSWORD_RECOVERY" || (newSession && NEEDS_PASSWORD_SETUP)) setPasswordSetupMode(true);
       loadTeam(newSession);
     });
 
