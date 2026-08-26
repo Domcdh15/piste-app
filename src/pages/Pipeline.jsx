@@ -523,7 +523,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
     );
   }
 
-  const showOwners = team && (team.team?.has_multiple_sales || team.team?.has_multiple_csm);
+  const showOwners = ownersEnabled(team, settings);
 
   return (
     <div style={{ background: "var(--bg)", minHeight: "100%" }}>
@@ -818,23 +818,33 @@ function ownerInitials(team, userId) {
 
 function OwnerBadges({ team, prospect, size = "sm" }) {
   if (!team) return null;
-  const showSales = team.team?.has_multiple_sales;
-  const showCsm = team.team?.has_multiple_csm;
-  if (!showSales && !showCsm) return null;
   const dim = size === "sm" ? 18 : 22;
   const font = size === "sm" ? 9 : 10;
+
+  function ownerName(id) {
+    const m = (team.members || []).find((x) => x.user_id === id);
+    if (!m) return "non attribué";
+    return m.first_name || m.last_name ? `${m.first_name || ""} ${m.last_name || ""}`.trim() : m.email;
+  }
+
+  // Deux pastilles systématiques : un tiret dit « personne n'est responsable »,
+  // ce qui est une information, pas un vide à masquer.
+  const BADGES = [
+    { role: "Commercial", id: prospect.sales_owner_id, bg: "var(--blue-dim)", fg: "var(--blue)" },
+    { role: "CSM", id: prospect.csm_owner_id, bg: "var(--gold-dim)", fg: "var(--gold-deep)" },
+  ];
+
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-      {showSales && (
-        <span title={`Commercial : ${ownerInitials(team, prospect.sales_owner_id) ? "" : "non attribué"}`} style={{ width: dim, height: dim, borderRadius: "50%", background: "var(--blue-dim)", color: "var(--blue)", fontSize: font, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          {ownerInitials(team, prospect.sales_owner_id) || "—"}
+      {BADGES.map((b) => (
+        <span
+          key={b.role}
+          title={`${b.role} : ${ownerName(b.id)}`}
+          style={{ width: dim, height: dim, borderRadius: "50%", background: b.bg, color: b.fg, fontSize: font, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+        >
+          {ownerInitials(team, b.id) || "—"}
         </span>
-      )}
-      {showCsm && (
-        <span title="CSM" style={{ width: dim, height: dim, borderRadius: "50%", background: "var(--gold-dim)", color: "var(--gold-deep)", fontSize: font, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          {ownerInitials(team, prospect.csm_owner_id) || "—"}
-        </span>
-      )}
+      ))}
     </div>
   );
 }
@@ -1082,7 +1092,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
     onUpdate({ priority: starred ? 50 : 100 });
   }
 
-  const showOwners = team && (team.team?.has_multiple_sales || team.team?.has_multiple_csm);
+  const showOwners = ownersEnabled(team, settings);
 
   const stageMeta = STAGE_META[prospect.stage] || {};
   const stageProgress = STAGE_PROGRESS[prospect.stage] ?? 0;
@@ -2814,12 +2824,19 @@ function ProspectOwnersReadout({ team, prospect }) {
   );
 }
 
+// L'attribution nominative accompagne les formules Équipe et Business :
+// c'est là qu'il y a plusieurs personnes entre qui répartir un portefeuille.
+function ownersEnabled(team, settings) {
+  if (!team) return false;
+  const memberCount = team.members?.length || 1;
+  const price = Number((memberCount > 1 && team.team ? team.team.plan_price : settings?.plan_price) || 0);
+  return price >= 39;
+}
+
 function ProspectOwnersPanel({ prospect, session, team, onAssigned }) {
   const [busy, setBusy] = useState(false);
   const isAdmin = team.role === "admin";
   const members = team.members || [];
-  const salesMembers = members.filter((m) => m.role === "sales" || m.role === "admin");
-  const csmMembers = members.filter((m) => m.role === "customer_success" || m.role === "admin");
 
   function memberLabel(m) {
     if (!m) return "";
@@ -2840,44 +2857,39 @@ function ProspectOwnersPanel({ prospect, session, team, onAssigned }) {
     }
   }
 
+  // Les deux responsabilités sont toujours affichées : un prospect a un
+  // commercial qui le signe et un CSM qui le garde, même si la case est vide.
+  const SLOTS = [
+    {
+      label: "COMMERCIAL RESPONSABLE",
+      ownerId: prospect.sales_owner_id,
+      // L'admin peut porter les deux casquettes : il figure dans les deux listes.
+      options: members.filter((m) => m.role === "sales" || m.role === "admin"),
+      onChange: (id) => assign({ salesOwnerId: id }),
+    },
+    {
+      label: "CSM RESPONSABLE",
+      ownerId: prospect.csm_owner_id,
+      options: members.filter((m) => m.role === "customer_success" || m.role === "admin"),
+      onChange: (id) => assign({ csmOwnerId: id }),
+    },
+  ];
+
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
-      {team.team?.has_multiple_sales && (
-        <div>
-          <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>COMMERCIAL RESPONSABLE</div>
+      {SLOTS.map((slot) => (
+        <div key={slot.label}>
+          <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>{slot.label}</div>
           {isAdmin ? (
-            <select
-              value={prospect.sales_owner_id || ""}
-              disabled={busy}
-              onChange={(e) => assign({ salesOwnerId: e.target.value || null })}
-              style={selectStyle}
-            >
+            <select value={slot.ownerId || ""} disabled={busy} onChange={(e) => slot.onChange(e.target.value || null)} style={selectStyle}>
               <option value="">— Non attribué —</option>
-              {salesMembers.map((m) => <option key={m.user_id} value={m.user_id}>{memberLabel(m)}</option>)}
+              {slot.options.map((m) => <option key={m.user_id} value={m.user_id}>{memberLabel(m)}</option>)}
             </select>
           ) : (
-            <div style={{ fontSize: "13px" }}>{memberLabel(members.find((m) => m.user_id === prospect.sales_owner_id)) || "Non attribué"}</div>
+            <div style={{ fontSize: "13px" }}>{memberLabel(members.find((m) => m.user_id === slot.ownerId)) || "Non attribué"}</div>
           )}
         </div>
-      )}
-      {team.team?.has_multiple_csm && (
-        <div>
-          <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>CSM RESPONSABLE</div>
-          {isAdmin ? (
-            <select
-              value={prospect.csm_owner_id || ""}
-              disabled={busy}
-              onChange={(e) => assign({ csmOwnerId: e.target.value || null })}
-              style={selectStyle}
-            >
-              <option value="">— Non attribué —</option>
-              {csmMembers.map((m) => <option key={m.user_id} value={m.user_id}>{memberLabel(m)}</option>)}
-            </select>
-          ) : (
-            <div style={{ fontSize: "13px" }}>{memberLabel(members.find((m) => m.user_id === prospect.csm_owner_id)) || "Non attribué"}</div>
-          )}
-        </div>
-      )}
+      ))}
     </div>
   );
 }

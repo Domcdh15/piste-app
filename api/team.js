@@ -64,6 +64,13 @@ export default async function handler(req, res) {
   const { action } = req.body || {};
 
   if (action === "assign_prospect") {
+    // L'interface ne montre les sélecteurs qu'à l'administrateur : le serveur
+    // doit appliquer la même règle, sinon un commercial peut se réattribuer
+    // le portefeuille d'un collègue par un appel direct.
+    if (membership.role !== "admin") {
+      return res.status(403).json({ error: "Réservé à l'administrateur de l'équipe" });
+    }
+
     const { prospectId, salesOwnerId, csmOwnerId } = req.body;
     if (!prospectId) return res.status(400).json({ error: "prospectId manquant" });
 

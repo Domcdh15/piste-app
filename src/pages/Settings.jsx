@@ -676,25 +676,6 @@ export function TeamPanel({ session, team, reloadTeam, canRequireNextAction }) {
 
       {error && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "10px" }}>{error}</div>}
 
-      {isAdmin && (
-        <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "0.5px solid var(--hairline)" }}>
-          <Toggle
-            label="Plusieurs commerciaux dans l'équipe"
-            checked={!!team.team?.has_multiple_sales}
-            onChange={(v) => call({ action: "set_team_flags", has_multiple_sales: v })}
-          />
-          <Toggle
-            label="Plusieurs Customer Success dans l'équipe"
-            checked={!!team.team?.has_multiple_csm}
-            onChange={(v) => call({ action: "set_team_flags", has_multiple_csm: v })}
-            last
-          />
-          <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>
-            Active les sélecteurs "Commercial responsable" / "CSM responsable" sur les fiches prospects.
-          </div>
-        </div>
-      )}
-
       {isAdmin && canRequireNextAction && (
         <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "0.5px solid var(--hairline)" }}>
           <Toggle
