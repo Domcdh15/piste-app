@@ -11,8 +11,16 @@ const TASK_TYPE_META = {
   relance_email: { label: "Emails", color: "var(--blue)", dim: "var(--blue-dim)", Icon: MailIcon },
 };
 const TASK_TYPE_KEYS = Object.keys(TASK_TYPE_META);
-const GRID_START_HOUR = 7;
-const GRID_END_HOUR = 20;
+const DEFAULT_START_HOUR = 8;
+const DEFAULT_END_HOUR = 19;
+const DAY_CODES = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+
+function parseHour(value, fallback) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(value || ""));
+  if (!m) return fallback;
+  const h = Number(m[1]);
+  return h >= 0 && h <= 23 ? h : fallback;
+}
 const ROW_HEIGHT = 56;
 const TASK_LANE_PCT = 32;
 
@@ -35,10 +43,10 @@ function durationLabel(start, end) {
   return m ? `${h}h${String(m).padStart(2, "0")}` : `${h}h`;
 }
 
-function topFor(iso) {
+function topFor(iso, startHour) {
   const d = new Date(iso);
   const hours = d.getHours() + d.getMinutes() / 60;
-  return (hours - GRID_START_HOUR) * ROW_HEIGHT;
+  return (hours - startHour) * ROW_HEIGHT;
 }
 
 function heightFor(startIso, endIso) {
@@ -333,7 +341,7 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
               onAdd={() => setShowAddForm(true)}
             />
           ) : (
-            <TimeGrid events={events} tasks={visibleTasks} view={view} refDate={refDate} onSelect={setSelectedEventId} selectedId={selectedEventId} matchProspect={matchProspect} prospectById={prospectById} onToggleTask={toggleTaskDone} onOpenProspect={onOpenProspect} />
+            <TimeGrid events={events} tasks={visibleTasks} view={view} refDate={refDate} onSelect={setSelectedEventId} selectedId={selectedEventId} matchProspect={matchProspect} prospectById={prospectById} onToggleTask={toggleTaskDone} onOpenProspect={onOpenProspect} settings={settings} />
           )}
         </div>
 
@@ -353,24 +361,48 @@ const navBtn = { fontSize: "12px", padding: "6px 10px", borderRadius: "6px", bac
 
 const MAX_TASK_PILLS = 3;
 
-function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchProspect, prospectById, onToggleTask, onOpenProspect }) {
+function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchProspect, prospectById, onToggleTask, onOpenProspect, settings }) {
   const [expandedCluster, setExpandedCluster] = useState(null);
+  // La semaine ne montre que les jours travaillés. Le jour affiché reste
+  // celui qu'on a demandé, même s'il n'est pas travaillé.
+  const workDays = settings?.work_days?.length ? settings.work_days : ["Lun", "Mar", "Mer", "Jeu", "Ven"];
   const days = view === "Jour"
     ? [startOfDay(refDate)]
     : (() => {
         const s = startOfWeek(refDate);
-        return Array.from({ length: 7 }, (_, i) => { const d = new Date(s); d.setDate(d.getDate() + i); return d; });
+        const all = Array.from({ length: 7 }, (_, i) => { const d = new Date(s); d.setDate(d.getDate() + i); return d; });
+        const kept = all.filter((d) => workDays.includes(DAY_CODES[d.getDay()]));
+        // Un réglage vide ou incohérent ne doit pas produire une semaine vide.
+        return kept.length > 0 ? kept : all;
       })();
 
   const allDayEvents = events.filter((e) => !e.start || e.start.length <= 10);
   const timedEvents = events.filter((e) => e.start && e.start.length > 10);
 
+  // On part des horaires réglés, puis on élargit pour ne jamais masquer un
+  // rendez-vous pris en dehors : se concentrer n'est pas cacher.
+  const configuredStart = parseHour(settings?.work_start, DEFAULT_START_HOUR);
+  const configuredEnd = Math.max(configuredStart + 1, parseHour(settings?.work_end, DEFAULT_END_HOUR));
+  const dayKeys = new Set(days.map((d) => d.toDateString()));
+  const shownTimes = [
+    ...timedEvents.map((e) => e.start),
+    ...tasks.map((t) => t.due_at),
+  ].filter((iso) => iso && iso.length > 10 && dayKeys.has(new Date(iso).toDateString()));
+
+  let startHour = configuredStart;
+  let endHour = configuredEnd;
+  for (const iso of shownTimes) {
+    const d = new Date(iso);
+    startHour = Math.min(startHour, d.getHours());
+    endHour = Math.max(endHour, d.getHours() + 1);
+  }
+
   const hours = [];
-  for (let h = GRID_START_HOUR; h < GRID_END_HOUR; h++) hours.push(h);
-  const gridHeight = (GRID_END_HOUR - GRID_START_HOUR) * ROW_HEIGHT;
+  for (let h = startHour; h < endHour; h++) hours.push(h);
+  const gridHeight = (endHour - startHour) * ROW_HEIGHT;
 
   const now = new Date();
-  const nowTop = topFor(now.toISOString());
+  const nowTop = topFor(now.toISOString(), startHour);
   const showNowLine = nowTop >= 0 && nowTop <= gridHeight;
 
   return (
@@ -425,7 +457,7 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
             return (
               <div key={d.toDateString()} style={{ position: "relative", borderLeft: "0.5px solid var(--hairline)", height: gridHeight }}>
                 {hours.map((h) => (
-                  <div key={h} style={{ position: "absolute", top: (h - GRID_START_HOUR) * ROW_HEIGHT, left: 0, right: 0, borderTop: "0.5px solid var(--hairline)" }} />
+                  <div key={h} style={{ position: "absolute", top: (h - startHour) * ROW_HEIGHT, left: 0, right: 0, borderTop: "0.5px solid var(--hairline)" }} />
                 ))}
                 {isToday && showNowLine && (
                   <div style={{ position: "absolute", top: nowTop, left: 0, right: 0, height: "2px", background: "var(--red)", zIndex: 3 }}>
@@ -446,7 +478,7 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
 
                   const nodes = [];
                   for (const [timeKey, group] of byExactTime) {
-                    const top = Math.max(0, topFor(group[0].event.due_at));
+                    const top = Math.max(0, topFor(group[0].event.due_at, startHour));
 
                     if (group.length > MAX_TASK_PILLS) {
                       const clusterKey = `${d.toDateString()}-${timeKey}`;
@@ -513,7 +545,7 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                           key={task.id}
                           title={`${meta.label} · ${formatTime(task.due_at)} · ${task.note}`}
                           style={{
-                            position: "absolute", top: Math.max(0, topFor(task.due_at)), height,
+                            position: "absolute", top: Math.max(0, topFor(task.due_at, startHour)), height,
                             left: `calc(${col * widthPct}% + 1px)`, width: `calc(${widthPct}% - 2px)`,
                             background: meta.dim, border: `0.5px solid ${meta.color}55`, borderRadius: "5px",
                             padding: "2px 3px", overflow: "hidden", zIndex: 2, display: "flex", alignItems: "flex-start", gap: "2px",
@@ -536,7 +568,7 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
 
                 {laid.map(({ event, colIndex, colCount }) => {
                   const prospect = matchProspect(event);
-                  const top = Math.max(0, topFor(event.start));
+                  const top = Math.max(0, topFor(event.start, startHour));
                   const height = Math.max(24, heightFor(event.start, event.end));
                   const widthPct = (100 - eventsLeftPct) / colCount;
                   const active = selectedId === event.id;

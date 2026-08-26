@@ -219,6 +219,17 @@ export default function Settings({ session, prospects, settings, reloadSettings,
         </div>
         <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "16px" }}>Lorsque vous créez une tâche sans heure précise, Closia la place au début de ce créneau dans l'Agenda.</div>
 
+        <div style={{ fontSize: "13px", color: "var(--text)", marginBottom: "8px" }}>Journée de travail</div>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "6px" }}>
+          <input type="time" value={local.work_start || "08:00"} onChange={(e) => set({ work_start: e.target.value })} style={inputSm} />
+          <span style={{ color: "var(--text-faint)", fontSize: "13px" }}>→</span>
+          <input type="time" value={local.work_end || "19:00"} onChange={(e) => set({ work_end: e.target.value })} style={inputSm} />
+        </div>
+        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "16px" }}>
+          L'Agenda se concentre sur ce créneau et sur vos jours travaillés. Un rendez-vous placé en dehors
+          reste visible : la grille s'étend pour l'inclure plutôt que de le masquer.
+        </div>
+
         <Toggle
           label="Reporter automatiquement les tâches non terminées"
           checked={local.auto_reschedule_missed_tasks !== false}
