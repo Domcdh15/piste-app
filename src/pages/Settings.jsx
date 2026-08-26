@@ -71,6 +71,12 @@ export default function Settings({ session, prospects, settings, reloadSettings,
 
   const isAdmin = !team || team.role === "admin";
 
+  // L'invariant « aucun prospect sans prochaine action » est un outil de management :
+  // il n'a de sens qu'à partir de la formule Équipe, où l'admin l'impose à toute l'équipe.
+  const memberCount = team?.members?.length || 1;
+  const teamPlanPrice = Number((memberCount > 1 && team?.team ? team.team?.plan_price : local?.plan_price) || 0);
+  const canRequireNextAction = teamPlanPrice >= 39;
+
   // Les rubriques réservées à l'administrateur disparaissent de la navigation
   // plutôt que de s'afficher vides.
   const navItems = [
@@ -365,7 +371,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
               <>
       {isAdmin && (
         <Section title="Équipe">
-          <TeamPanel session={session} team={team} reloadTeam={reloadTeam} />
+          <TeamPanel session={session} team={team} reloadTeam={reloadTeam} canRequireNextAction={canRequireNextAction} />
         </Section>
       )}
               </>
@@ -536,7 +542,7 @@ function Toggle({ label, checked, onChange, last }) {
 
 const ROLE_LABELS = { admin: "Admin", sales: "Commercial", customer_success: "Customer Success" };
 
-export function TeamPanel({ session, team, reloadTeam }) {
+export function TeamPanel({ session, team, reloadTeam, canRequireNextAction }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [showInvite, setShowInvite] = useState(false);
@@ -685,6 +691,22 @@ export function TeamPanel({ session, team, reloadTeam }) {
           />
           <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>
             Active les sélecteurs "Commercial responsable" / "CSM responsable" sur les fiches prospects.
+          </div>
+        </div>
+      )}
+
+      {isAdmin && canRequireNextAction && (
+        <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "0.5px solid var(--hairline)" }}>
+          <Toggle
+            label="Aucun prospect sans prochaine action"
+            checked={!!team.team?.require_next_action}
+            onChange={(v) => call({ action: "set_team_flags", require_next_action: v })}
+            last
+          />
+          <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px", lineHeight: 1.5 }}>
+            S'applique à toute l'équipe. Une fiche en cours ne peut plus être quittée sans qu'une prochaine
+            action soit planifiée — ou que le prospect soit explicitement clos. C'est la règle qui empêche
+            un deal de s'endormir.
           </div>
         </div>
       )}

@@ -999,6 +999,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
   const [tab, setTab] = useState(initialTab && initialTab !== "historique" ? initialTab : "email");
   const [dealValueInput, setDealValueInput] = useState(prospect.deal_value ?? 0);
   const [taskVersion, setTaskVersion] = useState(0);
+  const [guardOpen, setGuardOpen] = useState(false);
   const toolsRef = useRef(null);
   const noteRef = useRef(null);
 
@@ -1021,6 +1022,35 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
   }
   const history = useProspectHistory(prospect.id);
   const bumpTasks = () => setTaskVersion((v) => v + 1);
+
+  // Invariant d'équipe : une fiche en cours ne se quitte pas sans prochaine action.
+  // Réglage activé par l'administrateur (formules Équipe et Business).
+  const requireNextAction = !!team?.team?.require_next_action;
+  const guardApplies = requireNextAction && OPEN_STAGES.includes(prospect.stage);
+
+  async function countOpenTasks() {
+    const { count } = await supabase
+      .from("tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("prospect_id", prospect.id)
+      .eq("done", false)
+      .not("due_at", "is", null);
+    return count || 0;
+  }
+
+  // On bloque la sortie plutôt que de prévenir : un avertissement qu'on peut
+  // ignorer ne change aucune habitude.
+  async function attemptBack() {
+    if (!guardApplies || (await countOpenTasks()) > 0) return onBack();
+    setGuardOpen("exit");
+  }
+
+  // Le vrai moment de la discipline commerciale : l'action vient d'être faite,
+  // la suivante se décide maintenant, pas au prochain passage sur la fiche.
+  async function afterTaskCompleted() {
+    bumpTasks();
+    if (guardApplies && (await countOpenTasks()) === 0) setGuardOpen("completed");
+  }
 
   async function handleStageChange(stage) {
     if (stage === prospect.stage) return;
@@ -1060,7 +1090,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
   return (
     <div style={{ background: "var(--bg)", minHeight: "100%" }}>
       <div style={{ padding: "22px 32px 0", maxWidth: "1280px", margin: "0 auto" }}>
-        <button className="focusable" onClick={onBack} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: "4px 0", marginBottom: "16px", color: "var(--text-dim)", fontSize: "13px" }}>
+        <button className="focusable" onClick={attemptBack} style={{ display: "flex", alignItems: "center", gap: "6px", background: "none", border: "none", padding: "4px 0", marginBottom: "16px", color: "var(--text-dim)", fontSize: "13px" }}>
           <ArrowLeftIcon size={14} color="var(--text-dim)" /> {backLabel || "Retour au pipeline"}
         </button>
 
@@ -1186,7 +1216,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
             </Card>
 
             <Card title="Prochaine action" Icon={CalendarIcon}>
-              <NextActionCard prospect={prospect} refreshKey={taskVersion} onOpenTab={goToTab} onDoAction={doNextAction} onAdd={() => setQuickAction("task")} bare />
+              <NextActionCard prospect={prospect} refreshKey={taskVersion} onOpenTab={goToTab} onDoAction={doNextAction} onAdd={() => setQuickAction("task")} onCompleted={afterTaskCompleted} bare />
             </Card>
 
             <ProspectNotesCard prospect={prospect} onUpdate={onUpdate} />
@@ -1220,6 +1250,21 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
       {quickAction === "activity" && <QuickActivityModal prospect={prospect} session={session} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
       {quickAction === "note" && <QuickNoteModal prospect={prospect} session={session} settings={settings} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
       {quickAction === "task" && <QuickTaskModal prospect={prospect} session={session} settings={settings} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); bumpTasks(); }} />}
+
+      {guardOpen && (
+        <NextActionGuardModal
+          prospect={prospect}
+          session={session}
+          settings={settings}
+          onScheduled={() => { const reason = guardOpen; setGuardOpen(false); bumpTasks(); reload?.(); if (reason === "exit") onBack(); }}
+          onDropped={async () => {
+            await onUpdate({ stage: "Perdu" });
+            await onLogActivity("note", "Prospect déclaré sans suite depuis la règle d'équipe");
+            setGuardOpen(false);
+            onBack();
+          }}
+        />
+      )}
       {quickAction === "contacted" && <QuickContactedModal prospect={prospect} session={session} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
       {quickAction === "edit" && (
         <Modal onClose={() => setQuickAction(null)}>
@@ -1294,7 +1339,7 @@ const DO_ACTION_LABEL = {
   rdv_physique: "Préparer le RDV",
 };
 
-function NextActionCard({ prospect, refreshKey, onOpenTab, onDoAction, onAdd, bare }) {
+function NextActionCard({ prospect, refreshKey, onOpenTab, onDoAction, onAdd, onCompleted, bare }) {
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -1321,6 +1366,7 @@ function NextActionCard({ prospect, refreshKey, onOpenTab, onDoAction, onAdd, ba
     if (!task) return;
     await supabase.from("tasks").update({ done: true, completed_at: new Date().toISOString() }).eq("id", task.id);
     load();
+    onCompleted?.();
   }
 
   if (loading) return null;
@@ -2296,6 +2342,12 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function inDaysISO(n) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function QuickNoteModal({ prospect, session, settings, onClose, onDone }) {
   const [actionType, setActionType] = useState("appel_abouti");
   const [note, setNote] = useState("");
@@ -2394,6 +2446,103 @@ function QuickActivityModal({ prospect, session, onClose, onDone }) {
         <input type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
       </div>
       <ModalActions onCancel={onClose} onConfirm={submit} confirmLabel="Ajouter" busy={busy} disabled={!note.trim()} />
+    </Modal>
+  );
+}
+
+// Garde-fou de l'invariant d'équipe « aucun prospect sans prochaine action ».
+// Volontairement sans bouton Annuler ni fermeture au clic extérieur : trois
+// issues seulement, planifier vite, planifier sur mesure, ou clore le prospect.
+function NextActionGuardModal({ prospect, session, settings, onScheduled, onDropped }) {
+  const [type, setType] = useState("relance_email");
+  const [note, setNote] = useState("");
+  const [dueDate, setDueDate] = useState(() => inDaysISO(3));
+  const [busy, setBusy] = useState(false);
+  const [confirmDrop, setConfirmDrop] = useState(false);
+  const who = prospect.name || prospect.company || "ce prospect";
+  const time = settings?.default_task_time || "09:00";
+
+  async function createTask(taskType, dateISO, text) {
+    if (busy) return;
+    setBusy(true);
+    const { error } = await supabase.from("tasks").insert({
+      user_id: session.user.id,
+      prospect_id: prospect.id,
+      type: taskType,
+      note: text,
+      due_at: new Date(`${dateISO}T${time}`).toISOString(),
+      priority: 50,
+    });
+    setBusy(false);
+    if (!error) onScheduled?.();
+  }
+
+  const PRESETS = [
+    { label: `Relancer ${who} par email`, when: "dans 3 jours", type: "relance_email", days: 3 },
+    { label: `Rappeler ${who}`, when: "demain", type: "appel_telephone", days: 1 },
+    { label: `Relancer ${who} par email`, when: "la semaine prochaine", type: "relance_email", days: 7 },
+  ];
+
+  return (
+    <Modal>
+      <ModalTitle sub={`${prospect.name || ""}${prospect.company ? ` · ${prospect.company}` : ""}`}>Et ensuite ?</ModalTitle>
+
+      <div style={{ fontSize: "12.5px", color: "var(--text-dim)", lineHeight: 1.55, marginBottom: "16px" }}>
+        Votre équipe a activé la règle <strong style={{ color: "var(--text)" }}>« aucun prospect sans prochaine action »</strong>.
+        Planifiez la suite avant de quitter la fiche — c'est ce qui empêche un deal de s'endormir.
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "7px", marginBottom: "18px" }}>
+        {PRESETS.map((preset) => {
+          const Meta = TASK_TYPE_META[preset.type];
+          return (
+            <button
+              key={`${preset.type}-${preset.days}`}
+              className="focusable row-hover"
+              disabled={busy}
+              onClick={() => createTask(preset.type, inDaysISO(preset.days), preset.label)}
+              style={{ display: "flex", alignItems: "center", gap: "10px", textAlign: "left", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "11px 13px", opacity: busy ? 0.5 : 1 }}
+            >
+              {Meta?.Icon && <Meta.Icon size={14} color={Meta.color} />}
+              <span style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--text)", flex: 1, minWidth: 0 }}>{preset.label}</span>
+              <span style={{ fontSize: "12px", color: "var(--text-faint)", whiteSpace: "nowrap" }}>{preset.when}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "16px", display: "flex", flexDirection: "column", gap: "9px" }}>
+        <span className="section-eyebrow">Autre action</span>
+        <select value={type} onChange={(e) => setType(e.target.value)} style={{ ...inputStyle, width: "100%" }}>
+          {Object.entries(TASK_TYPE_META).map(([key, meta]) => <option key={key} value={key}>{meta.label}</option>)}
+        </select>
+        <input placeholder="Que faut-il faire ?" value={note} onChange={(e) => setNote(e.target.value)} style={{ ...inputStyle, width: "100%" }} />
+        <input type="date" value={dueDate} min={todayISO()} onChange={(e) => setDueDate(e.target.value)} style={{ ...inputStyle, width: "100%" }} />
+        <button
+          className="btn-primary focusable"
+          disabled={busy || !note.trim() || !dueDate}
+          onClick={() => createTask(type, dueDate, note.trim())}
+          style={{ width: "100%", opacity: busy || !note.trim() || !dueDate ? 0.5 : 1 }}
+        >
+          Planifier cette action
+        </button>
+      </div>
+
+      <div style={{ borderTop: "0.5px solid var(--hairline)", marginTop: "16px", paddingTop: "14px" }}>
+        {confirmDrop ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "12.5px", color: "var(--text-dim)", flex: 1, minWidth: "150px" }}>
+              {who} passera en « Perdu ». Vous pourrez le rouvrir plus tard.
+            </span>
+            <button className="focusable" onClick={() => setConfirmDrop(false)} style={{ background: "none", border: "none", fontSize: "12.5px", color: "var(--text-dim)", fontWeight: 600 }}>Annuler</button>
+            <button className="focusable" onClick={onDropped} style={{ background: "var(--red-dim)", color: "var(--red)", border: "none", borderRadius: "8px", padding: "8px 13px", fontSize: "12.5px", fontWeight: 600 }}>Confirmer</button>
+          </div>
+        ) : (
+          <button className="focusable" onClick={() => setConfirmDrop(true)} style={{ background: "none", border: "none", padding: 0, fontSize: "12.5px", color: "var(--text-faint)", fontWeight: 500 }}>
+            Ce prospect est sans suite →
+          </button>
+        )}
+      </div>
     </Modal>
   );
 }

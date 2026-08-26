@@ -180,10 +180,11 @@ export default async function handler(req, res) {
   }
 
   if (action === "set_team_flags") {
-    const { has_multiple_sales, has_multiple_csm } = req.body;
+    const { has_multiple_sales, has_multiple_csm, require_next_action } = req.body;
     const patch = {};
     if (has_multiple_sales !== undefined) patch.has_multiple_sales = has_multiple_sales;
     if (has_multiple_csm !== undefined) patch.has_multiple_csm = has_multiple_csm;
+    if (require_next_action !== undefined) patch.require_next_action = !!require_next_action;
     const { error } = await admin.from("teams").update(patch).eq("id", membership.team_id);
     if (error) return res.status(500).json({ error: "La mise à jour a échoué" });
     return res.status(200).json({ ok: true });
