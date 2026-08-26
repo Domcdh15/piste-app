@@ -994,6 +994,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [quickAction, setQuickAction] = useState(null);
   const [showDevis, setShowDevis] = useState(false);
+  const [docVersion, setDocVersion] = useState(0);
   const [showMore, setShowMore] = useState(false);
   const [playbookStage, setPlaybookStage] = useState(null);
   const [tab, setTab] = useState(initialTab && initialTab !== "historique" ? initialTab : "email");
@@ -1221,7 +1222,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
 
             <ProspectNotesCard prospect={prospect} onUpdate={onUpdate} />
 
-            <DocumentsCard prospect={prospect} session={session} team={team} onCreateDevis={() => setShowDevis(true)} />
+            <DocumentsCard prospect={prospect} session={session} team={team} onCreateDevis={() => setShowDevis(true)} refreshKey={docVersion} />
 
             {showOwners && (
               <Card title="Équipe" Icon={UsersIcon}>
@@ -1243,7 +1244,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
         />
       )}
 
-      {showDevis && <DevisGenerator prospect={prospect} history={history} session={session} settings={settings} onClose={() => setShowDevis(false)} />}
+      {showDevis && <DevisGenerator prospect={prospect} history={history} session={session} settings={settings} onClose={() => setShowDevis(false)} onArchived={() => setDocVersion((v) => v + 1)} />}
 
       {quickAction === "email" && <QuickEmailModal prospect={prospect} session={session} settings={settings} history={history} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
       {quickAction === "call" && <QuickCallModal prospect={prospect} session={session} onClose={() => setQuickAction(null)} onDone={() => { reload?.(); history.reload(); }} />}
@@ -2177,7 +2178,7 @@ const FILE_BADGES = {
 
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
-function DocumentsCard({ prospect, session, team, onCreateDevis }) {
+function DocumentsCard({ prospect, session, team, onCreateDevis, refreshKey }) {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -2198,7 +2199,7 @@ function DocumentsCard({ prospect, session, team, onCreateDevis }) {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prospect.id]);
+  }, [prospect.id, refreshKey]);
 
   async function upload(e) {
     const file = e.target.files?.[0];
@@ -3783,7 +3784,7 @@ function DevisPreview({ prospect, settings, items, total }) {
   );
 }
 
-function DevisGenerator({ prospect, history, session, settings, onClose }) {
+function DevisGenerator({ prospect, history, session, settings, onClose, onArchived }) {
   const [items, setItems] = useState([{ description: "", qty: 1, unitPrice: prospect.deal_value || 0 }]);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
@@ -3910,6 +3911,36 @@ Total général : ${formatEuros(total)}`;
     return buildDevisNumber({ devis_counter: counter });
   }
 
+  // Un devis produit est une pièce du dossier client : il rejoint le même
+  // stockage que les fichiers importés, pour être retrouvé depuis la fiche.
+  async function archiveDevis(doc, number) {
+    const { devisFileName } = await import("../lib/devisPdf.js");
+    const fileName = devisFileName(effectiveProspect, number);
+    const blob = doc.output("blob");
+    const safeName = fileName.replace(/[^\p{L}\p{N}._-]+/gu, "_");
+    const path = `${session.user.id}/${prospect.id}/${crypto.randomUUID()}-${safeName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("prospect-documents")
+      .upload(path, blob, { contentType: "application/pdf" });
+    if (uploadError) throw uploadError;
+
+    const { error: rowError } = await supabase.from("prospect_documents").insert({
+      user_id: session.user.id,
+      prospect_id: prospect.id,
+      team_id: prospect.team_id || null,
+      storage_path: path,
+      file_name: fileName,
+      file_size: blob.size,
+      mime_type: "application/pdf",
+    });
+    // Sans métadonnées le fichier serait invisible : on ne le laisse pas orphelin.
+    if (rowError) {
+      await supabase.storage.from("prospect-documents").remove([path]);
+      throw rowError;
+    }
+  }
+
   async function downloadPdf() {
     if (busyDoc) return;
     setBusyDoc("pdf");
@@ -3919,6 +3950,13 @@ Total général : ${formatEuros(total)}`;
       const { buildDevisPdf, devisFileName } = await import("../lib/devisPdf.js");
       const { doc } = await buildDevisPdf({ prospect: effectiveProspect, settings: effectiveSettings, items, total, number });
       doc.save(devisFileName(effectiveProspect, number));
+      // L'archivage échoue sans annuler le téléchargement, déjà obtenu.
+      try {
+        await archiveDevis(doc, number);
+        onArchived?.();
+      } catch {
+        setDocError("Le devis a bien été téléchargé, mais il n'a pas pu être archivé dans les documents.");
+      }
     } catch (e) {
       setDocError("La génération du PDF a échoué. Réessaie.");
     } finally {
@@ -3969,6 +4007,14 @@ Total général : ${formatEuros(total)}`;
         note: `Devis ${number} envoyé à ${effectiveProspect.email}`,
         source: "manual",
       });
+      // L'archivage échoue sans annuler l'envoi, déjà parti chez le client.
+      try {
+        await archiveDevis(doc, number);
+        onArchived?.();
+      } catch {
+        setDocError("Le devis a bien été envoyé, mais il n'a pas pu être archivé dans les documents.");
+      }
+
       history.reload();
       setDevisSent(true);
       setTimeout(() => setDevisSent(false), 3000);
