@@ -1177,7 +1177,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
               <ActivityTimeline history={history} />
             </Card>
 
-            <Card title="Outils" Icon={SparklesIcon} action={<CardLink onClick={() => setShowDevis(true)}>Créer un devis</CardLink>}>
+            <Card title="Outils" Icon={SparklesIcon}>
               <div ref={toolsRef} style={{ display: "flex", gap: "16px", marginBottom: "14px", flexWrap: "wrap", scrollMarginTop: "20px" }}>
                 {[["email", "Email"], ["echanges", "Échanges"], ["script", "Scripts"], ["taches", "Tâches"], ["noteia", "Note IA"], ["analyse", "Analyse"]].map(([key, label]) => (
                   <button key={key} className="focusable" onClick={() => setTab(key)} style={{ background: "none", border: "none", padding: 0, fontSize: "13px", fontWeight: tab === key ? 600 : 400, color: tab === key ? "var(--blue)" : "var(--text-dim)" }}>
@@ -1221,7 +1221,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
 
             <ProspectNotesCard prospect={prospect} onUpdate={onUpdate} />
 
-            <DocumentsCard prospect={prospect} session={session} team={team} />
+            <DocumentsCard prospect={prospect} session={session} team={team} onCreateDevis={() => setShowDevis(true)} />
 
             {showOwners && (
               <Card title="Équipe" Icon={UsersIcon}>
@@ -2177,7 +2177,7 @@ const FILE_BADGES = {
 
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
-function DocumentsCard({ prospect, session, team }) {
+function DocumentsCard({ prospect, session, team, onCreateDevis }) {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -2265,7 +2265,11 @@ function DocumentsCard({ prospect, session, team }) {
       title="Documents"
       Icon={ListIcon}
       action={
-        <CardLink onClick={() => fileRef.current?.click()}>{busy ? "En cours…" : "+ Ajouter"}</CardLink>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          {onCreateDevis && <CardLink onClick={onCreateDevis}>Créer un devis</CardLink>}
+          {onCreateDevis && <span style={{ color: "var(--hairline-strong)", fontSize: "12px" }}>·</span>}
+          <CardLink onClick={() => fileRef.current?.click()}>{busy ? "En cours…" : "+ Importer un fichier"}</CardLink>
+        </div>
       }
     >
       <input ref={fileRef} type="file" onChange={upload} style={{ display: "none" }} />
