@@ -75,7 +75,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
   // il n'a de sens qu'à partir de la formule Équipe, où l'admin l'impose à toute l'équipe.
   const memberCount = team?.members?.length || 1;
   const teamPlanPrice = Number((memberCount > 1 && team?.team ? team.team?.plan_price : local?.plan_price) || 0);
-  const canRequireNextAction = teamPlanPrice >= 39;
+  const hasTeamControls = teamPlanPrice >= 39;
 
   // Les rubriques réservées à l'administrateur disparaissent de la navigation
   // plutôt que de s'afficher vides.
@@ -371,7 +371,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
               <>
       {isAdmin && (
         <Section title="Équipe">
-          <TeamPanel session={session} team={team} reloadTeam={reloadTeam} canRequireNextAction={canRequireNextAction} />
+          <TeamPanel session={session} team={team} reloadTeam={reloadTeam} hasTeamControls={hasTeamControls} />
         </Section>
       )}
               </>
@@ -542,7 +542,13 @@ function Toggle({ label, checked, onChange, last }) {
 
 const ROLE_LABELS = { admin: "Admin", sales: "Commercial", customer_success: "Customer Success" };
 
-export function TeamPanel({ session, team, reloadTeam, canRequireNextAction }) {
+const VISIBILITY_HINT = {
+  own: "Chacun ne voit que son propre travail. À choisir si la comparaison entre commerciaux vous semble contre-productive.",
+  team_aggregate: "Chacun situe son travail dans celui de l'équipe, sans savoir qui a fait quoi.",
+  team_detail: "Chacun voit le classement nominatif. Motivant dans une équipe soudée, pesant ailleurs.",
+};
+
+export function TeamPanel({ session, team, reloadTeam, hasTeamControls }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [showInvite, setShowInvite] = useState(false);
@@ -676,7 +682,7 @@ export function TeamPanel({ session, team, reloadTeam, canRequireNextAction }) {
 
       {error && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "10px" }}>{error}</div>}
 
-      {isAdmin && canRequireNextAction && (
+      {isAdmin && hasTeamControls && (
         <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "0.5px solid var(--hairline)" }}>
           <Toggle
             label="Aucun prospect sans prochaine action"
@@ -688,6 +694,28 @@ export function TeamPanel({ session, team, reloadTeam, canRequireNextAction }) {
             S'applique à toute l'équipe. Une fiche en cours ne peut plus être quittée sans qu'une prochaine
             action soit planifiée — ou que le prospect soit explicitement clos. C'est la règle qui empêche
             un deal de s'endormir.
+          </div>
+
+          <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "0.5px solid var(--hairline)" }}>
+            <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", marginBottom: "3px" }}>
+              Ce que les commerciaux voient des résultats de l'équipe
+            </div>
+            <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "9px", lineHeight: 1.5 }}>
+              Ne concerne que les chiffres de la page Activité. Quel que soit le niveau, un commercial
+              n'accède jamais aux fiches des prospects d'un collègue.
+            </div>
+            <select
+              value={team.team?.sales_visibility || "team_aggregate"}
+              onChange={(e) => call({ action: "set_team_flags", sales_visibility: e.target.value })}
+              style={{ ...inputSm, width: "100%" }}
+            >
+              <option value="own">Leurs propres résultats uniquement</option>
+              <option value="team_aggregate">Les totaux de l'équipe, sans détail par personne</option>
+              <option value="team_detail">Le détail par commercial, nominatif</option>
+            </select>
+            <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "9px", lineHeight: 1.5 }}>
+              {VISIBILITY_HINT[team.team?.sales_visibility || "team_aggregate"]}
+            </div>
           </div>
         </div>
       )}

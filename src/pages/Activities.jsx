@@ -66,13 +66,18 @@ export default function Activities({ prospects, onOpenProspect, session, team, s
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [teamStats, setTeamStats] = useState(null);
+  const [memberStats, setMemberStats] = useState([]);
 
   useEffect(() => {
     if (!team || (team.members || []).length <= 1) {
       setTeamStats(null);
+      setMemberStats([]);
       return;
     }
+    // Les deux fonctions appliquent elles-mêmes le niveau de visibilité choisi
+    // par l'admin : elles ne renvoient rien quand il n'est pas ouvert.
     supabase.rpc("team_stats_for_me").then(({ data }) => setTeamStats(data?.[0] || null));
+    supabase.rpc("team_stats_by_member").then(({ data }) => setMemberStats(data || []));
   }, [team]);
 
   useEffect(() => {
@@ -129,6 +134,8 @@ export default function Activities({ prospects, onOpenProspect, session, team, s
           setFilter={setFilter}
           onOpenProspect={onOpenProspect}
           teamStats={teamStats}
+          memberStats={memberStats}
+          team={team}
         />
       ) : (
         <PerformanceTab prospects={prospects} activities={activities} feedItems={feedItems} session={session} teamStats={teamStats} settings={settings} setActiveTab={setActiveTab} />
@@ -138,7 +145,7 @@ export default function Activities({ prospects, onOpenProspect, session, team, s
   );
 }
 
-function ActivityTab({ prospects, feedItems, activities, loading, filter, setFilter, onOpenProspect, teamStats }) {
+function ActivityTab({ prospects, feedItems, activities, loading, filter, setFilter, onOpenProspect, teamStats, memberStats, team }) {
   const now = new Date();
   const startToday = daysAgo(0);
   const todayActs = activities.filter((a) => new Date(a.created_at) >= startToday);
@@ -161,6 +168,8 @@ function ActivityTab({ prospects, feedItems, activities, loading, filter, setFil
           <StatChip label="CA généré" value={formatEuros(teamStats.revenue_won || 0)} />
         </div>
       )}
+
+      {memberStats.length > 0 && <TeamMemberBreakdown memberStats={memberStats} team={team} />}
 
       <div style={{ display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap", marginBottom: "10px" }}>
         <span style={{ fontSize: "13px", fontWeight: 600 }}>Aujourd'hui · {todayActs.length + todayEmails.length} activités</span>
@@ -269,6 +278,50 @@ function SignalsRow({ prospects, activities, onOpenProspect }) {
             </button>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// Détail nominatif : n'apparaît que si l'administrateur a ouvert ce niveau —
+// la fonction en base ne renvoie rien dans les deux autres cas.
+function TeamMemberBreakdown({ memberStats, team }) {
+  const members = team?.members || [];
+
+  function nameOf(userId) {
+    const m = members.find((x) => x.user_id === userId);
+    if (!m) return "Ancien membre";
+    return m.first_name || m.last_name ? `${m.first_name || ""} ${m.last_name || ""}`.trim() : m.email;
+  }
+
+  const rows = [...memberStats].sort((a, b) => Number(b.revenue_won || 0) - Number(a.revenue_won || 0));
+  const best = Number(rows[0]?.revenue_won || 0);
+
+  return (
+    <div className="dash-card" style={{ padding: "16px 18px", marginBottom: "18px" }}>
+      <div className="section-eyebrow" style={{ marginBottom: "12px" }}>Par commercial</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        {rows.map((r) => {
+          const revenue = Number(r.revenue_won || 0);
+          return (
+            <div key={r.member_id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 90px 110px", alignItems: "center", gap: "12px" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {nameOf(r.member_id)}
+                </div>
+                <div style={{ height: "4px", borderRadius: "3px", background: "var(--panel2)", marginTop: "5px", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: best > 0 ? `${Math.max(3, (revenue / best) * 100)}%` : "0%", background: "var(--blue)", borderRadius: "3px" }} />
+                </div>
+              </div>
+              <span className="mono" style={{ fontSize: "12px", color: "var(--text-dim)", textAlign: "right" }}>
+                {r.deals_won} gagné{Number(r.deals_won) > 1 ? "s" : ""}
+              </span>
+              <span className="mono" style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
+                {formatEuros(revenue)}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
