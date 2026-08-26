@@ -11,6 +11,14 @@ import Integrations from "./Integrations.jsx";
 import EquipePage from "./EquipePage.jsx";
 import AssistantBubble from "../components/AssistantBubble.jsx";
 
+// L'identité de facturation vit sur l'équipe : elle recouvre les valeurs
+// personnelles pour que tous les devis d'une même entreprise concordent.
+const COMPANY_FIELDS = [
+  "company_name", "billing_address", "billing_postal_code", "billing_city",
+  "siret", "vat_exempt", "vat_number", "vat_rate",
+  "devis_validity_days", "devis_payment_terms",
+];
+
 const VALID_TABS = ["today", "planning", "pipeline", "chauds", "a-sauver", "assistant", "activities", "settings", "integrations", "equipe"];
 
 function tabFromHash() {
@@ -130,6 +138,15 @@ export default function Shell({ session, team, reloadTeam }) {
     }
   }
 
+  const effectiveSettings = (() => {
+    if (!settings || !team?.team) return settings;
+    const merged = { ...settings };
+    for (const f of COMPANY_FIELDS) {
+      if (team.team[f] !== null && team.team[f] !== undefined) merged[f] = team.team[f];
+    }
+    return merged;
+  })();
+
   const memberCount = team?.members?.length || 1;
   const isTeamBilling = memberCount > 1 && team?.team;
   const billingPrice = Number((isTeamBilling ? team.team?.plan_price : settings?.plan_price) || 0);
@@ -139,8 +156,8 @@ export default function Shell({ session, team, reloadTeam }) {
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} prospects={prospects} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} onOpenProspect={openProspect} settings={settings} />}
-        {activeTab === "planning" && <Agenda prospects={prospects} session={session} onOpenProspect={openProspect} settings={settings} />}
+        {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} onOpenProspect={openProspect} settings={effectiveSettings} />}
+        {activeTab === "planning" && <Agenda prospects={prospects} session={session} onOpenProspect={openProspect} settings={effectiveSettings} />}
         {(activeTab === "pipeline" || activeTab === "chauds" || activeTab === "a-sauver") && (
           <Pipeline
             prospects={prospects}
@@ -154,15 +171,15 @@ export default function Shell({ session, team, reloadTeam }) {
             initialShowImport={jumpToShowImport}
             onConsumeInitialShowImport={() => setJumpToShowImport(false)}
             initialTab={jumpToTab}
-            settings={settings}
+            settings={effectiveSettings}
             returnTab={returnTab}
             onBackToPrevious={backFromPipeline}
             team={team}
             presetFilter={activeTab === "chauds" ? "chauds" : activeTab === "a-sauver" ? "a-sauver" : null}
           />
         )}
-        {activeTab === "assistant" && <Assistant session={session} prospects={prospects} onOpenProspect={openProspect} settings={settings} />}
-        {activeTab === "activities" && <Activities prospects={prospects} onOpenProspect={openProspect} session={session} team={team} settings={settings} setActiveTab={setActiveTab} />}
+        {activeTab === "assistant" && <Assistant session={session} prospects={prospects} onOpenProspect={openProspect} settings={effectiveSettings} />}
+        {activeTab === "activities" && <Activities prospects={prospects} onOpenProspect={openProspect} session={session} team={team} settings={effectiveSettings} setActiveTab={setActiveTab} />}
         {activeTab === "settings" && <Settings session={session} prospects={prospects} settings={settings} reloadSettings={loadSettings} team={team} reloadTeam={reloadTeam} setActiveTab={setActiveTab} />}
         {activeTab === "integrations" && <Integrations session={session} onBack={() => setActiveTab("settings")} setActiveTab={setActiveTab} onOpenImport={() => { setJumpToShowImport(true); setActiveTab("pipeline"); }} />}
         {activeTab === "equipe" && <EquipePage session={session} team={team} reloadTeam={reloadTeam} />}

@@ -186,6 +186,23 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
   }
 
+  if (action === "set_company") {
+    // L'identité de facturation engage l'entreprise : seul l'admin la fixe.
+    const FIELDS = [
+      "company_name", "billing_address", "billing_postal_code", "billing_city",
+      "siret", "vat_exempt", "vat_number", "vat_rate",
+      "devis_validity_days", "devis_payment_terms",
+    ];
+    const patch = {};
+    for (const f of FIELDS) {
+      if (req.body[f] !== undefined) patch[f] = req.body[f] === "" ? null : req.body[f];
+    }
+    if (Object.keys(patch).length === 0) return res.status(400).json({ error: "Aucun champ à mettre à jour" });
+    const { error } = await admin.from("teams").update(patch).eq("id", membership.team_id);
+    if (error) return res.status(500).json({ error: "L'enregistrement a échoué" });
+    return res.status(200).json({ ok: true });
+  }
+
   if (action === "set_team_flags") {
     const { has_multiple_sales, has_multiple_csm, require_next_action, sales_visibility } = req.body;
     const patch = {};

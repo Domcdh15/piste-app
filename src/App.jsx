@@ -27,12 +27,23 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const impersonateToken = params.get("impersonate_token");
     const recoveryToken = params.get("recovery_token");
+    // Un coéquipier invité arrive avec son jeton : il définit son mot de passe
+    // avant d'entrer, exactement comme une réinitialisation.
+    const inviteToken = params.get("invite_token");
 
     if (impersonateToken) {
       window.history.replaceState({}, "", window.location.pathname);
       supabase.auth.verifyOtp({ token_hash: impersonateToken, type: "magiclink" }).then(({ data, error }) => {
         const s = error ? null : data.session;
         setSession(s);
+        loadTeam(s);
+      });
+    } else if (inviteToken) {
+      window.history.replaceState({}, "", window.location.pathname);
+      supabase.auth.verifyOtp({ token_hash: inviteToken, type: "invite" }).then(({ data, error }) => {
+        const s = error ? null : data.session;
+        setSession(s);
+        setPasswordSetupMode(!error);
         loadTeam(s);
       });
     } else if (recoveryToken) {

@@ -10,7 +10,7 @@ const INITIATIVE_LEVELS = [
   { value: "Proactif", desc: "Closia cherche activement les actions à effectuer." },
 ];
 // Rubriques dont les champs passent par `set` et ont donc besoin du bouton Enregistrer.
-const SAVEABLE = ["profil", "notifications", "objectifs", "organisation", "ia", "entreprise"];
+const SAVEABLE = ["profil", "notifications", "objectifs", "organisation", "ia"];
 
 const WEEKDAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
@@ -390,47 +390,8 @@ export default function Settings({ session, prospects, settings, reloadSettings,
 
             {active === "entreprise" && (
               <>
-      <Section title="Mes informations légales">
-        <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "14px" }}>
-          Ces informations apparaissent sur les devis que vous envoyez à vos clients. Sans elles, le document reste incomplet.
-        </div>
-        <Field label="Raison sociale">
-          <input value={local.company_name || ""} onChange={(e) => set({ company_name: e.target.value })} style={inputSm} placeholder="Nom de votre entreprise" />
-        </Field>
-        <Field label="Adresse">
-          <input value={local.billing_address || ""} onChange={(e) => set({ billing_address: e.target.value })} style={inputSm} placeholder="12 rue de la République" />
-        </Field>
-        <Field label="Code postal">
-          <input value={local.billing_postal_code || ""} onChange={(e) => set({ billing_postal_code: e.target.value })} style={inputSm} placeholder="69002" />
-        </Field>
-        <Field label="Ville">
-          <input value={local.billing_city || ""} onChange={(e) => set({ billing_city: e.target.value })} style={inputSm} placeholder="Lyon" />
-        </Field>
-        <Field label="SIRET">
-          <input value={local.siret || ""} onChange={(e) => set({ siret: e.target.value })} style={inputSm} placeholder="123 456 789 00012" />
-        </Field>
-        <Field label="Franchise de TVA">
-          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--text-dim)" }}>
-            <input type="checkbox" checked={!!local.vat_exempt} onChange={(e) => set({ vat_exempt: e.target.checked })} />
-            Je ne facture pas la TVA (micro-entreprise)
-          </label>
-        </Field>
-        {!local.vat_exempt && (
-          <>
-            <Field label="N° TVA intracom.">
-              <input value={local.vat_number || ""} onChange={(e) => set({ vat_number: e.target.value })} style={inputSm} placeholder="FR12345678901" />
-            </Field>
-            <Field label="Taux de TVA (%)">
-              <input type="number" min="0" max="100" step="0.1" value={local.vat_rate ?? 20} onChange={(e) => set({ vat_rate: e.target.value === "" ? null : Number(e.target.value) })} style={inputSm} />
-            </Field>
-          </>
-        )}
-        <Field label="Validité des devis">
-          <input type="number" min="1" value={local.devis_validity_days ?? 30} onChange={(e) => set({ devis_validity_days: e.target.value === "" ? null : Number(e.target.value) })} style={inputSm} placeholder="30" />
-        </Field>
-        <Field label="Conditions de paiement" last>
-          <input value={local.devis_payment_terms || ""} onChange={(e) => set({ devis_payment_terms: e.target.value })} style={inputSm} placeholder="Paiement à 30 jours à réception de facture" />
-        </Field>
+      <Section title="Informations légales de l'entreprise">
+        <CompanyPanel session={session} team={team} reloadTeam={reloadTeam} local={local} />
       </Section>
               </>
             )}
@@ -547,6 +508,142 @@ function Toggle({ label, checked, onChange, last }) {
       >
         <span style={{ position: "absolute", top: "2px", left: checked ? "18px" : "2px", width: "18px", height: "18px", borderRadius: "50%", background: "#fff", transition: "left 0.15s" }} />
       </button>
+    </div>
+  );
+}
+
+
+// L'identité de facturation appartient à l'entreprise : l'admin la fixe une
+// fois, l'équipe entière l'utilise sur ses devis sans pouvoir la modifier.
+function CompanyPanel({ session, team, reloadTeam, local }) {
+  const source = team?.team || local || {};
+  const isAdmin = !team || team.role === "admin";
+  const [draft, setDraft] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setDraft({
+      company_name: source.company_name || "",
+      billing_address: source.billing_address || "",
+      billing_postal_code: source.billing_postal_code || "",
+      billing_city: source.billing_city || "",
+      siret: source.siret || "",
+      vat_exempt: !!source.vat_exempt,
+      vat_number: source.vat_number || "",
+      vat_rate: source.vat_rate ?? 20,
+      devis_validity_days: source.devis_validity_days ?? 30,
+      devis_payment_terms: source.devis_payment_terms || "",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [team?.team]);
+
+  if (!draft) return <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Chargement…</div>;
+
+  function edit(patch) {
+    setDraft((d) => ({ ...d, ...patch }));
+    setSaved(false);
+  }
+
+  async function save() {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/team", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "set_company", ...draft }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "L'enregistrement a échoué");
+      setSaved(true);
+      reloadTeam?.();
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!isAdmin) {
+    const ROWS = [
+      ["Raison sociale", draft.company_name],
+      ["Adresse", [draft.billing_address, [draft.billing_postal_code, draft.billing_city].filter(Boolean).join(" ")].filter(Boolean).join(", ")],
+      ["SIRET", draft.siret],
+      ["TVA", draft.vat_exempt ? "Franchise de TVA" : [draft.vat_number, draft.vat_rate != null ? `${draft.vat_rate} %` : null].filter(Boolean).join(" · ")],
+      ["Validité des devis", draft.devis_validity_days ? `${draft.devis_validity_days} jours` : null],
+      ["Conditions de paiement", draft.devis_payment_terms],
+    ];
+    return (
+      <div>
+        <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "14px", lineHeight: 1.55 }}>
+          Ces informations apparaissent sur les devis que vous envoyez. Elles engagent l'entreprise :
+          seul l'administrateur de votre espace peut les modifier.
+        </div>
+        {ROWS.map(([label, value]) => (
+          <div key={label} style={{ display: "flex", gap: "12px", padding: "9px 0", borderBottom: "0.5px solid var(--hairline)" }}>
+            <span style={{ fontSize: "12px", color: "var(--text-faint)", width: "170px", flexShrink: 0 }}>{label}</span>
+            <span style={{ fontSize: "13px", color: value ? "var(--text)" : "var(--text-faint)" }}>{value || "Non renseigné"}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "14px", lineHeight: 1.55 }}>
+        Ces informations apparaissent sur les devis de toute l'équipe. Sans elles, le document reste incomplet.
+        Vos coéquipiers les voient sans pouvoir les modifier.
+      </div>
+      <Field label="Raison sociale">
+        <input value={draft.company_name} onChange={(e) => edit({ company_name: e.target.value })} style={inputSm} placeholder="Nom de votre entreprise" />
+      </Field>
+      <Field label="Adresse">
+        <input value={draft.billing_address} onChange={(e) => edit({ billing_address: e.target.value })} style={inputSm} placeholder="12 rue de la République" />
+      </Field>
+      <Field label="Code postal">
+        <input value={draft.billing_postal_code} onChange={(e) => edit({ billing_postal_code: e.target.value })} style={inputSm} placeholder="69002" />
+      </Field>
+      <Field label="Ville">
+        <input value={draft.billing_city} onChange={(e) => edit({ billing_city: e.target.value })} style={inputSm} placeholder="Lyon" />
+      </Field>
+      <Field label="SIRET">
+        <input value={draft.siret} onChange={(e) => edit({ siret: e.target.value })} style={inputSm} placeholder="123 456 789 00012" />
+      </Field>
+      <Field label="Franchise de TVA">
+        <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--text-dim)" }}>
+          <input type="checkbox" checked={draft.vat_exempt} onChange={(e) => edit({ vat_exempt: e.target.checked })} />
+          L'entreprise ne facture pas la TVA (micro-entreprise)
+        </label>
+      </Field>
+      {!draft.vat_exempt && (
+        <>
+          <Field label="N° TVA intracom.">
+            <input value={draft.vat_number} onChange={(e) => edit({ vat_number: e.target.value })} style={inputSm} placeholder="FR12345678901" />
+          </Field>
+          <Field label="Taux de TVA (%)">
+            <input type="number" min="0" max="100" step="0.1" value={draft.vat_rate ?? 20} onChange={(e) => edit({ vat_rate: e.target.value === "" ? null : Number(e.target.value) })} style={inputSm} />
+          </Field>
+        </>
+      )}
+      <Field label="Validité des devis">
+        <input type="number" min="1" value={draft.devis_validity_days ?? 30} onChange={(e) => edit({ devis_validity_days: e.target.value === "" ? null : Number(e.target.value) })} style={inputSm} placeholder="30" />
+      </Field>
+      <Field label="Conditions de paiement" last>
+        <input value={draft.devis_payment_terms} onChange={(e) => edit({ devis_payment_terms: e.target.value })} style={inputSm} placeholder="Paiement à 30 jours à réception de facture" />
+      </Field>
+
+      {error && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "10px" }}>{error}</div>}
+
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "16px" }}>
+        <button className="btn-primary focusable" onClick={save} disabled={busy}>
+          {busy ? "Enregistrement…" : "Enregistrer"}
+        </button>
+        {saved && <span style={{ fontSize: "12px", color: "var(--success)", fontWeight: 600 }}>Enregistré</span>}
+      </div>
     </div>
   );
 }
