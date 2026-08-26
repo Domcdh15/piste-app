@@ -91,7 +91,7 @@ export default function Shell({ session, team, reloadTeam }) {
     const { data: overdue } = await supabase.from("tasks").select("*").eq("done", false).eq("missed", false).lt("due_at", startOfToday.toISOString());
     if (!overdue || overdue.length === 0) return;
 
-    const { data: userSettings } = await supabase.from("user_settings").select("work_days, auto_reschedule_missed_tasks").eq("user_id", session.user.id).maybeSingle();
+    const { data: userSettings } = await supabase.from("user_settings").select("work_days, auto_reschedule_missed_tasks, work_start, work_end").eq("user_id", session.user.id).maybeSingle();
     if (userSettings?.auto_reschedule_missed_tasks === false) return;
     const workDays = userSettings?.work_days || ["Lun", "Mar", "Mer", "Jeu", "Ven"];
     const DAY_CODES = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
@@ -101,18 +101,38 @@ export default function Shell({ session, team, reloadTeam }) {
     while (!workDays.includes(DAY_CODES[nextWorkDay.getDay()])) {
       nextWorkDay.setDate(nextWorkDay.getDate() + 1);
     }
-    nextWorkDay.setHours(8, 0, 0, 0);
-    const tomorrow8h = nextWorkDay;
+    // Reporter tout à 8h empilait la journée entière sur une seule ligne de
+    // l'agenda. On garde l'heure d'origine : un appel manqué de 14h revient
+    // à 14h, et les tâches se répartissent d'elles-mêmes.
+    const hourOf = (value, fallback) => {
+      const m = /^(\d{1,2}):(\d{2})$/.exec(String(value || ""));
+      return m ? { h: Number(m[1]), m: Number(m[2]) } : fallback;
+    };
+    const dayStart = hourOf(userSettings?.work_start, { h: 8, m: 0 });
+    const dayEnd = hourOf(userSettings?.work_end, { h: 19, m: 0 });
 
     for (const t of overdue) {
       await supabase.from("tasks").update({ missed: true, done: true }).eq("id", t.id);
       const note = t.note?.startsWith("Tâche oubliée : ") ? t.note : `Tâche oubliée : ${t.note}`;
+
+      const previous = t.due_at ? new Date(t.due_at) : null;
+      const target = new Date(nextWorkDay);
+      if (previous) target.setHours(previous.getHours(), previous.getMinutes(), 0, 0);
+      else target.setHours(dayStart.h, dayStart.m, 0, 0);
+
+      // Une tâche placée hors de la journée de travail est ramenée dedans.
+      const minutes = target.getHours() * 60 + target.getMinutes();
+      const minMinutes = dayStart.h * 60 + dayStart.m;
+      const maxMinutes = dayEnd.h * 60 + dayEnd.m;
+      if (minutes < minMinutes) target.setHours(dayStart.h, dayStart.m, 0, 0);
+      else if (minutes >= maxMinutes) target.setHours(dayEnd.h, Math.max(0, dayEnd.m - 30), 0, 0);
+
       await supabase.from("tasks").insert({
         user_id: t.user_id,
         prospect_id: t.prospect_id,
         type: t.type,
         note,
-        due_at: tomorrow8h.toISOString(),
+        due_at: target.toISOString(),
         priority: t.priority,
       });
     }

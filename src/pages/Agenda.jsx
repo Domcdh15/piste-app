@@ -360,6 +360,14 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
 const navBtn = { fontSize: "12px", padding: "6px 10px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" };
 
 const MAX_TASK_PILLS = 3;
+const REPORTED_PREFIX = "Tâche oubliée : ";
+
+// Le préfixe est répété sur chaque ligne et mange la largeur utile : on le
+// remplace par un marqueur et on rend son texte au libellé.
+function taskLabel(note) {
+  const reported = typeof note === "string" && note.startsWith(REPORTED_PREFIX);
+  return { text: reported ? note.slice(REPORTED_PREFIX.length) : note || "", reported };
+}
 
 function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchProspect, prospectById, onToggleTask, onOpenProspect, settings }) {
   const [expandedCluster, setExpandedCluster] = useState(null);
@@ -505,23 +513,36 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                           <div
                             key={`${clusterKey}-popover`}
                             style={{
-                              position: "absolute", top: top + 28, left: "1px", width: "220px", zIndex: 10,
-                              background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "8px",
-                              boxShadow: "var(--shadow-md)", padding: "6px", display: "flex", flexDirection: "column", gap: "2px",
+                              position: "absolute", top: top + 28, left: "1px", width: "min(340px, 92%)", zIndex: 10,
+                              background: "var(--panel)", border: "0.5px solid var(--hairline-strong)", borderRadius: "10px",
+                              boxShadow: "var(--shadow-md)", padding: "8px", display: "flex", flexDirection: "column", gap: "3px",
+                              maxHeight: "320px", overflowY: "auto",
                             }}
                           >
+                            <div style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-faint)", padding: "2px 6px 6px" }}>
+                              {group.length} tâches à {formatTime(group[0].event.due_at)}
+                            </div>
                             {group.map(({ event: task }) => {
                               const meta = TASK_TYPE_META[task.type] || TASK_TYPE_META.appel_telephone;
                               const prospect = prospectById?.[task.prospect_id];
+                              const { text, reported } = taskLabel(task.note);
                               return (
-                                <div key={task.id} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 6px", borderRadius: "5px", background: meta.dim }}>
-                                  <button className="focusable" onClick={() => onToggleTask(task)} style={{ width: "10px", height: "10px", borderRadius: "50%", border: `1.3px solid ${meta.color}`, background: "transparent", flexShrink: 0, padding: 0 }} title="Marquer comme fait" />
+                                <div key={task.id} style={{ display: "flex", alignItems: "flex-start", gap: "7px", padding: "6px 7px", borderRadius: "6px", background: meta.dim }}>
+                                  <button className="focusable" onClick={() => onToggleTask(task)} style={{ width: "12px", height: "12px", borderRadius: "50%", border: `1.4px solid ${meta.color}`, background: "transparent", flexShrink: 0, padding: 0, marginTop: "2px" }} title="Marquer comme fait" />
                                   <button
                                     className="focusable"
                                     onClick={() => prospect && onOpenProspect?.(prospect.id)}
-                                    style={{ flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, textAlign: "left", fontSize: "11px", color: meta.color, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: prospect ? "pointer" : "default" }}
+                                    style={{ flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, textAlign: "left", cursor: prospect ? "pointer" : "default" }}
                                   >
-                                    {task.note}
+                                    <span style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: meta.color, lineHeight: 1.35, overflowWrap: "anywhere" }}>
+                                      {reported && <span title="Reportée depuis un jour manqué" style={{ marginRight: "4px", opacity: 0.75 }}>↻</span>}
+                                      {text}
+                                    </span>
+                                    {prospect && (
+                                      <span style={{ display: "block", fontSize: "10.5px", color: "var(--text-dim)", marginTop: "1px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                        {prospect.company || prospect.name}
+                                      </span>
+                                    )}
                                   </button>
                                 </div>
                               );
@@ -543,7 +564,7 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                       nodes.push(
                         <div
                           key={task.id}
-                          title={`${meta.label} · ${formatTime(task.due_at)} · ${task.note}`}
+                          title={`${meta.label} · ${formatTime(task.due_at)} · ${taskLabel(task.note).text}${taskLabel(task.note).reported ? " (reportée)" : ""}`}
                           style={{
                             position: "absolute", top: Math.max(0, topFor(task.due_at, startHour)), height,
                             left: `calc(${col * widthPct}% + 1px)`, width: `calc(${widthPct}% - 2px)`,
@@ -557,7 +578,8 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                             onClick={() => prospect && onOpenProspect?.(prospect.id)}
                             style={{ background: "none", border: "none", padding: 0, textAlign: "left", fontSize: "10px", lineHeight: 1.25, color: meta.color, overflow: "hidden", cursor: prospect ? "pointer" : "default" }}
                           >
-                            {task.note}
+                            {taskLabel(task.note).reported && <span title="Reportée depuis un jour manqué" style={{ marginRight: "3px", opacity: 0.75 }}>↻</span>}
+                            {taskLabel(task.note).text}
                           </button>
                         </div>
                       );
@@ -822,7 +844,10 @@ function TaskActionCard({ task, prospect, bucket, onToggleTask, onOpenPanel, onO
             )}
           </div>
 
-          <div style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--text)" }}>{task.note}</div>
+          <div style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--text)" }}>
+            {taskLabel(task.note).reported && <span title="Reportée depuis un jour manqué" style={{ marginRight: "5px", color: "var(--text-faint)" }}>↻</span>}
+            {taskLabel(task.note).text}
+          </div>
 
           {prospect && (
             <div style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "3px" }}>
@@ -1006,7 +1031,10 @@ function TaskDetailPanel({ task, prospect, onClose, onDone, onReport, onOpenPros
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <meta.Icon size={15} color={meta.color} />
-          <span className="display" style={{ fontWeight: 700, fontSize: "15px" }}>{task.note}</span>
+          <span className="display" style={{ fontWeight: 700, fontSize: "15px" }}>
+            {taskLabel(task.note).reported && <span title="Reportée depuis un jour manqué" style={{ marginRight: "5px", color: "var(--text-faint)" }}>↻</span>}
+            {taskLabel(task.note).text}
+          </span>
         </div>
         <button className="focusable" onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "13px" }}>✕</button>
       </div>
