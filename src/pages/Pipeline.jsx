@@ -403,7 +403,6 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
   const [quickFilter, setQuickFilter] = useState("toutes");
   const [sortField, setSortField] = useState(null);
   const [sortDir, setSortDir] = useState("desc");
-  const [panelId, setPanelId] = useState(null);
   const [showOptimize, setShowOptimize] = useState(false);
   const [showImport, setShowImport] = useState(!!initialShowImport);
 
@@ -563,7 +562,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
         </div>
       )}
 
-      {showOptimize && <OptimizePipelinePanel prospects={openList} session={session} onOpenProspect={setPanelId} onClose={() => setShowOptimize(false)} />}
+      {showOptimize && <OptimizePipelinePanel prospects={openList} session={session} onOpenProspect={setSelectedId} onClose={() => setShowOptimize(false)} />}
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px", gap: "12px", flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
@@ -599,18 +598,6 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
         <SortToggleButton label="Priorité" active={sortField === "priority"} dir={sortDir} onClick={() => toggleSort("priority")} />
         <SortToggleButton label="Prochaine action" active={sortField === "nextAction"} dir={sortDir} onClick={() => toggleSort("nextAction")} />
       </div>
-
-      {panelId && (() => {
-        const panelProspect = prospects.find((p) => p.id === panelId);
-        return panelProspect ? (
-          <ProspectSidePanel
-            prospect={panelProspect}
-            nextTask={nextTaskByProspect[panelProspect.id]}
-            onClose={() => setPanelId(null)}
-            onOpenFull={() => { setSelectedId(panelProspect.id); setPanelId(null); }}
-          />
-        ) : null;
-      })()}
 
       {showForm && (
         <form onSubmit={handleAddProspect} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "var(--radius-md)", padding: "16px", marginBottom: "20px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
@@ -652,7 +639,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
       ) : quickFiltered.length === 0 ? (
         <div style={{ color: "var(--text-dim)", padding: "20px 2px", fontSize: "13px" }}>Aucun résultat pour cette recherche ou ce filtre.</div>
       ) : (
-        <OpportunityList groups={stageGroups} nextTaskByProspect={nextTaskByProspect} onOpen={setPanelId} team={team} showOwners={showOwners} sortField={sortField} />
+        <OpportunityList groups={stageGroups} nextTaskByProspect={nextTaskByProspect} onOpen={setSelectedId} team={team} showOwners={showOwners} sortField={sortField} />
       )}
       </div>
       {showImport && <ImportCsvModal session={session} onClose={() => setShowImport(false)} onImported={reload} />}
@@ -846,79 +833,6 @@ function OwnerBadges({ team, prospect, size = "sm" }) {
         </span>
       ))}
     </div>
-  );
-}
-
-function ProspectSidePanel({ prospect, nextTask, onClose, onOpenFull }) {
-  const history = useProspectHistory(prospect.id);
-  const action = nextActionInfo(prospect, nextTask);
-  const recentActivities = history.activities.slice(0, 3);
-  const recommendation = prospect.last_analysis?.recommendation || prospect.last_analysis?.next_action;
-
-  return (
-    <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,17,40,0.55)", backdropFilter: "blur(4px)", zIndex: 40 }} />
-      <div style={{ position: "fixed", top: 0, right: 0, height: "100vh", width: "400px", maxWidth: "92vw", background: "var(--panel)", borderLeft: "0.5px solid var(--hairline)", boxShadow: "var(--shadow-md)", zIndex: 41, overflowY: "auto", padding: "28px 24px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
-          <div>
-            <div className="display" style={{ fontWeight: 600, fontSize: "16px" }}>{prospect.company}</div>
-            <div style={{ color: "var(--text-dim)", fontSize: "13px", marginTop: "1px" }}>{prospect.name}</div>
-          </div>
-          <button className="focusable" onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "16px", padding: "2px" }}>✕</button>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "baseline", gap: "8px", flexWrap: "wrap", marginBottom: "24px" }}>
-          <span className="mono" style={{ fontSize: "17px", fontWeight: 600 }}>{formatEuros(prospect.deal_value)}</span>
-          <span style={{ fontSize: "12.5px", color: "var(--text-faint)" }}>{prospect.stage === "Gagné" ? "Client" : prospect.stage}</span>
-        </div>
-
-        <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px", marginBottom: "20px" }}>
-          <div style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.05em", marginBottom: "6px" }}>PROCHAINE ACTION</div>
-          <div style={{ fontSize: "13.5px", fontWeight: 500, color: action.color, marginBottom: nextTask ? "12px" : 0 }}>{action.text}</div>
-          {nextTask && (
-            <div style={{ display: "flex", gap: "16px" }}>
-              {prospect.phone && (
-                <a href={`tel:${prospect.phone}`} className="focusable" style={{ fontSize: "12.5px", fontWeight: 500, color: "var(--blue)", textDecoration: "none" }}>
-                  Appeler
-                </a>
-              )}
-              <button className="focusable" onClick={onOpenFull} style={{ fontSize: "12.5px", background: "none", color: "var(--text-dim)", border: "none", padding: 0 }}>
-                Modifier
-              </button>
-            </div>
-          )}
-        </div>
-
-        {recommendation && (
-          <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px", marginBottom: "20px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "10.5px", fontWeight: 700, color: "var(--violet)", letterSpacing: "0.05em", marginBottom: "6px" }}>
-              <SparklesIcon size={11} color="var(--violet)" /> RECOMMANDATION
-            </div>
-            <div style={{ fontSize: "12.5px", color: "var(--text)", lineHeight: 1.5 }}>{recommendation}</div>
-          </div>
-        )}
-
-        <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px" }}>
-          <div style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.05em", marginBottom: "10px" }}>ACTIVITÉ</div>
-          {recentActivities.length === 0 ? (
-            <div style={{ fontSize: "12.5px", color: "var(--text-faint)", marginBottom: "20px" }}>Aucune activité enregistrée.</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "20px" }}>
-              {recentActivities.map((a) => (
-                <div key={a.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px", color: "var(--text-dim)" }}>
-                  <span>{ACTIVITY_LABEL[a.type] || a.type}</span>
-                  <span className="mono" style={{ color: "var(--text-faint)" }}>{formatShortDate(a.created_at)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <button className="btn-primary focusable" onClick={onOpenFull} style={{ width: "100%" }}>
-          Voir la fiche complète
-        </button>
-      </div>
-    </>
   );
 }
 
