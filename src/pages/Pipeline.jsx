@@ -1038,6 +1038,14 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
     if (STAGE_PLAYBOOK[stage]) setPlaybookStage(stage);
   }
 
+  // Chaque type de tâche a son geste : rédiger, appeler, préparer.
+  function doNextAction(task) {
+    if (task.type === "relance_email") return setQuickAction("email");
+    if (task.type === "appel_telephone") return prospect.phone ? setQuickAction("call") : setQuickAction("note");
+    if (task.type === "appel_visio" || task.type === "rdv_physique") return goToTab("script");
+    goToTab("taches");
+  }
+
   const starred = (prospect.priority || 0) >= 75;
   function toggleStar() {
     onUpdate({ priority: starred ? 50 : 100 });
@@ -1210,7 +1218,7 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
             </Card>
 
             <Card title="Prochaine action" Icon={CalendarIcon}>
-              <NextActionCard prospect={prospect} refreshKey={taskVersion} onOpenTab={goToTab} bare />
+              <NextActionCard prospect={prospect} refreshKey={taskVersion} onOpenTab={goToTab} onDoAction={doNextAction} bare />
             </Card>
 
             <ProspectNotesCard prospect={prospect} onUpdate={onUpdate} />
@@ -1310,7 +1318,15 @@ function PipelineStepper({ stage, onChange }) {
 }
 
 // `bare` : rendu sans titre ni alignement à droite, pour être posé dans une carte.
-function NextActionCard({ prospect, refreshKey, onOpenTab, bare }) {
+// Le bouton principal lance l'action plutôt que de la clore : on la marque faite après l'avoir faite.
+const DO_ACTION_LABEL = {
+  relance_email: "Rédiger l'email",
+  appel_telephone: "Appeler",
+  appel_visio: "Préparer la visio",
+  rdv_physique: "Préparer le RDV",
+};
+
+function NextActionCard({ prospect, refreshKey, onOpenTab, onDoAction, bare }) {
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -1355,19 +1371,16 @@ function NextActionCard({ prospect, refreshKey, onOpenTab, bare }) {
             {formatDayTime(task.due_at)}
           </div>
           {task.note && <div style={{ fontSize: "12.5px", color: "var(--text-dim)", marginBottom: "10px" }}>{task.note}</div>}
-          <div style={{ display: "flex", gap: "14px", justifyContent: bare ? "flex-start" : "flex-end" }}>
-            <button className="focusable" onClick={() => onOpenTab?.("taches")} style={{ background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px" }}>
+          <div style={{ display: "flex", gap: "14px", alignItems: "center", flexWrap: "wrap", justifyContent: bare ? "flex-start" : "flex-end" }}>
+            <button className="btn-primary focusable" onClick={() => onDoAction?.(task)} style={{ height: "auto", padding: "8px 16px" }}>
+              {DO_ACTION_LABEL[task.type] || "Faire l'action"}
+            </button>
+            <button className="focusable" onClick={markDone} style={{ background: "none", border: "none", padding: 0, color: "var(--text-dim)", fontSize: "13px" }}>
+              Marquer fait
+            </button>
+            <button className="focusable" onClick={() => onOpenTab?.("taches")} style={{ background: "none", border: "none", padding: 0, color: "var(--text-faint)", fontSize: "13px" }}>
               Modifier
             </button>
-            {prospect.phone && task.type !== "relance_email" ? (
-              <a href={`tel:${prospect.phone}`} className="btn-primary focusable" style={{ height: "auto", padding: "8px 14px" }}>
-                Appeler
-              </a>
-            ) : (
-              <button className="btn-primary focusable" onClick={markDone} style={{ height: "auto", padding: "8px 14px" }}>
-                Marquer fait
-              </button>
-            )}
           </div>
         </>
       ) : (
