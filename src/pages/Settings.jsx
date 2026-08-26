@@ -9,6 +9,9 @@ const INITIATIVE_LEVELS = [
   { value: "Équilibré", desc: "Closia signale les opportunités et problèmes importants." },
   { value: "Proactif", desc: "Closia cherche activement les actions à effectuer." },
 ];
+// Rubriques dont les champs passent par `set` et ont donc besoin du bouton Enregistrer.
+const SAVEABLE = ["profil", "notifications", "objectifs", "organisation", "ia", "entreprise"];
+
 const WEEKDAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
 function toCSV(prospects) {
@@ -26,6 +29,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
   const [saved, setSaved] = useState(false);
   const [local, setLocal] = useState(null);
   const [mailConnected, setMailConnected] = useState({ google: false, microsoft: false });
+  const [active, setActive] = useState("profil");
 
   useEffect(() => {
     if (settings) setLocal(settings);
@@ -66,6 +70,22 @@ export default function Settings({ session, prospects, settings, reloadSettings,
   if (!local) return <div style={{ padding: "28px 32px" }}>Chargement...</div>;
 
   const isAdmin = !team || team.role === "admin";
+
+  // Les rubriques réservées à l'administrateur disparaissent de la navigation
+  // plutôt que de s'afficher vides.
+  const navItems = [
+    { key: "profil", label: "Mon profil", icon: "👤" },
+    { key: "notifications", label: "Notifications", icon: "🔔" },
+    { key: "objectifs", label: "Objectifs commerciaux", icon: "🎯" },
+    { key: "organisation", label: "Organisation quotidienne", icon: "📅" },
+    { key: "ia", label: "Assistant IA", icon: "✨" },
+    isAdmin && { key: "equipe", label: "Équipe", icon: "👥" },
+    { key: "entreprise", label: "Informations entreprise", icon: "🏢" },
+    isAdmin && { key: "abonnement", label: "Abonnement", icon: "💳" },
+    { key: "integrations", label: "Intégrations", icon: "🔗" },
+    { key: "support", label: "Aide & support", icon: "❓" },
+  ].filter(Boolean);
+
   const workDays = local.work_days || WEEKDAYS.slice(0, 5);
 
   function toggleWorkDay(day) {
@@ -77,11 +97,46 @@ export default function Settings({ session, prospects, settings, reloadSettings,
     <div style={{ background: "var(--bg)", minHeight: "100%" }}>
       <div style={{ padding: "32px 32px 0" }}>
         <div className="hero-card" style={{ padding: "26px 32px" }}>
-          <div className="h2" style={{ position: "relative", zIndex: 1, color: "#fff" }}>Paramètres</div>
+          <div style={{ position: "relative", zIndex: 1 }}>
+            <div className="h2" style={{ color: "#fff" }}>Paramètres</div>
+            <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "13px", marginTop: "4px" }}>
+              Gérez votre compte, votre équipe et vos préférences Closia.
+            </div>
+          </div>
         </div>
       </div>
 
-      <div style={{ padding: "22px 32px 60px", maxWidth: "620px" }}>
+      <div style={{ padding: "22px 32px 60px", maxWidth: "1080px" }}>
+        {/* Navigation compacte sur mobile, latérale sur desktop */}
+        <div className="settings-mobile-nav" style={{ marginBottom: "16px" }}>
+          <select value={active} onChange={(e) => setActive(e.target.value)} style={{ ...inputSm, width: "100%" }}>
+            {navItems.map((n) => <option key={n.key} value={n.key}>{n.label}</option>)}
+          </select>
+        </div>
+
+        <div className="settings-grid">
+          <nav className="settings-nav">
+            {navItems.map((n) => (
+              <button
+                key={n.key}
+                className="focusable"
+                onClick={() => setActive(n.key)}
+                style={{
+                  display: "flex", alignItems: "center", gap: "9px", width: "100%", textAlign: "left",
+                  padding: "9px 12px", borderRadius: "9px", border: "none", fontSize: "13px",
+                  fontWeight: active === n.key ? 600 : 500,
+                  background: active === n.key ? "var(--blue-dim)" : "transparent",
+                  color: active === n.key ? "var(--blue)" : "var(--text-dim)",
+                }}
+              >
+                <span style={{ width: "16px", textAlign: "center" }}>{n.icon}</span> {n.label}
+              </button>
+            ))}
+          </nav>
+
+          <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: "0" }}>
+            {active === "profil" && (
+              <>
       <Section title="Mon profil">
         <Field label="Prénom">
           <input value={local.first_name || ""} onChange={(e) => set({ first_name: e.target.value })} style={inputSm} placeholder="Prénom" />
@@ -104,13 +159,34 @@ export default function Settings({ session, prospects, settings, reloadSettings,
           <ProfilePasswordField session={session} />
         </div>
       </Section>
+      <Section title="Données et export" last>
+        <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "12px" }}>Exportez l'ensemble de vos prospects et clients au format CSV.</div>
+        <button className="focusable" onClick={exportCSV} style={btnGhost}>
+          Exporter mes prospects (CSV)
+        </button>
+      </Section>
+      <button
+        className="focusable"
+        onClick={() => supabase.auth.signOut()}
+        style={{ background: "var(--red-dim)", color: "var(--red)", border: "0.5px solid var(--red)55", borderRadius: "8px", padding: "9px 14px", fontSize: "13px" }}
+      >
+        Se déconnecter
+      </button>
+              </>
+            )}
 
+            {active === "notifications" && (
+              <>
       <Section title="Notifications">
         <Toggle label="Alertes urgentes (relances en retard, deals à risque)" checked={local.notif_urgent_alerts} onChange={(v) => set({ notif_urgent_alerts: v })} />
         <Toggle label="Prospects chauds détectés par l'IA" checked={local.notif_hot_leads} onChange={(v) => set({ notif_hot_leads: v })} />
         <Toggle label="Récapitulatif quotidien par email" checked={local.notif_daily_recap} onChange={(v) => set({ notif_daily_recap: v })} last />
       </Section>
+              </>
+            )}
 
+            {active === "objectifs" && (
+              <>
       <Section title="Objectifs commerciaux">
         <Field label="Objectif de CA mensuel (€)">
           <input type="number" value={local.objective_monthly_revenue ?? ""} onChange={(e) => set({ objective_monthly_revenue: e.target.value ? Number(e.target.value) : null })} style={inputSm} placeholder="ex : 20000" />
@@ -122,7 +198,12 @@ export default function Settings({ session, prospects, settings, reloadSettings,
           <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>Soit {formatEuros(local.objective_monthly_revenue)} de CA visé ce mois-ci.</div>
         ) : null}
       </Section>
+                <ObjectivesProgress local={local} prospects={prospects} />
+              </>
+            )}
 
+            {active === "organisation" && (
+              <>
       <Section title="Organisation quotidienne">
         <div style={{ fontSize: "13px", color: "var(--text)", marginBottom: "8px" }}>Créneau des tâches sans horaire</div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "6px" }}>
@@ -164,7 +245,52 @@ export default function Settings({ session, prospects, settings, reloadSettings,
           </select>
         </Field>
       </Section>
+      {(mailConnected.google || mailConnected.microsoft) && (
+        <Section title="Mode absence">
+          <Toggle
+            label="Activer le mode absence"
+            checked={!!local.vacation_mode_enabled}
+            onChange={(v) => {
+              set(
+                v
+                  ? { vacation_mode_enabled: true, vacation_last_checked_at: new Date().toISOString(), vacation_replied_senders: [] }
+                  : { vacation_mode_enabled: false }
+              );
+            }}
+          />
+          {local.vacation_mode_enabled && (
+            <>
+              <div style={{ fontSize: "13px", color: "var(--text)", marginTop: "12px", marginBottom: "6px" }}>Message d'accusé de réception</div>
+              <textarea
+                value={local.vacation_message || ""}
+                onChange={(e) => set({ vacation_message: e.target.value })}
+                placeholder="ex : Je suis actuellement absent(e) et de retour le..."
+                rows={3}
+                style={{ ...inputSm, width: "100%", resize: "vertical", fontFamily: "inherit" }}
+              />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "12px" }}>
+                <Field label="Date de retour">
+                  <input type="date" value={local.vacation_return_at ? local.vacation_return_at.slice(0, 10) : ""} onChange={(e) => set({ vacation_return_at: e.target.value ? new Date(e.target.value).toISOString() : null })} style={{ ...inputSm, width: "100%" }} />
+                </Field>
+                <Field label="Collègue à contacter (nom)">
+                  <input value={local.vacation_redirect_name || ""} onChange={(e) => set({ vacation_redirect_name: e.target.value })} style={{ ...inputSm, width: "100%" }} placeholder="ex : Camille Martin" />
+                </Field>
+              </div>
+              <Field label="Email du collègue" last>
+                <input type="email" value={local.vacation_redirect_email || ""} onChange={(e) => set({ vacation_redirect_email: e.target.value })} style={{ ...inputSm, width: "100%" }} placeholder="ex : camille@entreprise.fr" />
+              </Field>
+              <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>
+                Chaque nouvel expéditeur reçoit une réponse automatique une seule fois. La boîte est vérifiée une fois par jour — ce n'est pas instantané.
+              </div>
+            </>
+          )}
+        </Section>
+      )}
+              </>
+            )}
 
+            {active === "ia" && (
+              <>
       <Section title="Assistant IA">
         <Field label="Ton par défaut des emails générés">
           <select value={local.ai_default_tone} onChange={(e) => set({ ai_default_tone: e.target.value })} style={inputSm}>
@@ -232,20 +358,21 @@ export default function Settings({ session, prospects, settings, reloadSettings,
           )}
         </Section>
       )}
+              </>
+            )}
 
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-        <button className="focusable" onClick={save} disabled={saving} style={{ background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", opacity: saving ? 0.6 : 1 }}>
-          {saving ? "Enregistrement..." : "Enregistrer les préférences"}
-        </button>
-        {saved && <span style={{ color: "var(--green, #16a34a)", fontSize: "12px" }}>Enregistré ✓</span>}
-      </div>
-
+            {active === "equipe" && (
+              <>
       {isAdmin && (
         <Section title="Équipe">
           <TeamPanel session={session} team={team} reloadTeam={reloadTeam} />
         </Section>
       )}
+              </>
+            )}
 
+            {active === "entreprise" && (
+              <>
       <Section title="Mes informations légales">
         <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "14px" }}>
           Ces informations apparaissent sur les devis que vous envoyez à vos clients. Sans elles, le document reste incomplet.
@@ -288,82 +415,89 @@ export default function Settings({ session, prospects, settings, reloadSettings,
           <input value={local.devis_payment_terms || ""} onChange={(e) => set({ devis_payment_terms: e.target.value })} style={inputSm} placeholder="Paiement à 30 jours à réception de facture" />
         </Field>
       </Section>
+              </>
+            )}
 
+            {active === "abonnement" && (
+              <>
       {isAdmin && (
         <Section title="Abonnement & facturation">
           <BillingPanel local={local} session={session} team={team} reloadSettings={reloadSettings} reloadTeam={reloadTeam} />
         </Section>
       )}
+              </>
+            )}
 
+            {active === "integrations" && (
+              <>
       <Section title="Intégrations">
         <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "12px" }}>Connectez vos outils commerciaux (agenda, CRM, email) à Closia.</div>
         <button className="focusable" onClick={() => setActiveTab?.("integrations")} style={{ display: "flex", alignItems: "center", gap: "8px", ...btnGhost }}>
           <PlugIcon size={13} color="var(--text-dim)" /> Gérer les intégrations
         </button>
       </Section>
+              </>
+            )}
 
+            {active === "support" && (
+              <>
       <Section title="Support">
         <SupportPanel session={session} />
       </Section>
+              </>
+            )}
 
-      {(mailConnected.google || mailConnected.microsoft) && (
-        <Section title="Mode absence">
-          <Toggle
-            label="Activer le mode absence"
-            checked={!!local.vacation_mode_enabled}
-            onChange={(v) => {
-              set(
-                v
-                  ? { vacation_mode_enabled: true, vacation_last_checked_at: new Date().toISOString(), vacation_replied_senders: [] }
-                  : { vacation_mode_enabled: false }
-              );
-            }}
-          />
-          {local.vacation_mode_enabled && (
-            <>
-              <div style={{ fontSize: "13px", color: "var(--text)", marginTop: "12px", marginBottom: "6px" }}>Message d'accusé de réception</div>
-              <textarea
-                value={local.vacation_message || ""}
-                onChange={(e) => set({ vacation_message: e.target.value })}
-                placeholder="ex : Je suis actuellement absent(e) et de retour le..."
-                rows={3}
-                style={{ ...inputSm, width: "100%", resize: "vertical", fontFamily: "inherit" }}
-              />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "12px" }}>
-                <Field label="Date de retour">
-                  <input type="date" value={local.vacation_return_at ? local.vacation_return_at.slice(0, 10) : ""} onChange={(e) => set({ vacation_return_at: e.target.value ? new Date(e.target.value).toISOString() : null })} style={{ ...inputSm, width: "100%" }} />
-                </Field>
-                <Field label="Collègue à contacter (nom)">
-                  <input value={local.vacation_redirect_name || ""} onChange={(e) => set({ vacation_redirect_name: e.target.value })} style={{ ...inputSm, width: "100%" }} placeholder="ex : Camille Martin" />
-                </Field>
-              </div>
-              <Field label="Email du collègue" last>
-                <input type="email" value={local.vacation_redirect_email || ""} onChange={(e) => set({ vacation_redirect_email: e.target.value })} style={{ ...inputSm, width: "100%" }} placeholder="ex : camille@entreprise.fr" />
-              </Field>
-              <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>
-                Chaque nouvel expéditeur reçoit une réponse automatique une seule fois. La boîte est vérifiée une fois par jour — ce n'est pas instantané.
-              </div>
-            </>
-          )}
-        </Section>
-      )}
-
-      <Section title="Données et export" last>
-        <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "12px" }}>Exportez l'ensemble de vos prospects et clients au format CSV.</div>
-        <button className="focusable" onClick={exportCSV} style={btnGhost}>
-          Exporter mes prospects (CSV)
-        </button>
-      </Section>
-
-      <button
-        className="focusable"
-        onClick={() => supabase.auth.signOut()}
-        style={{ background: "var(--red-dim)", color: "var(--red)", border: "0.5px solid var(--red)55", borderRadius: "8px", padding: "9px 14px", fontSize: "13px" }}
-      >
-        Se déconnecter
-      </button>
+        {SAVEABLE.includes(active) && (
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "4px" }}>
+            <button className="focusable" onClick={save} disabled={saving} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "10px 18px", fontSize: "13px", fontWeight: 600, opacity: saving ? 0.6 : 1 }}>
+              {saving ? "Enregistrement…" : "Enregistrer"}
+            </button>
+            {saved && <span style={{ color: "#16a34a", fontSize: "12.5px", fontWeight: 600 }}>Modifications enregistrées ✓</span>}
+          </div>
+        )}
+          </div>
+        </div>
       </div>
     </div>
+  );
+}
+
+// Progression réelle du mois en cours, calculée sur les deals gagnés.
+function ObjectivesProgress({ local, prospects }) {
+  const targetRevenue = local.objective_monthly_revenue || null;
+  const targetDeals = local.objective_monthly_deals || null;
+  if (!targetRevenue && !targetDeals) return null;
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const wonThisMonth = (prospects || []).filter((p) => p.stage === "Gagné" && p.closed_at && new Date(p.closed_at) >= monthStart);
+  const revenue = wonThisMonth.reduce((sum, p) => sum + (p.deal_value || 0), 0);
+
+  const Bar = ({ label, current, target, format }) => {
+    if (!target) return null;
+    const pct = Math.min(100, Math.round((current / target) * 100));
+    return (
+      <div style={{ marginBottom: "14px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12.5px", marginBottom: "5px" }}>
+          <span style={{ color: "var(--text-dim)" }}>{label}</span>
+          <span className="mono" style={{ color: "var(--text)" }}>{format(current)} / {format(target)}</span>
+        </div>
+        <div style={{ height: "8px", background: "var(--panel2)", borderRadius: "4px", overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${pct}%`, background: "var(--blue)", borderRadius: "4px" }} />
+        </div>
+        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "4px" }}>{pct} % de l'objectif du mois</div>
+      </div>
+    );
+  };
+
+  return (
+    <Section title="Progression du mois">
+      <Bar label="Chiffre d'affaires" current={revenue} target={targetRevenue} format={(v) => formatEuros(v)} />
+      <Bar label="Deals gagnés" current={wonThisMonth.length} target={targetDeals} format={(v) => String(v)} />
+      <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>
+        Calculé sur les opportunités passées en « Gagné » depuis le 1<sup>er</sup> du mois.
+      </div>
+    </Section>
   );
 }
 
