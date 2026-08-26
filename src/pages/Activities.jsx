@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { Avatar, formatShortDate, formatEuros, callAI, parseJsonLoose, STATUS_META, computeDealScore, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, UsersIcon, LinkedinIcon, AlertIcon } from "../lib/ui.jsx";
+import { Avatar, formatShortDate, formatEuros, callAI, parseJsonLoose, STATUS_META, OPEN_STAGES, computeDealScore, TargetIcon, PhoneIcon, XIcon, TrophyIcon, MailIcon, CalendarIcon, ClockIcon, SparklesIcon, UsersIcon, LinkedinIcon, AlertIcon } from "../lib/ui.jsx";
 
 const PERIOD_DAYS = { "7": 7, "30": 30, "90": 90 };
 const PERIODS = [["7", "7 jours"], ["30", "30 jours"], ["90", "Trimestre"]];
@@ -59,7 +59,7 @@ function dayLabel(iso) {
   return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 }
 
-export default function Activities({ prospects, onOpenProspect, session, team, settings }) {
+export default function Activities({ prospects, onOpenProspect, session, team, settings, setActiveTab }) {
   const [tab, setTab] = useState("activite");
   const [filter, setFilter] = useState("Tous");
   const [feedItems, setFeedItems] = useState([]);
@@ -131,7 +131,7 @@ export default function Activities({ prospects, onOpenProspect, session, team, s
           teamStats={teamStats}
         />
       ) : (
-        <PerformanceTab prospects={prospects} activities={activities} feedItems={feedItems} session={session} teamStats={teamStats} settings={settings} />
+        <PerformanceTab prospects={prospects} activities={activities} feedItems={feedItems} session={session} teamStats={teamStats} settings={settings} setActiveTab={setActiveTab} />
       )}
       </div>
     </div>
@@ -297,7 +297,7 @@ function DeltaLine({ delta }) {
   );
 }
 
-function PerformanceTab({ prospects, activities, feedItems, session, teamStats, settings }) {
+function PerformanceTab({ prospects, activities, feedItems, session, teamStats, settings, setActiveTab }) {
   const [period, setPeriod] = useState("30");
   const [insight, setInsight] = useState(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
@@ -395,6 +395,19 @@ function PerformanceTab({ prospects, activities, feedItems, session, teamStats, 
     return recentlyContacted && computeDealScore(p) >= 70;
   });
 
+  // Répartition réelle du pipeline ouvert par étape.
+  const stageRows = OPEN_STAGES
+    .map((stage) => {
+      const items = open.filter((p) => p.stage === stage);
+      return { stage, value: items.reduce((sum, p) => sum + (p.deal_value || 0), 0), count: items.length };
+    })
+    .filter((r) => r.count > 0);
+
+  // Opportunités ayant progressé d'étape sur la période, d'après l'historique.
+  const advanced = open.filter((p) =>
+    activities.some((a) => a.prospect_id === p.id && a.type === "note" && (a.note || "").startsWith("Étape passée") && new Date(a.created_at) >= start)
+  );
+
   const pctWithNextAction = open.length > 0 ? Math.round((withNextAction.length / open.length) * 100) : null;
   const momentumIndex = activityDelta !== null ? Math.max(0, Math.min(100, Math.round(50 + activityDelta))) : null;
   const coverageRatio = settings?.objective_monthly_revenue ? (pipelineTotal / settings.objective_monthly_revenue) : null;
@@ -423,7 +436,7 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px", flexWrap: "wrap", gap: "10px" }}>
-        <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Ce qui fait avancer vos deals — pas juste ce que vous avez fait.</div>
+        <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Comprenez ce qui fait avancer vos opportunités et ce qui mérite votre attention.</div>
         <div style={{ display: "flex", gap: "4px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
           {PERIODS.map(([key, label]) => (
             <button key={key} className="focusable" onClick={() => setPeriod(key)} style={{ padding: "6px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: period === key ? "var(--bg)" : "transparent", color: period === key ? "var(--blue)" : "var(--text-dim)", boxShadow: period === key ? "0 1px 2px rgba(0,0,0,0.06)" : "none" }}>
@@ -433,15 +446,67 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
         </div>
       </div>
 
-      {/* Métrique phare */}
-      <div style={{ background: "var(--blue-dim)", border: "0.5px solid #147ff555", borderRadius: "12px", padding: "18px", marginBottom: "22px", textAlign: "center" }}>
-        <div style={{ fontSize: "11px", color: "var(--blue)", fontWeight: 700, letterSpacing: "0.02em", marginBottom: "6px" }}>LA MÉTRIQUE LA PLUS IMPORTANTE</div>
-        <div className="mono" style={{ fontSize: "32px", fontWeight: 700, color: "var(--text)" }}>{pctWithNextAction !== null ? `${pctWithNextAction}%` : "—"}</div>
-        <div style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>des opportunités ont une prochaine action planifiée — aucun deal ne devrait tomber dans l'oubli.</div>
+      {/* Résumé exécutif — quatre chiffres */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "22px" }}>
+        <ExecKpi value={formatEuros(pipelineTotal)} label="Pipeline ouvert" sub={`${open.length} opportunité${open.length > 1 ? "s" : ""} active${open.length > 1 ? "s" : ""}`} />
+        <ExecKpi value={gagnes.length} label="Deals gagnés" sub={tauxConversion !== null ? `${tauxConversion} % de conversion` : "Conversion non calculable"} />
+        <ExecKpi value={formatEuros(caGenere)} label="CA généré" sub={avgCycle !== null ? `Cycle moyen ${avgCycle} j` : "Cycle non calculable"} />
+        <ExecKpi
+          value={pctWithNextAction !== null ? `${pctWithNextAction}/100` : "—"}
+          label="Indice de suivi"
+          sub={pctWithNextAction !== null ? "Opportunités avec une action planifiée" : "Données insuffisantes"}
+          accent="var(--blue)"
+        />
+      </div>
+
+      {/* Ce qui mérite votre attention */}
+      <div className="dash-card" style={{ padding: "18px 20px", marginBottom: "26px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+          <TargetIcon size={14} color="var(--blue)" />
+          <span className="display" style={{ fontWeight: 700, fontSize: "13.5px" }}>Ce qui mérite votre attention</span>
+        </div>
+        {sansAction.length === 0 && atRisk.length === 0 && advanced.length === 0 ? (
+          <div style={{ fontSize: "12.5px", color: "var(--text-dim)", marginTop: "8px" }}>
+            Votre portefeuille est correctement suivi — aucune alerte importante actuellement.
+          </div>
+        ) : (
+          <div>
+            {sansAction.length > 0 && (
+              <AttentionRow
+                dot="var(--red)"
+                count={sansAction.length}
+                title={`opportunité${sansAction.length > 1 ? "s" : ""} sans prochaine action`}
+                detail="Risque de perdre le suivi — aucune tâche ni relance planifiée."
+                actionLabel="Voir"
+                onAction={() => setActiveTab?.("pipeline")}
+              />
+            )}
+            {atRisk.length > 0 && (
+              <AttentionRow
+                dot="var(--amber, #b45309)"
+                count={atRisk.length}
+                title={`deal${atRisk.length > 1 ? "s" : ""} à risque`}
+                detail="Aucun échange depuis plus de sept jours."
+                actionLabel="Voir"
+                onAction={() => setActiveTab?.("a-sauver")}
+              />
+            )}
+            {advanced.length > 0 && (
+              <AttentionRow
+                dot="var(--success)"
+                count={advanced.length}
+                title={`opportunité${advanced.length > 1 ? "s" : ""} ${advanced.length > 1 ? "ont" : "a"} changé d'étape`}
+                detail="Priorisez leur suivi pendant qu'elles avancent."
+                actionLabel="Voir"
+                onAction={() => setActiveTab?.("chauds")}
+              />
+            )}
+          </div>
+        )}
       </div>
 
       {/* 1. Activité */}
-      <SectionLabel>Activité — ce que vous avez fait</SectionLabel>
+      <SectionLabel>Activité</SectionLabel>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "12px", marginBottom: "24px" }}>
         <DeltaKpiTile value={nbAppels} label="Appels" delta={pctDelta(nbAppels, prevAppels)} />
         <DeltaKpiTile value={emailsInRange.length} label="Emails" delta={pctDelta(emailsInRange.length, prevEmails.length)} />
@@ -450,31 +515,50 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
       </div>
 
       {/* 2. Réactivité */}
-      <SectionLabel>Réactivité — à quelle vitesse vous traitez vos opportunités</SectionLabel>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "24px" }}>
-        <QualityTile value={avgFirstResponseH !== null ? (avgFirstResponseH < 24 ? `${Math.round(avgFirstResponseH)}h` : `${Math.round(avgFirstResponseH / 24)} j`) : "—"} label="Temps de première réponse (nouveaux prospects)" />
-        <QualityTile value={avgGapDays !== null ? `${avgGapDays.toFixed(1)} j` : "—"} label="Délai moyen entre deux suivis" />
-        <QualityTile value={onTimePct !== null ? `${onTimePct}%` : "—"} label="Tâches terminées avant échéance" />
+      <SectionLabel>Réactivité</SectionLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "12px", marginBottom: "26px" }}>
+        <SmartKpiTile
+          value={avgFirstResponseH !== null ? (avgFirstResponseH < 24 ? `${Math.round(avgFirstResponseH)} h` : `${Math.round(avgFirstResponseH / 24)} j`) : null}
+          label="Première réponse moyenne"
+          desc="Temps moyen avant le premier échange avec un nouveau prospect."
+          raw
+        />
+        <SmartKpiTile
+          value={avgGapDays !== null ? `${avgGapDays.toFixed(1)} j` : null}
+          label="Délai moyen entre suivis"
+          desc="Temps moyen écoulé entre deux interactions avec un même prospect."
+          raw
+        />
+        <SmartKpiTile
+          value={onTimePct !== null ? `${onTimePct} %` : null}
+          label="Tâches terminées à temps"
+          desc="Part des tâches closes avant leur échéance."
+          raw
+        />
       </div>
 
       {/* 3. Pipeline */}
-      <SectionLabel>Pipeline — qualité et avancement des deals</SectionLabel>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px", marginBottom: "14px" }}>
-        <KpiTile value={formatEuros(pipelineTotal)} label="Pipeline total ouvert" />
-        <KpiTile value={open.length} label={`Opportunités actives (${withNextAction.length} avec action)`} />
+      <SectionLabel>Pipeline</SectionLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px", marginBottom: "14px" }}>
+        <KpiTile value={formatEuros(pipelineTotal)} label="Pipeline total" />
+        <KpiTile value={open.length} label="Opportunités actives" />
         <KpiTile value={open.length > 0 ? formatEuros(Math.round(pipelineTotal / open.length)) : "—"} label="Valeur moyenne" />
       </div>
-      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", boxShadow: "var(--shadow-sm)", padding: "16px", marginBottom: "26px" }}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "10px", flexWrap: "wrap", gap: "6px" }}>
-          <span className="display" style={{ fontWeight: 700, fontSize: "13px" }}>Pipeline créé par mois</span>
+      <div className="dash-card" style={{ padding: "16px 18px", marginBottom: "14px" }}>
+        <div className="display" style={{ fontWeight: 700, fontSize: "12.5px", marginBottom: "12px" }}>Pipeline par étape</div>
+        <StageBars rows={stageRows} onSelectStage={() => setActiveTab?.("pipeline")} />
+      </div>
+      <div className="dash-card" style={{ padding: "16px 18px", marginBottom: "26px" }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "8px", flexWrap: "wrap", gap: "6px" }}>
+          <span className="display" style={{ fontWeight: 700, fontSize: "12.5px" }}>Pipeline créé par mois</span>
           <DeltaLine delta={pipelineDelta} />
         </div>
-        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "10px" }}>Valeur des opportunités créées chaque mois (pas un instantané du pipeline total à date — non disponible sans historique).</div>
+        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "10px" }}>Valeur des opportunités créées chaque mois — pas un instantané du pipeline à date, que l'historique ne permet pas de reconstituer.</div>
         <MetricChart data={monthlyPipeline} chartType="bar" measure="value" timeSeries />
       </div>
 
       {/* 4. Conversion */}
-      <SectionLabel>Conversion — ce qui transforme l'activité en résultats</SectionLabel>
+      <SectionLabel>Conversion</SectionLabel>
       <div style={{ marginBottom: "14px" }}>
         <FunnelChart steps={[
           { label: "Activités", value: totalActivites },
@@ -490,53 +574,156 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
       </div>
 
       {/* 5. Santé du portefeuille */}
-      <SectionLabel>Santé du portefeuille — ce qui est à risque ou bloqué</SectionLabel>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px", marginBottom: "26px" }}>
-        <HealthTile value={atRisk.length} label="Deals à risque" sub="Sans activité depuis 7j+" accent="var(--red)" />
-        <HealthTile value={sansAction.length} label="Sans prochaine action" sub="Aucune tâche ni relance planifiée" accent="var(--amber, #b45309)" />
+      <SectionLabel>Santé du portefeuille</SectionLabel>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px", marginBottom: "26px" }}>
+        <button className="focusable" onClick={() => setActiveTab?.("a-sauver")} style={{ background: "none", border: "none", padding: 0, textAlign: "left" }}>
+          <HealthTile value={atRisk.length} label="Deals à risque" sub="Sans activité depuis 7j+" accent="var(--red)" />
+        </button>
+        <button className="focusable" onClick={() => setActiveTab?.("pipeline")} style={{ background: "none", border: "none", padding: 0, textAlign: "left" }}>
+          <HealthTile value={sansAction.length} label="Sans prochaine action" sub="Aucune tâche ni relance planifiée" accent="var(--amber, #b45309)" />
+        </button>
         <HealthTile value={formatEuros(stagnantValue)} label="Pipeline stagnant" sub="Deals sans activité depuis 14j+" accent="var(--text-dim)" />
-        <HealthTile value={chauds.length} label="Opportunités chaudes" sub="Interactions récentes, fort engagement" accent="#527a61" />
+        <button className="focusable" onClick={() => setActiveTab?.("chauds")} style={{ background: "none", border: "none", padding: 0, textAlign: "left" }}>
+          <HealthTile value={chauds.length} label="Opportunités chaudes" sub="Interactions récentes, fort engagement" accent="#527a61" />
+        </button>
       </div>
 
-      {/* KPI intelligents */}
+      {/* 6. Indices Closia */}
       <SectionLabel>Indices Closia</SectionLabel>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px", marginBottom: "12px" }}>
-        <SmartKpiTile value={pctWithNextAction} label="Indice de suivi" desc="% d'opportunités avec une prochaine action planifiée." />
-        <SmartKpiTile value={onTimePct} label="Indice de réactivité" desc="% de tâches terminées avant leur échéance." />
-        <SmartKpiTile value={momentumIndex} label="Indice de momentum" desc="Basé sur la variation d'activité vs période précédente." />
-        <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px" }}>
-          <div className="mono" style={{ fontSize: "20px", fontWeight: 700, color: "var(--text)" }}>{coverageRatio !== null ? `${coverageRatio.toFixed(1)}x` : "—"}</div>
-          <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "2px" }}>Couverture pipeline</div>
-          <div style={{ fontSize: "10px", color: "var(--text-faint)", marginTop: "4px" }}>
-            {settings?.objective_monthly_revenue ? "Pipeline ÷ objectif mensuel (Paramètres)." : "Défini un objectif de CA mensuel dans Paramètres pour l'activer."}
+      <div className="dash-card" style={{ padding: "18px 20px", marginBottom: "26px" }}>
+        <IndexBar
+          label="Suivi"
+          value={pctWithNextAction}
+          explain={pctWithNextAction >= 70 ? "La majorité des opportunités ont une prochaine action planifiée." : "Trop d'opportunités avancent sans prochaine action définie."}
+        />
+        <IndexBar
+          label="Réactivité"
+          value={onTimePct}
+          explain={onTimePct >= 70 ? "Vos tâches sont majoritairement traitées avant l'échéance." : "Une part importante des tâches est traitée en retard."}
+        />
+        <IndexBar
+          label="Momentum"
+          value={momentumIndex}
+          explain={momentumIndex >= 50 ? "Votre activité progresse par rapport à la période précédente." : "Votre activité ralentit par rapport à la période précédente."}
+        />
+        <div style={{ marginBottom: 0 }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "10px", marginBottom: "5px" }}>
+            <span style={{ fontSize: "12.5px", fontWeight: 600 }}>Couverture pipeline</span>
+            <span className="mono" style={{ fontSize: "13px", fontWeight: 700, color: coverageRatio !== null ? "var(--blue)" : "var(--text-faint)" }}>
+              {coverageRatio !== null ? `${coverageRatio.toFixed(1)}x` : "—"}
+            </span>
+          </div>
+          <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>
+            {coverageRatio !== null
+              ? "Pipeline ouvert rapporté à votre objectif de CA mensuel."
+              : "Définissez un objectif de CA mensuel dans Paramètres pour activer cet indice."}
           </div>
         </div>
       </div>
 
-      <AIQuerySection prospects={prospects} activities={activities} session={session} days={days} />
-
-      <CustomMetricsSection prospects={prospects} activities={activities} session={session} days={days} />
-
-      <div style={{ background: "var(--blue-dim)", border: "0.5px solid #147ff555", borderRadius: "12px", padding: "16px", marginBottom: "26px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-          <span className="display" style={{ fontWeight: 700, fontSize: "13px", color: "var(--blue)" }}>✨ Ce que Closia remarque</span>
-          {!insight && (
-            <button className="focusable" onClick={generateInsight} disabled={loadingInsight} style={{ fontSize: "11px", padding: "5px 10px", borderRadius: "6px", background: "var(--panel)", color: "var(--blue)", border: "0.5px solid #147ff540" }}>
-              {loadingInsight ? "Analyse..." : "Générer"}
-            </button>
-          )}
+      {/* 7. Insights Closia — un seul espace IA */}
+      <SectionLabel>Insights Closia</SectionLabel>
+      <div className="dash-card" style={{ padding: "18px 20px", marginBottom: "26px", border: "0.5px solid var(--violet-border)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginBottom: "10px", flexWrap: "wrap" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: "7px", fontWeight: 700, fontSize: "13px", color: "var(--violet)" }}>
+            <SparklesIcon size={13} color="var(--violet)" /> Ce que Closia remarque
+          </span>
+          <button className="focusable" onClick={generateInsight} disabled={loadingInsight} style={{ fontSize: "11.5px", fontWeight: 600, padding: "6px 12px", borderRadius: "7px", background: "var(--violet-dim)", color: "var(--violet)", border: "0.5px solid var(--violet-border)", opacity: loadingInsight ? 0.6 : 1 }}>
+            {loadingInsight ? "Analyse…" : insight ? "Régénérer" : "Analyser ma période"}
+          </button>
         </div>
         {insight ? (
-          <div style={{ fontSize: "13px", color: "var(--text)", lineHeight: 1.6 }}>{insight}</div>
-        ) : activityDelta !== null ? (
-          <div style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>
-            Votre activité a {activityDelta >= 0 ? "augmenté" : "baissé"} de {Math.abs(activityDelta)}% sur cette période. Génère une analyse pour une recommandation détaillée.
-          </div>
+          <div style={{ fontSize: "13px", color: "var(--text)", lineHeight: 1.6, whiteSpace: "pre-line" }}>{insight}</div>
         ) : (
-          <div style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>Génère une analyse pour voir ce que Closia remarque dans votre activité.</div>
+          <div style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>
+            {activityDelta !== null
+              ? `Votre activité a ${activityDelta >= 0 ? "augmenté" : "baissé"} de ${Math.abs(activityDelta)} % sur cette période. Lancez l'analyse pour une recommandation détaillée.`
+              : "Lancez l'analyse pour une lecture commentée de votre période."}
+          </div>
         )}
+
+        <div style={{ borderTop: "0.5px solid var(--hairline)", marginTop: "16px", paddingTop: "14px" }}>
+          <AIQuerySection prospects={prospects} activities={activities} session={session} days={days} bare />
+        </div>
       </div>
+
+      <CustomMetricsSection prospects={prospects} activities={activities} session={session} days={days} />
     </>
+  );
+}
+
+// Résumé exécutif : quatre chiffres, pas davantage.
+function ExecKpi({ value, label, sub, accent }) {
+  return (
+    <div className="dash-card" style={{ padding: "16px 18px" }}>
+      <div className="mono" style={{ fontSize: "22px", fontWeight: 700, color: accent || "var(--text)" }}>{value}</div>
+      <div style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "2px" }}>{label}</div>
+      {sub && <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "4px" }}>{sub}</div>}
+    </div>
+  );
+}
+
+// Chaque alerte mène quelque part : une alerte sur laquelle on ne peut pas agir
+// n'aide pas.
+function AttentionRow({ dot, count, title, detail, actionLabel, onAction }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "13px 0", borderBottom: "0.5px solid var(--hairline)" }}>
+      <span style={{ width: "9px", height: "9px", borderRadius: "50%", background: dot, flexShrink: 0, marginTop: "5px" }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--text)" }}>{count} {title}</div>
+        <div style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "2px" }}>{detail}</div>
+      </div>
+      {onAction && (
+        <button className="focusable" onClick={onAction} style={{ flexShrink: 0, background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "7px", padding: "6px 12px", fontSize: "11.5px", fontWeight: 600 }}>
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Pipeline par étape : barres proportionnelles, cliquables.
+function StageBars({ rows, onSelectStage }) {
+  const max = Math.max(...rows.map((r) => r.value), 1);
+  if (rows.length === 0) return <div style={{ fontSize: "12.5px", color: "var(--text-faint)" }}>Aucune opportunité ouverte.</div>;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      {rows.map((r) => (
+        <button
+          key={r.stage}
+          className="focusable"
+          onClick={() => onSelectStage?.(r.stage)}
+          style={{ display: "grid", gridTemplateColumns: "minmax(96px, 130px) 1fr auto", alignItems: "center", gap: "12px", background: "none", border: "none", padding: "2px 0", textAlign: "left", width: "100%" }}
+        >
+          <span style={{ fontSize: "12px", color: "var(--text-dim)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.stage}</span>
+          <span style={{ height: "9px", background: "var(--panel2)", borderRadius: "5px", overflow: "hidden" }}>
+            <span style={{ display: "block", height: "100%", width: `${Math.round((r.value / max) * 100)}%`, background: "var(--blue)", borderRadius: "5px" }} />
+          </span>
+          <span className="mono" style={{ fontSize: "12px", color: "var(--text)", whiteSpace: "nowrap" }}>
+            {formatEuros(r.value)} <span style={{ color: "var(--text-faint)" }}>· {r.count}</span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Indice sur 100, avec la phrase qui explique ce que le score veut dire.
+function IndexBar({ label, value, explain, suffix = "/ 100" }) {
+  const pct = value === null || value === undefined ? null : Math.max(0, Math.min(100, value));
+  return (
+    <div style={{ marginBottom: "16px" }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "10px", marginBottom: "6px" }}>
+        <span style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text)" }}>{label}</span>
+        <span className="mono" style={{ fontSize: "13px", fontWeight: 700, color: pct === null ? "var(--text-faint)" : "var(--blue)" }}>
+          {pct === null ? "—" : `${pct} ${suffix}`}
+        </span>
+      </div>
+      <div style={{ height: "7px", background: "var(--panel2)", borderRadius: "4px", overflow: "hidden" }}>
+        {pct !== null && <div style={{ height: "100%", width: `${pct}%`, background: "var(--blue)", borderRadius: "4px" }} />}
+      </div>
+      <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "5px" }}>{pct === null ? "Données insuffisantes." : explain}</div>
+    </div>
   );
 }
 
@@ -564,12 +751,15 @@ function HealthTile({ value, label, sub, accent }) {
   );
 }
 
-function SmartKpiTile({ value, label, desc }) {
+function SmartKpiTile({ value, label, desc, raw }) {
+  const missing = value === null || value === undefined;
   return (
     <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px" }}>
-      <div className="mono" style={{ fontSize: "20px", fontWeight: 700, color: "var(--text)" }}>{value !== null ? value : "—"}</div>
-      <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "2px" }}>{label}</div>
-      <div style={{ fontSize: "10px", color: "var(--text-faint)", marginTop: "4px" }}>{desc}</div>
+      <div className="mono" style={{ fontSize: "20px", fontWeight: 700, color: missing ? "var(--text-faint)" : "var(--text)" }}>
+        {missing ? "—" : raw ? value : `${value} / 100`}
+      </div>
+      <div style={{ fontSize: "11.5px", color: "var(--text-dim)", marginTop: "3px" }}>{label}</div>
+      <div style={{ fontSize: "10.5px", color: "var(--text-faint)", marginTop: "4px" }}>{missing ? "Données insuffisantes" : desc}</div>
     </div>
   );
 }
@@ -682,7 +872,8 @@ function computeMetricData(prospects, activities, dimensionKey, measureKey, peri
     .sort((a, b) => b.value - a.value);
 }
 
-function AIQuerySection({ prospects, activities, session, days }) {
+// `bare` : rendu sans encadré propre, pour vivre dans la carte Insights.
+function AIQuerySection({ prospects, activities, session, days, bare }) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -738,10 +929,12 @@ Base-toi UNIQUEMENT sur les données fournies ci-dessus, n'invente aucun chiffre
   }
 
   return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "var(--radius-md)", padding: "16px", marginBottom: "20px" }}>
+    <div style={bare ? {} : { background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "var(--radius-md)", padding: "16px", marginBottom: "20px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
-        <SparklesIcon size={13} color="var(--violet)" />
-        <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--violet)" }}>Demander à l'IA</span>
+        {!bare && <SparklesIcon size={13} color="var(--violet)" />}
+        <span style={{ fontWeight: 600, fontSize: bare ? "12px" : "13px", color: bare ? "var(--text-dim)" : "var(--violet)" }}>
+          {bare ? "Poser une question sur vos données" : "Demander à l'IA"}
+        </span>
       </div>
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
         <input
