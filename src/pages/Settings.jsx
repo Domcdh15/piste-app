@@ -975,6 +975,46 @@ function planTierFor(price) {
 }
 
 function BillingPanel({ local, session, team, reloadSettings, reloadTeam }) {
+  const [specimenBusy, setSpecimenBusy] = useState(false);
+
+  // Un exemple au format réel : c'est le seul moyen de voir ce que recevra un
+  // client, et quelles informations légales manquent encore côté Closia.
+  async function downloadSpecimen() {
+    if (specimenBusy) return;
+    setSpecimenBusy(true);
+    try {
+      const { buildInvoicePdf, invoiceFileName } = await import("../lib/invoicePdf.js");
+      const start = new Date();
+      start.setDate(1);
+      const end = new Date(start);
+      end.setMonth(end.getMonth() + 1);
+      end.setDate(0);
+      const number = `INV-${start.getFullYear()}-0001`;
+      const { doc } = await buildInvoicePdf({
+        number,
+        issuedAt: start,
+        periodStart: start,
+        periodEnd: end,
+        planName: planTierFor(tierPrice)?.name || "Solo",
+        amountTTC: price || 19,
+        vatRate: 20,
+        specimen: true,
+        customer: {
+          company_name: team?.team?.company_name || local?.company_name || "Votre entreprise",
+          contact_name: [local?.first_name, local?.last_name].filter(Boolean).join(" ") || null,
+          billing_address: team?.team?.billing_address || local?.billing_address || null,
+          billing_postal_code: team?.team?.billing_postal_code || local?.billing_postal_code || null,
+          billing_city: team?.team?.billing_city || local?.billing_city || null,
+          siret: team?.team?.siret || local?.siret || null,
+          email: session?.user?.email || null,
+        },
+      });
+      doc.save(invoiceFileName(number));
+    } finally {
+      setSpecimenBusy(false);
+    }
+  }
+
   if (!local) return <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Chargement...</div>;
 
   const memberCount = team?.members?.length || 1;
@@ -1089,20 +1129,21 @@ function BillingPanel({ local, session, team, reloadSettings, reloadTeam }) {
 
       <div style={{ borderTop: "0.5px solid var(--hairline)", paddingTop: "14px" }}>
         <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, marginBottom: "10px" }}>HISTORIQUE DE FACTURATION</div>
-        {status === "active" ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", padding: "10px 12px", background: "var(--panel2)", borderRadius: "8px" }}>
-            <div>
-              <div style={{ fontSize: "12.5px", fontWeight: 600 }}>Facture #INV-{accountCreatedAt.getFullYear()}-001</div>
-              <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>{accountCreatedAt.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })} · {formatEuros(price)}</div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span className="mono" style={{ fontSize: "10px", fontWeight: 700, color: "#527a61", background: "#eaf1ec", borderRadius: "999px", padding: "3px 9px" }}>PAYÉE</span>
-              <span style={{ fontSize: "11px", color: "var(--text-faint)", whiteSpace: "nowrap" }}>PDF bientôt disponible</span>
-            </div>
-          </div>
-        ) : (
-          <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Aucune facture pour l'instant.</div>
-        )}
+        {/* Aucune facture n'est émise tant qu'aucun paiement n'est encaissé.
+            L'ancienne ligne était fabriquée à l'affichage — numéro déduit de
+            l'année, mention PAYÉE écrite en dur — sans transaction derrière. */}
+        <div style={{ fontSize: "12px", color: "var(--text-faint)", lineHeight: 1.55 }}>
+          Aucune facture pour l'instant. Vos factures apparaîtront ici, téléchargeables en PDF,
+          dès le premier prélèvement.
+        </div>
+        <button
+          className="focusable"
+          onClick={downloadSpecimen}
+          disabled={specimenBusy}
+          style={{ marginTop: "10px", fontSize: "11.5px", fontWeight: 600, padding: "7px 12px", borderRadius: "7px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}
+        >
+          {specimenBusy ? "Génération…" : "Voir un exemple de facture"}
+        </button>
       </div>
     </div>
   );
