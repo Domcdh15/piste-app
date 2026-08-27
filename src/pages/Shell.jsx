@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import Sidebar from "../components/Sidebar.jsx";
 import Today from "./Today.jsx";
@@ -29,9 +29,31 @@ function tabFromHash() {
 export default function Shell({ session, team, reloadTeam }) {
   const [activeTab, setActiveTabState] = useState(tabFromHash);
 
-  function setActiveTab(tab) {
+  // Une fiche ouverte peut refuser qu'on la quitte — c'est la règle d'équipe
+  // « aucun prospect sans prochaine action ». Sans ce point de passage, un clic
+  // dans la barre latérale la contournait.
+  const navGuardRef = useRef(null);
+  const pendingTabRef = useRef(null);
+
+  function applyTab(tab) {
     setActiveTabState(tab);
     if (VALID_TABS.includes(tab)) window.location.hash = tab;
+  }
+
+  function setActiveTab(tab) {
+    if (navGuardRef.current && navGuardRef.current(tab)) {
+      pendingTabRef.current = tab;
+      return;
+    }
+    applyTab(tab);
+  }
+
+  // Appelé quand la fiche a obtenu ce qu'elle demandait : on reprend le
+  // déplacement là où il avait été interrompu.
+  function resumePendingTab() {
+    const tab = pendingTabRef.current;
+    pendingTabRef.current = null;
+    if (tab) applyTab(tab);
   }
 
   useEffect(() => {
@@ -221,6 +243,8 @@ export default function Shell({ session, team, reloadTeam }) {
             onBackToPrevious={backFromPipeline}
             team={team}
             presetFilter={activeTab === "chauds" ? "chauds" : activeTab === "a-sauver" ? "a-sauver" : null}
+            navGuardRef={navGuardRef}
+            onGuardResolved={resumePendingTab}
           />
         )}
         {activeTab === "assistant" && <Assistant session={session} prospects={prospects} onOpenProspect={openProspect} settings={effectiveSettings} />}

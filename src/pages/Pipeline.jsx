@@ -394,7 +394,7 @@ function buildHistoryContext(history) {
 
 const TAB_LABELS = { today: "Aujourd'hui", planning: "Agenda", assistant: "Assistant IA", activities: "Activités", integrations: "Intégrations", settings: "Paramètres", chauds: "Chauds", "a-sauver": "À sauver", equipe: "Équipe" };
 
-export default function Pipeline({ prospects, loading, reload, session, initialSelectedId, onConsumeInitialSelection, initialShowForm, onConsumeInitialShowForm, initialShowImport, onConsumeInitialShowImport, initialTab, settings, returnTab, onBackToPrevious, team, presetFilter }) {
+export default function Pipeline({ prospects, loading, reload, session, initialSelectedId, onConsumeInitialSelection, initialShowForm, onConsumeInitialShowForm, initialShowImport, onConsumeInitialShowImport, initialTab, settings, returnTab, onBackToPrevious, team, presetFilter, navGuardRef, onGuardResolved }) {
   const [showForm, setShowForm] = useState(!!initialShowForm);
   const [form, setForm] = useState({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", email: "", phone: "", stage: "À contacter", status: "attente", priority: 50, deal_value: "" });
   const [saving, setSaving] = useState(false);
@@ -543,6 +543,8 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
         team={team}
         onBack={() => { setSelectedId(null); if (returnTab) onBackToPrevious?.(); }}
         backLabel={returnTab ? `Retour à ${TAB_LABELS[returnTab] || "la page précédente"}` : "Retour à la file de priorité"}
+        navGuardRef={navGuardRef}
+        onGuardResolved={onGuardResolved}
         onUpdate={(changes) => handleUpdateProspect(selected.id, changes)}
         onDelete={() => handleDeleteProspect(selected.id)}
         onLogActivity={(type, note) => logActivity(selected.id, type, note)}
@@ -1106,7 +1108,7 @@ ${atRisk.slice(0, 15).map((p) => `- ${p.name} (${p.company}), ${formatEuros(p.de
   );
 }
 
-function ProspectDetailPage({ prospect, session, settings, team, onBack, backLabel, onUpdate, onDelete, onLogActivity, initialTab, reload }) {
+function ProspectDetailPage({ prospect, session, settings, team, onBack, backLabel, onUpdate, onDelete, onLogActivity, initialTab, reload, navGuardRef, onGuardResolved }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [quickAction, setQuickAction] = useState(null);
   const [showDevis, setShowDevis] = useState(false);
@@ -1144,6 +1146,27 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
   // Réglage activé par l'administrateur (formules Équipe et Business).
   const requireNextAction = !!team?.team?.require_next_action;
   const guardApplies = requireNextAction && OPEN_STAGES.includes(prospect.stage);
+
+  const [openTaskCount, setOpenTaskCount] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    countOpenTasks().then((n) => { if (!cancelled) setOpenTaskCount(n); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prospect.id, taskVersion]);
+
+  // La barre latérale demande une réponse immédiate : on s'appuie sur le
+  // compte tenu à jour plutôt que d'aller interroger la base au clic.
+  useEffect(() => {
+    if (!navGuardRef) return;
+    navGuardRef.current = () => {
+      if (!guardApplies || openTaskCount === null || openTaskCount > 0) return false;
+      setGuardOpen("exit");
+      return true;
+    };
+    return () => { navGuardRef.current = null; };
+  }, [navGuardRef, guardApplies, openTaskCount]);
 
   async function countOpenTasks() {
     const { count } = await supabase
@@ -1373,11 +1396,12 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
           prospect={prospect}
           session={session}
           settings={settings}
-          onScheduled={() => { const reason = guardOpen; setGuardOpen(false); bumpTasks(); reload?.(); if (reason === "exit") onBack(); }}
+          onScheduled={() => { const reason = guardOpen; setGuardOpen(false); bumpTasks(); reload?.(); if (reason === "exit") { onGuardResolved?.(); onBack(); } }}
           onDropped={async () => {
             await onUpdate({ stage: "Perdu" });
             await onLogActivity("note", "Prospect déclaré sans suite depuis la règle d'équipe");
             setGuardOpen(false);
+            onGuardResolved?.();
             onBack();
           }}
         />
