@@ -341,16 +341,27 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
               onAdd={() => setShowAddForm(true)}
             />
           ) : (
-            <TimeGrid events={events} tasks={visibleTasks} view={view} refDate={refDate} onSelect={setSelectedEventId} selectedId={selectedEventId} matchProspect={matchProspect} prospectById={prospectById} onToggleTask={toggleTaskDone} onOpenProspect={onOpenProspect} settings={settings} />
+            <TimeGrid events={events} tasks={visibleTasks} view={view} refDate={refDate} onSelect={setSelectedEventId} selectedId={selectedEventId} matchProspect={matchProspect} prospectById={prospectById} onToggleTask={toggleTaskDone} onOpenProspect={onOpenProspect} onOpenTask={setPanelTask} settings={settings} />
           )}
         </div>
 
         {selectedEvent && (
           <EventDetailPanel event={selectedEvent} prospect={matchProspect(selectedEvent)} session={session} onOpenProspect={onOpenProspect} onClose={() => setSelectedEventId(null)} />
         )}
-        {panelTask && (
+        {panelTask && (view === "Liste" ? (
           <TaskDetailPanel task={panelTask} prospect={prospectById[panelTask.prospect_id]} onClose={() => setPanelTask(null)} onDone={() => { toggleTaskDone(panelTask); setPanelTask(null); }} onReport={(d) => reportTask(panelTask, d)} onOpenProspect={onOpenProspect} />
-        )}
+        ) : (
+          // La vue Liste a une colonne pour l'accueillir ; la grille non — le
+          // détail s'y superpose plutôt que de pousser la journée de côté.
+          <div
+            onClick={() => setPanelTask(null)}
+            style={{ position: "fixed", inset: 0, background: "rgba(10,17,40,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 120, padding: "20px" }}
+          >
+            <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: "420px", maxHeight: "88vh", overflowY: "auto" }}>
+              <TaskDetailPanel task={panelTask} prospect={prospectById[panelTask.prospect_id]} onClose={() => setPanelTask(null)} onDone={() => { toggleTaskDone(panelTask); setPanelTask(null); }} onReport={(d) => reportTask(panelTask, d)} onOpenProspect={onOpenProspect} />
+            </div>
+          </div>
+        ))}
       </div>
       </div>
     </div>
@@ -369,7 +380,7 @@ function taskLabel(note) {
   return { text: reported ? note.slice(REPORTED_PREFIX.length) : note || "", reported };
 }
 
-function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchProspect, prospectById, onToggleTask, onOpenProspect, settings }) {
+function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchProspect, prospectById, onToggleTask, onOpenProspect, onOpenTask, settings }) {
   const [expandedCluster, setExpandedCluster] = useState(null);
   // La semaine ne montre que les jours travaillés. Le jour affiché reste
   // celui qu'on a demandé, même s'il n'est pas travaillé.
@@ -531,8 +542,9 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                                   <button className="focusable" onClick={() => onToggleTask(task)} style={{ width: "12px", height: "12px", borderRadius: "50%", border: `1.4px solid ${meta.color}`, background: "transparent", flexShrink: 0, padding: 0, marginTop: "2px" }} title="Marquer comme fait" />
                                   <button
                                     className="focusable"
-                                    onClick={() => prospect && onOpenProspect?.(prospect.id)}
-                                    style={{ flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, textAlign: "left", cursor: prospect ? "pointer" : "default" }}
+                                    onClick={() => onOpenTask?.(task)}
+                                    title="Voir le détail"
+                                    style={{ flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}
                                   >
                                     <span style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: meta.color, lineHeight: 1.35, overflowWrap: "anywhere" }}>
                                       {reported && <span title="Reportée depuis un jour manqué" style={{ marginRight: "4px", opacity: 0.75 }}>↻</span>}
@@ -554,7 +566,6 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                     }
 
                     for (const { event: task, colIndex, colCount } of group) {
-                      const prospect = prospectById?.[task.prospect_id];
                       const meta = TASK_TYPE_META[task.type] || TASK_TYPE_META.appel_telephone;
                       const height = Math.max(26, heightFor(task.start, task.end));
                       // Les colonnes ne servent qu'aux tâches réellement simultanées.
@@ -575,8 +586,19 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                           <button className="focusable" onClick={() => onToggleTask(task)} style={{ width: "9px", height: "9px", borderRadius: "50%", border: `1.3px solid ${meta.color}`, background: "transparent", flexShrink: 0, padding: 0, marginTop: "1px" }} title="Marquer comme fait" />
                           <button
                             className="focusable"
-                            onClick={() => prospect && onOpenProspect?.(prospect.id)}
-                            style={{ background: "none", border: "none", padding: 0, textAlign: "left", fontSize: "10px", lineHeight: 1.25, color: meta.color, overflow: "hidden", cursor: prospect ? "pointer" : "default" }}
+                            onClick={() => onOpenTask?.(task)}
+                            title="Voir le détail"
+                            style={{
+                              background: "none", border: "none", padding: 0, textAlign: "left",
+                              fontSize: "10px", lineHeight: 1.3, color: meta.color, cursor: "pointer",
+                              // Le texte était clippé horizontalement mais débordait en hauteur
+                              // sur la tâche suivante : on limite au nombre de lignes que
+                              // la pastille peut réellement contenir.
+                              minWidth: 0, flex: 1,
+                              display: "-webkit-box", WebkitBoxOrient: "vertical",
+                              WebkitLineClamp: Math.max(1, Math.floor((height - 6) / 13)),
+                              overflow: "hidden", wordBreak: "break-word",
+                            }}
                           >
                             {taskLabel(task.note).reported && <span title="Reportée depuis un jour manqué" style={{ marginRight: "3px", opacity: 0.75 }}>↻</span>}
                             {taskLabel(task.note).text}
@@ -1060,8 +1082,8 @@ function TaskDetailPanel({ task, prospect, onClose, onDone, onReport, onOpenPros
               <div style={{ fontSize: "12px", color: "var(--text)" }}>{prospect.last_analysis.recommendation}</div>
             </div>
           )}
-          <button className="focusable" onClick={() => onOpenProspect?.(prospect.id)} style={{ marginTop: "10px", fontSize: "11.5px", padding: "6px 10px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
-            Voir la fiche
+          <button className="focusable" onClick={() => onOpenProspect?.(prospect.id)} style={{ marginTop: "12px", width: "100%", fontSize: "12.5px", fontWeight: 600, padding: "9px 10px", borderRadius: "8px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555" }}>
+            Ouvrir la fiche complète
           </button>
         </div>
       )}
