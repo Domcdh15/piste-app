@@ -383,6 +383,20 @@ function TeamMemberBreakdown({ memberStats, team }) {
 
 // Fenêtre de détail derrière un chiffre. Un indicateur sans sa liste oblige à
 // aller la reconstituer ailleurs ; ici on la donne sur place.
+// Attributs communs à toute tuile ouvrable : elle doit être atteignable au
+// clavier et s'annoncer, pas seulement réagir au clic.
+function drillProps(onDrill) {
+  if (!onDrill) return {};
+  return {
+    role: "button",
+    tabIndex: 0,
+    className: "focusable",
+    title: "Voir le détail",
+    onClick: onDrill,
+    onKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onDrill(); } },
+  };
+}
+
 function DrillModal({ title, subtitle, rows, onClose, onOpenProspect }) {
   return (
     <div
@@ -465,6 +479,24 @@ function DeltaLine({ delta }) {
 
 function PerformanceTab({ prospects, activities, feedItems, session, teamStats, settings, setActiveTab, onOpenProspect }) {
   const [drill, setDrill] = useState(null);
+  const daysSince = (iso) => (iso ? Math.floor((Date.now() - new Date(iso)) / 86400000) : null);
+  const lastContactLabel = (p) => {
+    const d = daysSince(p.last_contact_at);
+    if (d === null) return "Jamais contacté";
+    return d === 0 ? "Contacté aujourd'hui" : `Dernier échange il y a ${d} jour${d > 1 ? "s" : ""}`;
+  };
+  const activityRows = (list) => list
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .map((a) => ({
+      id: a.id,
+      name: nameOf(a.prospect_id),
+      sub: [contactOf(a.prospect_id), ACTIVITY_LABEL[a.type] || a.type, a.note].filter(Boolean).join(" · "),
+      value: formatShortDate(a.created_at),
+      prospectId: a.prospect_id,
+    }));
+  const prospectOf = (id) => prospects.find((x) => x.id === id) || null;
+  const nameOf = (id) => { const p = prospectOf(id); return p ? (p.company || p.name) : "Prospect supprimé"; };
+  const contactOf = (id) => { const p = prospectOf(id); return p && p.company ? p.name : ""; };
   const rowOf = (p, value) => ({
     id: p.id,
     name: p.company || p.name,
@@ -520,17 +552,25 @@ function PerformanceTab({ prospects, activities, feedItems, session, teamStats, 
   });
   Object.values(activitiesByProspect).forEach((list) => list.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)));
 
-  const firstResponseTimes = prospects
+  // On garde le prospect derrière chaque mesure : une moyenne sans sa
+  // ventilation ne peut pas être ouverte.
+  const firstResponses = prospects
     .filter((p) => p.created_at && new Date(p.created_at) >= start && activitiesByProspect[p.id]?.length)
-    .map((p) => (new Date(activitiesByProspect[p.id][0].created_at) - new Date(p.created_at)) / 3600000)
-    .filter((h) => h >= 0);
-  const avgFirstResponseH = firstResponseTimes.length > 0 ? firstResponseTimes.reduce((s, h) => s + h, 0) / firstResponseTimes.length : null;
+    .map((p) => ({ p, hours: (new Date(activitiesByProspect[p.id][0].created_at) - new Date(p.created_at)) / 3600000 }))
+    .filter((r) => r.hours >= 0);
+  const avgFirstResponseH = firstResponses.length > 0 ? firstResponses.reduce((s, r) => s + r.hours, 0) / firstResponses.length : null;
 
+  const gapsByProspect = [];
   const gaps = [];
-  Object.values(activitiesByProspect).forEach((list) => {
+  Object.entries(activitiesByProspect).forEach(([prospectId, list]) => {
+    const own = [];
     for (let i = 1; i < list.length; i++) {
       const gap = (new Date(list[i].created_at) - new Date(list[i - 1].created_at)) / 86400000;
-      if (new Date(list[i].created_at) >= start) gaps.push(gap);
+      if (new Date(list[i].created_at) >= start) { gaps.push(gap); own.push(gap); }
+    }
+    if (own.length) {
+      const p = prospects.find((x) => x.id === prospectId);
+      if (p) gapsByProspect.push({ p, days: own.reduce((s, g) => s + g, 0) / own.length, count: own.length });
     }
   });
   const avgGapDays = gaps.length > 0 ? gaps.reduce((s, g) => s + g, 0) / gaps.length : null;
@@ -686,7 +726,17 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
                 title={`opportunité${sansAction.length > 1 ? "s" : ""} sans prochaine action`}
                 detail="Risque de perdre le suivi — aucune tâche ni relance planifiée."
                 actionLabel="Voir"
-                onAction={() => setActiveTab?.("pipeline")}
+                onAction={() => setDrill({
+                  title: "Opportunités sans prochaine action",
+                  subtitle: "Aucune tâche ni relance planifiée sur ces dossiers",
+                  rows: [...sansAction].sort((a, b) => (b.deal_value || 0) - (a.deal_value || 0)).map((p) => ({
+                    id: p.id,
+                    name: p.company || p.name,
+                    sub: [p.company ? p.name : null, lastContactLabel(p)].filter(Boolean).join(" · "),
+                    value: formatEuros(p.deal_value || 0),
+                    prospectId: p.id,
+                  })),
+                })}
               />
             )}
             {atRisk.length > 0 && (
@@ -696,7 +746,19 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
                 title={`deal${atRisk.length > 1 ? "s" : ""} à risque`}
                 detail="Aucun échange depuis plus de sept jours."
                 actionLabel="Voir"
-                onAction={() => setActiveTab?.("a-sauver")}
+                onAction={() => setDrill({
+                  title: "Deals à risque",
+                  subtitle: "Aucun échange depuis plus de sept jours",
+                  rows: [...atRisk]
+                    .sort((a, b) => (daysSince(b.last_contact_at) ?? 9999) - (daysSince(a.last_contact_at) ?? 9999))
+                    .map((p) => ({
+                      id: p.id,
+                      name: p.company || p.name,
+                      sub: [p.company ? p.name : null, lastContactLabel(p)].filter(Boolean).join(" · "),
+                      value: formatEuros(p.deal_value || 0),
+                      prospectId: p.id,
+                    })),
+                })}
               />
             )}
             {advanced.length > 0 && (
@@ -706,7 +768,17 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
                 title={`opportunité${advanced.length > 1 ? "s" : ""} ${advanced.length > 1 ? "ont" : "a"} changé d'étape`}
                 detail="Priorisez leur suivi pendant qu'elles avancent."
                 actionLabel="Voir"
-                onAction={() => setActiveTab?.("chauds")}
+                onAction={() => setDrill({
+                  title: "Opportunités qui ont changé d'étape",
+                  subtitle: "Sur la période sélectionnée",
+                  rows: [...advanced].sort((a, b) => (b.deal_value || 0) - (a.deal_value || 0)).map((p) => ({
+                    id: p.id,
+                    name: p.company || p.name,
+                    sub: [p.company ? p.name : null, `Maintenant en « ${p.stage} »`].filter(Boolean).join(" · "),
+                    value: formatEuros(p.deal_value || 0),
+                    prospectId: p.id,
+                  })),
+                })}
               />
             )}
           </div>
@@ -716,10 +788,27 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
       {/* 1. Activité */}
       <SectionLabel>Activité</SectionLabel>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "12px", marginBottom: "24px" }}>
-        <DeltaKpiTile value={nbAppels} label="Appels" delta={pctDelta(nbAppels, prevAppels)} />
-        <DeltaKpiTile value={emailsInRange.length} label="Emails" delta={pctDelta(emailsInRange.length, prevEmails.length)} />
-        <DeltaKpiTile value={nbRdv} label="Rendez-vous" delta={pctDelta(nbRdv, prevRdv)} />
-        <DeltaKpiTile value={tachesTerminees} label="Tâches terminées" delta={pctDelta(tachesTerminees, prevTachesTerminees)} />
+        <DeltaKpiTile
+          value={nbAppels} label="Appels" delta={pctDelta(nbAppels, prevAppels)}
+          onDrill={() => setDrill({ title: "Appels", subtitle: "Sur la période sélectionnée", rows: activityRows(inRange.filter((a) => a.type === "appel_abouti" || a.type === "appel_manque")) })}
+        />
+        <DeltaKpiTile
+          value={emailsInRange.length} label="Emails" delta={pctDelta(emailsInRange.length, prevEmails.length)}
+          onDrill={() => setDrill({ title: "Emails", subtitle: "Sur la période sélectionnée", rows: emailsInRange.map((e) => ({ id: e.id, name: nameOf(e.prospect_id), sub: [contactOf(e.prospect_id), e.kind].filter(Boolean).join(" · "), value: formatShortDate(e.created_at), prospectId: e.prospect_id })) })}
+        />
+        <DeltaKpiTile
+          value={nbRdv} label="Rendez-vous" delta={pctDelta(nbRdv, prevRdv)}
+          onDrill={() => setDrill({ title: "Rendez-vous", subtitle: "Sur la période sélectionnée", rows: activityRows(inRange.filter((a) => a.type === "rdv_physique" || a.type === "appel_visio")) })}
+        />
+        <DeltaKpiTile
+          value={tachesTerminees} label="Tâches terminées" delta={pctDelta(tachesTerminees, prevTachesTerminees)}
+          onDrill={() => setDrill({
+            title: "Tâches terminées", subtitle: "Sur la période sélectionnée",
+            rows: openTasks.filter((t) => t.completed_at && new Date(t.completed_at) >= start)
+              .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
+              .map((t) => ({ id: t.id, name: nameOf(t.prospect_id), sub: t.note, value: formatShortDate(t.completed_at), prospectId: t.prospect_id })),
+          })}
+        />
       </div>
 
       {/* 2. Réactivité */}
@@ -730,27 +819,79 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
           label="Première réponse moyenne"
           desc="Temps moyen avant le premier échange avec un nouveau prospect."
           raw
+          onDrill={() => setDrill({
+            title: "Première réponse, prospect par prospect",
+            subtitle: "Du plus lent au plus rapide — la moyenne vient de ces délais",
+            rows: [...firstResponses].sort((a, b) => b.hours - a.hours).map((r) => ({
+              id: r.p.id,
+              name: r.p.company || r.p.name,
+              sub: [r.p.company ? r.p.name : null, `Créé le ${formatShortDate(r.p.created_at)}`].filter(Boolean).join(" · "),
+              value: r.hours < 24 ? `${Math.round(r.hours)} h` : `${Math.round(r.hours / 24)} j`,
+              prospectId: r.p.id,
+            })),
+          })}
         />
         <SmartKpiTile
           value={avgGapDays !== null ? `${avgGapDays.toFixed(1)} j` : null}
           label="Délai moyen entre suivis"
           desc="Temps moyen écoulé entre deux interactions avec un même prospect."
           raw
+          onDrill={() => setDrill({
+            title: "Délai entre suivis, prospect par prospect",
+            subtitle: "Du plus espacé au plus régulier",
+            rows: [...gapsByProspect].sort((a, b) => b.days - a.days).map((r) => ({
+              id: r.p.id,
+              name: r.p.company || r.p.name,
+              sub: [r.p.company ? r.p.name : null, `${r.count} intervalle${r.count > 1 ? "s" : ""} mesuré${r.count > 1 ? "s" : ""}`].filter(Boolean).join(" · "),
+              value: `${r.days.toFixed(1)} j`,
+              prospectId: r.p.id,
+            })),
+          })}
         />
         <SmartKpiTile
           value={onTimePct !== null ? `${onTimePct} %` : null}
           label="Tâches terminées à temps"
           desc="Part des tâches closes avant leur échéance."
           raw
+          onDrill={() => setDrill({
+            title: "Tâches closes et leur échéance",
+            subtitle: "En retard d'abord — ce sont elles qui font baisser le taux",
+            rows: [...tasksCompletedWithDue]
+              .sort((a, b) => (new Date(b.completed_at) - new Date(b.due_at)) - (new Date(a.completed_at) - new Date(a.due_at)))
+              .map((t) => {
+                const late = new Date(t.completed_at) > new Date(t.due_at);
+                const days = Math.abs(Math.round((new Date(t.completed_at) - new Date(t.due_at)) / 86400000));
+                return {
+                  id: t.id,
+                  name: nameOf(t.prospect_id),
+                  sub: [t.note, `échéance ${formatShortDate(t.due_at)}`].filter(Boolean).join(" · "),
+                  value: late ? (days === 0 ? "en retard" : `+${days} j`) : "à temps",
+                  prospectId: t.prospect_id,
+                };
+              }),
+          })}
         />
       </div>
 
       {/* 3. Pipeline */}
       <SectionLabel>Pipeline</SectionLabel>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px", marginBottom: "14px" }}>
-        <KpiTile value={formatEuros(pipelineTotal)} label="Pipeline total" />
-        <KpiTile value={open.length} label="Opportunités actives" />
-        <KpiTile value={open.length > 0 ? formatEuros(Math.round(pipelineTotal / open.length)) : "—"} label="Valeur moyenne" />
+        <KpiTile
+          value={formatEuros(pipelineTotal)} label="Pipeline total"
+          onDrill={() => setDrill({ title: "Pipeline total", subtitle: "Les opportunités qui composent ce montant", rows: [...open].sort((a, b) => (b.deal_value || 0) - (a.deal_value || 0)).map((p) => rowOf(p, formatEuros(p.deal_value || 0))) })}
+        />
+        <KpiTile
+          value={open.length} label="Opportunités actives"
+          onDrill={() => setDrill({ title: "Opportunités actives", subtitle: "Tout ce qui n'est ni gagné ni perdu", rows: [...open].sort((a, b) => (b.deal_value || 0) - (a.deal_value || 0)).map((p) => rowOf(p, formatEuros(p.deal_value || 0))) })}
+        />
+        <KpiTile
+          value={open.length > 0 ? formatEuros(Math.round(pipelineTotal / open.length)) : "—"} label="Valeur moyenne"
+          onDrill={open.length === 0 ? undefined : () => setDrill({
+            title: "Valeur des opportunités",
+            subtitle: `Moyenne calculée sur ${open.length} opportunité${open.length > 1 ? "s" : ""}`,
+            rows: [...open].sort((a, b) => (b.deal_value || 0) - (a.deal_value || 0)).map((p) => rowOf(p, formatEuros(p.deal_value || 0))),
+          })}
+        />
       </div>
       <div className="dash-card" style={{ padding: "16px 18px", marginBottom: "14px" }}>
         <div className="display" style={{ fontWeight: 700, fontSize: "12.5px", marginBottom: "12px" }}>Pipeline par étape</div>
@@ -947,9 +1088,9 @@ function SectionLabel({ children }) {
   return <div className="display" style={{ fontWeight: 700, fontSize: "12.5px", color: "var(--text-dim)", letterSpacing: "0.02em", marginBottom: "10px", marginTop: "4px" }}>{children.toUpperCase()}</div>;
 }
 
-function DeltaKpiTile({ value, label, delta }) {
+function DeltaKpiTile({ value, label, delta, onDrill }) {
   return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px" }}>
+    <div {...drillProps(onDrill)} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px", cursor: onDrill ? "pointer" : "default" }}>
       <div className="mono" style={{ fontSize: "22px", fontWeight: 700, color: "var(--text)" }}>{value}</div>
       <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "2px", marginBottom: "4px" }}>{label}</div>
       <DeltaLine delta={delta} />
@@ -971,14 +1112,7 @@ function SmartKpiTile({ value, label, desc, raw, onDrill }) {
   const missing = value === null || value === undefined;
   const clickable = onDrill && !missing;
   return (
-    <div
-      role={clickable ? "button" : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      onClick={clickable ? onDrill : undefined}
-      onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onDrill(); } } : undefined}
-      className={clickable ? "focusable" : undefined}
-      title={clickable ? "Voir le détail" : undefined}
-      style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px", cursor: clickable ? "pointer" : "default" }}>
+    <div {...drillProps(clickable ? onDrill : null)} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px", cursor: clickable ? "pointer" : "default" }}>
       <div className="mono" style={{ fontSize: "20px", fontWeight: 700, color: missing ? "var(--text-faint)" : "var(--text)" }}>
         {missing ? "—" : raw ? value : `${value} / 100`}
       </div>
@@ -988,9 +1122,9 @@ function SmartKpiTile({ value, label, desc, raw, onDrill }) {
   );
 }
 
-function KpiTile({ value, label }) {
+function KpiTile({ value, label, onDrill }) {
   return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px" }}>
+    <div {...drillProps(onDrill)} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px", cursor: onDrill ? "pointer" : "default" }}>
       <div className="mono" style={{ fontSize: "22px", fontWeight: 700, color: "var(--text)" }}>{value}</div>
       <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "2px" }}>{label}</div>
     </div>
