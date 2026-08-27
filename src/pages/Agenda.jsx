@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { callAI, parseJsonLoose, formatEuros, formatShortDate, getFirstName, Avatar, SparklesIcon, PhoneIcon, MailIcon, VideoIcon, PinIcon, CalendarIcon, CheckIcon, AlertIcon } from "../lib/ui.jsx";
 
@@ -101,7 +101,18 @@ function rangeLabel(view, refDate) {
 }
 
 export default function Agenda({ prospects, session, onOpenProspect, settings }) {
+  // Les réglages arrivent après le premier rendu : la valeur initiale de
+  // useState ne les voyait jamais et retombait toujours sur "Liste".
   const [view, setView] = useState(settings?.agenda_default_view || "Liste");
+  const defaultApplied = useRef(!!settings);
+
+  useEffect(() => {
+    if (defaultApplied.current || !settings) return;
+    defaultApplied.current = true;
+    // On n'applique le réglage qu'une fois : si l'utilisateur a déjà changé
+    // de vue entre-temps, on ne le ramène pas de force en arrière.
+    if (VIEWS.includes(settings.agenda_default_view)) setView(settings.agenda_default_view);
+  }, [settings]);
   const [refDate, setRefDate] = useState(new Date());
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
