@@ -3561,7 +3561,241 @@ function EmailThreadTab({ prospect, session }) {
   );
 }
 
+
+const SEQUENCE_PRESETS = [
+  { label: "Relance courte", days: [3, 7] },
+  { label: "Relance standard", days: [3, 7, 14] },
+  { label: "Relance longue", days: [4, 10, 18, 30] },
+];
+
+function dayLabel(offset) {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+}
+
+// Le cron d'envoi passe à 8h. On date les messages à 6h pour qu'ils partent
+// bien le matin prévu, et non le lendemain.
+function sendAtFor(offset) {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  d.setHours(6, 0, 0, 0);
+  return d.toISOString();
+}
+
+// Séquence de relance : les messages sont rédigés d'un coup, relus par le
+// commercial, puis programmés. Rien ne part sans qu'il ait vu le texte.
+function SequenceModal({ prospect, history, session, settings, onClose, onCreated }) {
+  const [days, setDays] = useState(SEQUENCE_PRESETS[1].days);
+  const [drafts, setDrafts] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  function setDay(i, value) {
+    const n = Math.max(1, Math.min(120, Number(value) || 1));
+    setDays((list) => list.map((d, k) => (k === i ? n : d)));
+  }
+
+  async function writeAll() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const context = buildHistoryContext(history, prospect);
+      const plan = days.map((d, i) => `Message ${i + 1} — envoyé dans ${d} jours`).join("\n");
+      const prompt = `Tu es un commercial B2B francophone. Rédige une séquence de ${days.length} emails de relance pour ce prospect.
+
+Prospect : ${prospect.name}${prospect.company ? ` (${prospect.company})` : ""}${prospect.job_title ? ` · ${prospect.job_title}` : ""}
+Étape en cours : ${prospect.stage}
+${prospect.deal_value ? `Montant estimé : ${prospect.deal_value} €` : ""}
+
+${context}
+
+Calendrier :
+${plan}
+
+Réponds UNIQUEMENT en JSON valide :
+{"messages": [{"subject": "objet du message 1", "body": "corps du message 1"}, ...]}
+
+Règles :
+- Exactement ${days.length} messages, dans l'ordre.
+- Chaque message tient compte des précédents : le deuxième sait qu'un premier a été envoyé, le dernier sait qu'il est le dernier.
+- Appuie-toi sur les échanges réels ci-dessus. N'invente aucun fait, aucun chiffre, aucune date.
+- Ton professionnel et direct, tutoiement exclu. Pas d'emoji, pas de markdown.
+- Chaque message fait 4 à 8 lignes maximum.
+- Ne signe pas : la signature est ajoutée automatiquement.`;
+
+      const raw = await callAI(prompt, session.access_token);
+      const parsed = parseJsonLoose(raw);
+      const messages = parsed?.messages;
+      if (!Array.isArray(messages) || messages.length === 0) throw new Error("parse_failed");
+      setDrafts(messages.slice(0, days.length).map((m, i) => ({
+        subject: (m.subject || `Relance ${i + 1}`).trim(),
+        body: (m.body || "").trim(),
+        offset: days[i],
+      })));
+    } catch (e) {
+      setError(e.message && e.message !== "parse_failed" ? e.message : "La rédaction a échoué. Réessaie.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function schedule() {
+    if (busy || !drafts?.length) return;
+    setBusy(true);
+    setError("");
+    try {
+      const { data: seq, error: seqError } = await supabase
+        .from("sequences")
+        .insert({
+          user_id: session.user.id,
+          team_id: prospect.team_id || null,
+          prospect_id: prospect.id,
+          name: `Relance ${prospect.company || prospect.name}`,
+        })
+        .select()
+        .single();
+      if (seqError) throw seqError;
+
+      const rows = drafts.map((d, i) => ({
+        sequence_id: seq.id,
+        user_id: session.user.id,
+        prospect_id: prospect.id,
+        step: i + 1,
+        subject: d.subject,
+        body: appendSignature(d.body, settings),
+        send_at: sendAtFor(d.offset),
+      }));
+      const { error: msgError } = await supabase.from("sequence_messages").insert(rows);
+      // Une séquence sans message serait invisible et bloquante : on la retire.
+      if (msgError) {
+        await supabase.from("sequences").delete().eq("id", seq.id);
+        throw msgError;
+      }
+
+      onCreated?.();
+      onClose();
+    } catch (e) {
+      setError(e.message || "La programmation a échoué.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal onClose={busy ? undefined : onClose}>
+      <ModalTitle sub={`${prospect.name}${prospect.company ? ` · ${prospect.company}` : ""}`}>
+        {drafts ? "Relisez avant de programmer" : "Séquence de relance"}
+      </ModalTitle>
+
+      {!drafts ? (
+        <>
+          <div style={{ fontSize: "12.5px", color: "var(--text-dim)", lineHeight: 1.55, marginBottom: "14px" }}>
+            Closia rédige tous les messages d'un coup, en s'appuyant sur vos échanges réels.
+            Vous les relisez avant qu'ils ne soient programmés.
+          </div>
+
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "14px" }}>
+            {SEQUENCE_PRESETS.map((preset) => (
+              <button
+                key={preset.label}
+                className="focusable"
+                onClick={() => setDays(preset.days)}
+                style={{
+                  fontSize: "11.5px", padding: "6px 11px", borderRadius: "999px",
+                  background: days.join() === preset.days.join() ? "var(--blue-dim)" : "var(--panel2)",
+                  color: days.join() === preset.days.join() ? "var(--blue)" : "var(--text-dim)",
+                  border: "0.5px solid var(--hairline)", fontWeight: 600,
+                }}
+              >
+                {preset.label} · {preset.days.length} messages
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "7px", marginBottom: "16px" }}>
+            {days.map((d, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: "9px" }}>
+                <span className="mono" style={{ fontSize: "11px", fontWeight: 700, color: "var(--blue)", width: "18px" }}>{i + 1}</span>
+                <span style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>dans</span>
+                <input
+                  type="number" min="1" max="120" value={d}
+                  onChange={(e) => setDay(i, e.target.value)}
+                  style={{ ...inputStyle, width: "68px" }}
+                />
+                <span style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>jours —</span>
+                <span style={{ fontSize: "12.5px", color: "var(--text)", flex: 1, minWidth: 0 }}>{dayLabel(d)}</span>
+                {days.length > 1 && (
+                  <button className="focusable" onClick={() => setDays((l) => l.filter((_, k) => k !== i))} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "13px", padding: "0 2px" }}>✕</button>
+                )}
+              </div>
+            ))}
+            {days.length < 6 && (
+              <button className="focusable" onClick={() => setDays((l) => [...l, (l[l.length - 1] || 3) + 7])} style={{ alignSelf: "flex-start", fontSize: "12px", padding: "6px 11px", borderRadius: "7px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
+                + Ajouter un message
+              </button>
+            )}
+          </div>
+
+          {error && <div style={{ color: "var(--red)", fontSize: "12px", marginBottom: "10px" }}>{error}</div>}
+
+          <button className="btn-primary focusable" onClick={writeAll} disabled={busy} style={{ width: "100%", opacity: busy ? 0.6 : 1 }}>
+            {busy ? "Rédaction…" : `Rédiger les ${days.length} messages`}
+          </button>
+        </>
+      ) : (
+        <>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "14px" }}>
+            {drafts.map((d, i) => (
+              <div key={i} style={{ border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px", background: "var(--panel)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                  <span className="mono" style={{ fontSize: "11px", fontWeight: 700, color: "var(--blue)" }}>{i + 1}</span>
+                  <span style={{ fontSize: "11.5px", color: "var(--text-dim)", flex: 1, minWidth: 0 }}>{dayLabel(d.offset)} au matin</span>
+                  {drafts.length > 1 && (
+                    <button className="focusable" onClick={() => setDrafts((l) => l.filter((_, k) => k !== i))} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "12px" }}>Retirer</button>
+                  )}
+                </div>
+                <input
+                  value={d.subject}
+                  onChange={(e) => setDrafts((l) => l.map((x, k) => (k === i ? { ...x, subject: e.target.value } : x)))}
+                  placeholder="Objet"
+                  style={{ ...inputStyle, width: "100%", marginBottom: "7px" }}
+                />
+                <textarea
+                  value={d.body}
+                  onChange={(e) => setDrafts((l) => l.map((x, k) => (k === i ? { ...x, body: e.target.value } : x)))}
+                  style={{ width: "100%", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "12.5px", lineHeight: 1.5, padding: "10px", minHeight: "116px", resize: "vertical", fontFamily: "Inter, sans-serif", boxSizing: "border-box" }}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div style={{ fontSize: "11.5px", color: "var(--text-faint)", lineHeight: 1.5, marginBottom: "12px" }}>
+            Les messages partent de votre boîte, dans le lot du matin. La séquence s'arrête d'elle-même
+            dès que {prospect.name} répond.
+          </div>
+
+          {error && <div style={{ color: "var(--red)", fontSize: "12px", marginBottom: "10px" }}>{error}</div>}
+
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button className="focusable" onClick={() => setDrafts(null)} disabled={busy} style={{ fontSize: "13px", padding: "9px 14px", borderRadius: "9px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
+              Revenir
+            </button>
+            <button className="btn-primary focusable" onClick={schedule} disabled={busy || drafts.length === 0} style={{ flex: 1, opacity: busy || !drafts.length ? 0.6 : 1 }}>
+              {busy ? "Programmation…" : `Programmer ${drafts.length} relance${drafts.length > 1 ? "s" : ""}`}
+            </button>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
 function EmailGenerator({ prospect, history, session, settings }) {
+  const [showSequence, setShowSequence] = useState(false);
+  const [activeSeq, setActiveSeq] = useState(null);
+  const [seqBusy, setSeqBusy] = useState(false);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -3647,8 +3881,76 @@ ${buildHistoryContext(history)}${threadContext}`;
     history.reload();
   }
 
+  async function loadSequence() {
+    const { data } = await supabase
+      .from("sequences")
+      .select("*, sequence_messages(*)")
+      .eq("prospect_id", prospect.id)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    setActiveSeq(data?.[0] || null);
+  }
+
+  useEffect(() => {
+    loadSequence();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prospect.id]);
+
+  async function stopSequence() {
+    if (!activeSeq || seqBusy) return;
+    setSeqBusy(true);
+    await supabase.from("sequences").update({ status: "stopped", stopped_reason: "Arrêtée manuellement" }).eq("id", activeSeq.id);
+    await supabase.from("sequence_messages").update({ status: "cancelled" }).eq("sequence_id", activeSeq.id).eq("status", "scheduled");
+    setSeqBusy(false);
+    loadSequence();
+  }
+
+  const pending = (activeSeq?.sequence_messages || []).filter((m) => m.status === "scheduled").sort((a, b) => new Date(a.send_at) - new Date(b.send_at));
+
   return (
     <>
+      {activeSeq && pending.length > 0 && (
+        <div style={{ background: "var(--blue-dim)", border: "0.5px solid #147ff555", borderRadius: "10px", padding: "13px 15px", marginBottom: "14px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "8px" }}>
+            <span style={{ fontSize: "12.5px", fontWeight: 700, color: "var(--text)" }}>
+              Séquence en cours · {pending.length} relance{pending.length > 1 ? "s" : ""} à venir
+            </span>
+            <button className="focusable" onClick={stopSequence} disabled={seqBusy} style={{ marginLeft: "auto", background: "none", border: "none", padding: 0, fontSize: "12px", fontWeight: 600, color: "var(--text-dim)" }}>
+              {seqBusy ? "…" : "Arrêter"}
+            </button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            {pending.map((m) => (
+              <div key={m.id} style={{ display: "flex", gap: "9px", fontSize: "12px", color: "var(--text-dim)" }}>
+                <span className="mono" style={{ whiteSpace: "nowrap" }}>{formatShortDate(m.send_at)}</span>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.subject}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "8px" }}>
+            S'arrête automatiquement si {prospect.name} répond.
+          </div>
+        </div>
+      )}
+
+      {prospect.email && !activeSeq && (
+        <button className="focusable" onClick={() => setShowSequence(true)} style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "14px", fontSize: "12.5px", fontWeight: 600, padding: "8px 13px", borderRadius: "9px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
+          <MailIcon size={13} color="var(--text-dim)" /> Créer une séquence de relance
+        </button>
+      )}
+
+      {showSequence && (
+        <SequenceModal
+          prospect={prospect}
+          history={history}
+          session={session}
+          settings={settings}
+          onClose={() => setShowSequence(false)}
+          onCreated={loadSequence}
+        />
+      )}
+
       <GeneratorBlock
         label="Générer un email de relance"
         loading={false}

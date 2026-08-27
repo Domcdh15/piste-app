@@ -52,6 +52,116 @@ async function runVacationCheck(admin) {
 }
 
 // L'envoi d'email et la vérification du mode absence vivent ici (et non dans leur propre
+
+// Séquences de relance — passage quotidien.
+// Règle centrale : dès que le prospect a répondu, la séquence s'arrête. Une
+// relance automatique qui arrive après une réponse fait passer le commercial
+// pour un robot, et c'est le premier reproche fait aux outils de séquence.
+async function runSequences(admin) {
+  const nowISO = new Date().toISOString();
+  const { data: due } = await admin
+    .from("sequence_messages")
+    .select("*")
+    .eq("status", "scheduled")
+    .lte("send_at", nowISO)
+    .order("send_at", { ascending: true })
+    .limit(200);
+
+  if (!due || due.length === 0) return { sent: 0, stopped: 0 };
+
+  let sent = 0;
+  let stopped = 0;
+  // Une séquence n'est vérifiée qu'une fois par passage, même si elle a
+  // plusieurs messages en retard.
+  const decided = new Map();
+
+  for (const msg of due) {
+    const { data: seq } = await admin.from("sequences").select("*").eq("id", msg.sequence_id).maybeSingle();
+    if (!seq || seq.status !== "active") {
+      await admin.from("sequence_messages").update({ status: "cancelled" }).eq("id", msg.id);
+      continue;
+    }
+
+    const { data: prospect } = await admin.from("prospects").select("email, name, company").eq("id", msg.prospect_id).maybeSingle();
+    if (!prospect?.email) {
+      await admin.from("sequence_messages").update({ status: "failed", error: "Prospect sans adresse email" }).eq("id", msg.id);
+      continue;
+    }
+
+    const { data: conns } = await admin.from("calendar_connections").select("*").eq("user_id", msg.user_id);
+    const conn = (conns || []).find((c) => c.provider === "google") || (conns || []).find((c) => c.provider === "microsoft");
+    if (!conn) {
+      await admin.from("sequence_messages").update({ status: "failed", error: "Aucune boîte mail connectée" }).eq("id", msg.id);
+      continue;
+    }
+
+    try {
+      const accessToken = await ensureFreshToken(admin, conn);
+
+      // A-t-il répondu depuis le lancement de la séquence ?
+      if (!decided.has(seq.id)) {
+        let replied = false;
+        try {
+          const thread = await fetchEmailThreadWith(conn.provider, accessToken, prospect.email, 8);
+          const since = new Date(seq.created_at).getTime();
+          const needle = prospect.email.toLowerCase();
+          // Le fil ne porte pas de sens de circulation : un message vient du
+          // prospect si son adresse est dans l'expéditeur.
+          replied = (thread || []).some((m) => {
+            const when = new Date(m.sentAt || m.date || 0).getTime();
+            return (m.from || "").toLowerCase().includes(needle) && when > since;
+          });
+        } catch {
+          // Boîte illisible : on ne bloque pas la séquence sur une panne de
+          // lecture, mais on n'invente pas non plus de réponse.
+          replied = false;
+        }
+        decided.set(seq.id, replied);
+      }
+
+      if (decided.get(seq.id)) {
+        await admin.from("sequences").update({ status: "stopped", stopped_reason: "Le prospect a répondu" }).eq("id", seq.id);
+        await admin.from("sequence_messages").update({ status: "cancelled" }).eq("sequence_id", seq.id).eq("status", "scheduled");
+        await admin.from("activities").insert({
+          user_id: msg.user_id,
+          prospect_id: msg.prospect_id,
+          team_id: seq.team_id,
+          type: "note",
+          note: "Séquence de relance arrêtée : le prospect a répondu.",
+          source: "auto",
+        });
+        stopped++;
+        continue;
+      }
+
+      await sendEmail(conn.provider, accessToken, { to: prospect.email, subject: msg.subject || "", body: msg.body });
+      await admin.from("sequence_messages").update({ status: "sent", sent_at: new Date().toISOString(), error: null }).eq("id", msg.id);
+      await admin.from("activities").insert({
+        user_id: msg.user_id,
+        prospect_id: msg.prospect_id,
+        team_id: seq.team_id,
+        type: "note",
+        note: `Relance ${msg.step} de la séquence envoyée à ${prospect.email}`,
+        source: "auto",
+      });
+      await admin.from("prospects").update({ last_contact_at: new Date().toISOString() }).eq("id", msg.prospect_id);
+      sent++;
+
+      // Dernier message parti : la séquence est terminée.
+      const { count: remaining } = await admin
+        .from("sequence_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("sequence_id", seq.id)
+        .eq("status", "scheduled");
+      if (!remaining) await admin.from("sequences").update({ status: "done" }).eq("id", seq.id);
+    } catch (e) {
+      await admin.from("sequence_messages").update({ status: "failed", error: (e.message || "Envoi impossible").slice(0, 300) }).eq("id", msg.id);
+    }
+  }
+
+  return { sent, stopped };
+}
+
 // fichier) pour rester sous la limite de 12 fonctions serverless du plan Vercel Hobby.
 export default async function handler(req, res) {
   if (req.method === "GET" && req.query?.action === "vacation_check") {
@@ -59,8 +169,12 @@ export default async function handler(req, res) {
     if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
       return res.status(401).json({ error: "Non autorisé" });
     }
-    const repliesSent = await runVacationCheck(supabaseAdmin());
-    return res.status(200).json({ ok: true, repliesSent });
+    const admin = supabaseAdmin();
+    const repliesSent = await runVacationCheck(admin);
+    // Les deux traitements quotidiens partagent le même passage : le plan
+    // Hobby ne déclenche un cron qu'une fois par jour.
+    const sequences = await runSequences(admin);
+    return res.status(200).json({ ok: true, repliesSent, sequences });
   }
 
   const user = await getUserFromToken(bearerToken(req));
