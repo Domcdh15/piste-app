@@ -279,7 +279,7 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
       )}
 
       {showOrganize && (
-        <OrganizeDayPanel tasks={[...overdueTasks, ...todayTasks]} prospects={prospects} prospectById={prospectById} session={session} onOpenProspect={onOpenProspect} onClose={() => setShowOrganize(false)} />
+        <OrganizeDayPanel tasks={[...overdueTasks, ...todayTasks]} prospects={prospects} prospectById={prospectById} session={session} onOpenProspect={onOpenProspect} onOpenTask={setPanelTask} onClose={() => setShowOrganize(false)} />
       )}
 
       {showAddForm && (
@@ -1172,23 +1172,30 @@ function AddActionForm({ prospects, session, onCreated, onCancel }) {
   );
 }
 
-function OrganizeDayPanel({ tasks, prospects, prospectById, session, onOpenProspect, onClose }) {
+function OrganizeDayPanel({ tasks, prospects, prospectById, session, onOpenProspect, onOpenTask, onClose }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
+  const [thread, setThread] = useState([]);
+  const [question, setQuestion] = useState("");
+  const [asking, setAsking] = useState(false);
+
+  function describe(t) {
+    const p = prospectById[t.prospect_id];
+    return `${taskLabel(t.note).text} · ${TASK_TYPE_META[t.type]?.label || t.type} · ${t.due_at ? formatShortDate(t.due_at) : "sans heure"}${p ? ` · ${p.name} (${p.company}) · ${formatEuros(p.deal_value || 0)}` : ""}`;
+  }
 
   async function organize() {
     setLoading(true);
     setError("");
     try {
-      const list = tasks.map((t) => {
-        const p = prospectById[t.prospect_id];
-        return `- ${t.note} · ${TASK_TYPE_META[t.type]?.label || t.type} · ${t.due_at ? formatShortDate(t.due_at) : "sans heure"}${p ? ` · ${p.name} (${p.company}) · ${formatEuros(p.deal_value || 0)}` : ""}`;
-      }).join("\n");
+      // On numérote les actions et on demande des numéros en retour : rapprocher
+      // ensuite des intitulés libres se cassait dès que l'IA reformulait un mot.
+      const list = tasks.map((t, i) => `${i + 1}. ${describe(t)}`).join("\n");
       const prompt = `Tu es un coach commercial. Voici les actions en retard et prévues aujourd'hui pour ce commercial. Réponds UNIQUEMENT en JSON valide, format :
-{"summary": "1-2 phrases expliquant la priorité du jour", "order": ["intitulé de l'action 1 dans l'ordre recommandé", "..."]}
+{"summary": "1-2 phrases expliquant la priorité du jour", "order": [3, 1, 5]}
 
-"order" reprend les intitulés d'action (le champ avant le premier "·") dans l'ordre recommandé, du plus urgent au moins urgent. N'invente pas d'action qui n'est pas dans la liste.
+"order" contient les NUMÉROS des actions, du plus urgent au moins urgent. Reprends tous les numéros, n'en invente aucun.
 
 Actions :
 ${list || "Aucune."}`;
@@ -1196,10 +1203,64 @@ ${list || "Aucune."}`;
       const parsed = parseJsonLoose(raw);
       if (!parsed) throw new Error("parse_failed");
       setResult(parsed);
+      setThread([]);
     } catch (e) {
       setError(e.message && e.message !== "parse_failed" ? e.message : "L'organisation a échoué. Réessaie.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Chaque ligne du plan doit renvoyer à une vraie tâche. On accepte les numéros
+  // (format demandé) comme les intitulés, au cas où l'IA réponde à sa façon.
+  const ordered = (() => {
+    if (!result?.order) return [];
+    const used = new Set();
+    const rows = [];
+    for (const entry of result.order) {
+      let task = null;
+      const n = Number(entry);
+      if (Number.isInteger(n) && n >= 1 && n <= tasks.length) {
+        task = tasks[n - 1];
+      } else if (typeof entry === "string") {
+        const needle = entry.trim().toLowerCase().slice(0, 24);
+        task = tasks.find((t) => !used.has(t.id) && taskLabel(t.note).text.trim().toLowerCase().startsWith(needle));
+      }
+      if (task && used.has(task.id)) task = null;
+      if (task) used.add(task.id);
+      // Un numéro hors liste ou répété n'a rien à afficher : on l'ignore plutôt
+      // que de montrer une ligne « 9 » vide de sens.
+      if (!task && !Number.isNaN(Number(entry))) continue;
+      rows.push({ task, label: task ? taskLabel(task.note).text : String(entry) });
+    }
+    // Une action oubliée par l'IA reste visible : on ne perd pas de travail.
+    for (const t of tasks) if (!used.has(t.id)) rows.push({ task: t, label: taskLabel(t.note).text });
+    return rows;
+  })();
+
+  async function ask() {
+    const q = question.trim();
+    if (!q || asking) return;
+    setQuestion("");
+    setThread((t) => [...t, { role: "user", text: q }]);
+    setAsking(true);
+    try {
+      const plan = ordered.map((r, i) => `${i + 1}. ${r.task ? describe(r.task) : r.label}`).join("\n");
+      const prompt = `Tu es un coach commercial. Tu viens de proposer ce plan de journée :
+
+${result?.summary || ""}
+
+${plan}
+
+Question du commercial : ${q}
+
+Réponds en français, en 4 phrases maximum. Pas de markdown, pas d'emoji, pas de liste à puces. Ne parle que des actions ci-dessus, n'en invente aucune. Si la question sort de ce cadre, dis-le simplement.`;
+      const answer = await callAI(prompt, session.access_token);
+      setThread((t) => [...t, { role: "ai", text: (answer || "").trim() || "Je n'ai pas de réponse à donner sur ce plan." }]);
+    } catch {
+      setThread((t) => [...t, { role: "ai", text: "Je n'ai pas pu répondre. Réessaie." }]);
+    } finally {
+      setAsking(false);
     }
   }
 
@@ -1220,9 +1281,74 @@ ${list || "Aucune."}`;
       {result && (
         <>
           <div style={{ fontSize: "13px", color: "var(--text)", lineHeight: 1.5, marginBottom: "12px" }}>{result.summary}</div>
-          <ol style={{ margin: 0, paddingLeft: "20px", fontSize: "12.5px", color: "var(--text)", lineHeight: 1.9 }}>
-            {(result.order || []).map((label, i) => <li key={i}>{label}</li>)}
-          </ol>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "14px" }}>
+            {ordered.map((row, i) => {
+              const meta = row.task ? TASK_TYPE_META[row.task.type] || TASK_TYPE_META.appel_telephone : null;
+              const prospect = row.task ? prospectById[row.task.prospect_id] : null;
+              return (
+                <button
+                  key={row.task?.id || `x-${i}`}
+                  className="focusable"
+                  disabled={!row.task}
+                  onClick={() => row.task && onOpenTask?.(row.task)}
+                  title={row.task ? "Voir ce qu'il faut faire" : undefined}
+                  style={{
+                    display: "flex", alignItems: "flex-start", gap: "10px", textAlign: "left",
+                    background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px",
+                    padding: "9px 11px", cursor: row.task ? "pointer" : "default", opacity: row.task ? 1 : 0.6,
+                  }}
+                >
+                  <span className="mono" style={{ fontSize: "11px", fontWeight: 700, color: "var(--blue)", flexShrink: 0, marginTop: "1px", width: "16px" }}>{i + 1}</span>
+                  {meta && <meta.Icon size={12} color={meta.color} />}
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "var(--text)", lineHeight: 1.35, overflowWrap: "anywhere" }}>{row.label}</span>
+                    {prospect && (
+                      <span style={{ display: "block", fontSize: "11px", color: "var(--text-dim)", marginTop: "1px" }}>
+                        {prospect.company || prospect.name}{prospect.deal_value > 0 ? ` · ${formatEuros(prospect.deal_value)}` : ""}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ borderTop: "0.5px solid #147ff533", paddingTop: "12px" }}>
+            {thread.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "10px" }}>
+                {thread.map((m, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                      maxWidth: "88%", fontSize: "12.5px", lineHeight: 1.5,
+                      background: m.role === "user" ? "var(--blue)" : "var(--panel)",
+                      color: m.role === "user" ? "#fff" : "var(--text)",
+                      border: m.role === "user" ? "none" : "0.5px solid var(--hairline)",
+                      borderRadius: "10px", padding: "8px 11px", whiteSpace: "pre-wrap",
+                    }}
+                  >
+                    {m.text}
+                  </div>
+                ))}
+                {asking && <div style={{ alignSelf: "flex-start", fontSize: "12px", color: "var(--text-dim)" }}>Closia réfléchit…</div>}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: "7px" }}>
+              <input
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); ask(); } }}
+                placeholder="Par quoi commencer si je n'ai que deux heures ?"
+                style={{ flex: 1, minWidth: 0, background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "12.5px", padding: "9px 11px" }}
+              />
+              <button className="focusable" onClick={ask} disabled={asking || !question.trim()} style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "9px 14px", fontSize: "12.5px", fontWeight: 600, opacity: asking || !question.trim() ? 0.5 : 1 }}>
+                Demander
+              </button>
+            </div>
+          </div>
         </>
       )}
     </div>
