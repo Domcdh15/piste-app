@@ -138,7 +138,7 @@ export default function Activities({ prospects, onOpenProspect, session, team, s
           team={team}
         />
       ) : (
-        <PerformanceTab prospects={prospects} activities={activities} feedItems={feedItems} session={session} teamStats={teamStats} settings={settings} setActiveTab={setActiveTab} />
+        <PerformanceTab prospects={prospects} activities={activities} feedItems={feedItems} session={session} teamStats={teamStats} settings={settings} setActiveTab={setActiveTab} onOpenProspect={onOpenProspect} />
       )}
       </div>
     </div>
@@ -146,6 +146,15 @@ export default function Activities({ prospects, onOpenProspect, session, team, s
 }
 
 function ActivityTab({ prospects, feedItems, activities, loading, filter, setFilter, onOpenProspect, teamStats, memberStats, team }) {
+  const [drill, setDrill] = useState(null);
+  const nameOf = (id) => {
+    const p = prospects.find((x) => x.id === id);
+    return p ? (p.company || p.name) : "Prospect supprimé";
+  };
+  const contactOf = (id) => {
+    const p = prospects.find((x) => x.id === id);
+    return p && p.company ? p.name : "";
+  };
   const now = new Date();
   const startToday = daysAgo(0);
   const todayActs = activities.filter((a) => new Date(a.created_at) >= startToday);
@@ -173,10 +182,54 @@ function ActivityTab({ prospects, feedItems, activities, loading, filter, setFil
 
       <div style={{ display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap", marginBottom: "10px" }}>
         <span style={{ fontSize: "13px", fontWeight: 600 }}>Aujourd'hui · {todayActs.length + todayEmails.length} activités</span>
-        <StatChip label="appels" value={nbAppels} />
-        <StatChip label="emails" value={todayEmails.length} />
-        <StatChip label="rendez-vous" value={nbRdv} />
+        <StatChip
+          label="appels"
+          value={nbAppels}
+          onDrill={() => setDrill({
+            title: "Appels du jour",
+            subtitle: "Qui a été appelé aujourd'hui",
+            rows: todayActs.filter((a) => a.type === "appel_abouti" || a.type === "appel_manque").map((a) => ({
+              id: a.id,
+              name: nameOf(a.prospect_id),
+              sub: [contactOf(a.prospect_id), ACTIVITY_LABEL[a.type] || a.type, a.note].filter(Boolean).join(" · "),
+              value: new Date(a.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+              prospectId: a.prospect_id,
+            })),
+          })}
+        />
+        <StatChip
+          label="emails"
+          value={todayEmails.length}
+          onDrill={() => setDrill({
+            title: "Emails du jour",
+            subtitle: "À qui vous avez écrit aujourd'hui",
+            rows: todayEmails.map((e) => ({
+              id: e.id,
+              name: nameOf(e.prospect_id),
+              sub: [contactOf(e.prospect_id), e.kind].filter(Boolean).join(" · "),
+              value: new Date(e.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+              prospectId: e.prospect_id,
+            })),
+          })}
+        />
+        <StatChip
+          label="rendez-vous"
+          value={nbRdv}
+          onDrill={() => setDrill({
+            title: "Rendez-vous du jour",
+            subtitle: "Qui vous avez rencontré aujourd'hui",
+            rows: todayActs.filter((a) => a.type === "rdv_physique" || a.type === "appel_visio").map((a) => ({
+              id: a.id,
+              name: nameOf(a.prospect_id),
+              sub: [contactOf(a.prospect_id), ACTIVITY_LABEL[a.type] || a.type, a.note].filter(Boolean).join(" · "),
+              value: new Date(a.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+              prospectId: a.prospect_id,
+            })),
+          })}
+        />
       </div>
+
+      {drill && <DrillModal {...drill} onClose={() => setDrill(null)} onOpenProspect={onOpenProspect} />}
 
       {stale.length > 0 && (
         <div style={{ display: "flex", alignItems: "center", gap: "10px", background: "var(--red-dim)", border: "0.5px solid var(--red)33", borderRadius: "8px", padding: "9px 14px", marginBottom: "20px" }}>
@@ -327,12 +380,72 @@ function TeamMemberBreakdown({ memberStats, team }) {
   );
 }
 
-function StatChip({ label, value }) {
+
+// Fenêtre de détail derrière un chiffre. Un indicateur sans sa liste oblige à
+// aller la reconstituer ailleurs ; ici on la donne sur place.
+function DrillModal({ title, subtitle, rows, onClose, onOpenProspect }) {
   return (
-    <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(10,17,40,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 130, padding: "20px" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: "var(--panel)", border: "0.5px solid var(--hairline-strong)", borderRadius: "14px", boxShadow: "var(--shadow-md)", width: "100%", maxWidth: "460px", maxHeight: "82vh", display: "flex", flexDirection: "column", overflow: "hidden" }}
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "14px", padding: "18px 20px 14px", borderBottom: "0.5px solid var(--hairline)" }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="display" style={{ fontWeight: 700, fontSize: "14.5px", color: "var(--text)" }}>{title}</div>
+            {subtitle && <div style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "2px" }}>{subtitle}</div>}
+          </div>
+          <button className="focusable" onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "14px", padding: 0, flexShrink: 0 }}>✕</button>
+        </div>
+
+        <div style={{ overflowY: "auto", padding: "10px" }}>
+          {rows.length === 0 ? (
+            <div style={{ padding: "22px 12px", fontSize: "13px", color: "var(--text-faint)", textAlign: "center", lineHeight: 1.5 }}>
+              Rien à afficher sur cette période.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+              {rows.map((r) => (
+                <button
+                  key={r.id}
+                  className="focusable list-row"
+                  disabled={!r.prospectId}
+                  onClick={() => r.prospectId && onOpenProspect?.(r.prospectId)}
+                  style={{ display: "flex", alignItems: "center", gap: "12px", textAlign: "left", background: "none", border: "none", padding: "10px 11px", cursor: r.prospectId ? "pointer" : "default", width: "100%" }}
+                >
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
+                    {r.sub && <span style={{ display: "block", fontSize: "11.5px", color: "var(--text-dim)", marginTop: "1px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.sub}</span>}
+                  </span>
+                  {r.value && <span className="mono" style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap" }}>{r.value}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {rows.length > 0 && (
+          <div style={{ padding: "10px 20px 14px", borderTop: "0.5px solid var(--hairline)", fontSize: "11px", color: "var(--text-faint)" }}>
+            {rows.length} ligne{rows.length > 1 ? "s" : ""} · cliquez pour ouvrir la fiche
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatChip({ label, value, onDrill }) {
+  const Tag = onDrill ? "button" : "div";
+  return (
+    <Tag
+      {...(onDrill ? { onClick: onDrill, className: "focusable", title: "Voir le détail" } : {})}
+      style={{ display: "flex", alignItems: "baseline", gap: "6px", background: "none", border: "none", padding: 0, cursor: onDrill ? "pointer" : "default", textDecoration: onDrill ? "underline" : "none", textDecorationColor: "var(--hairline-strong)", textUnderlineOffset: "3px" }}>
       <span className="mono" style={{ fontSize: "14px", fontWeight: 700, color: "var(--text)" }}>{value}</span>
       <span style={{ fontSize: "11px", color: "var(--text-faint)" }}>{label}</span>
-    </div>
+    </Tag>
   );
 }
 
@@ -350,7 +463,15 @@ function DeltaLine({ delta }) {
   );
 }
 
-function PerformanceTab({ prospects, activities, feedItems, session, teamStats, settings, setActiveTab }) {
+function PerformanceTab({ prospects, activities, feedItems, session, teamStats, settings, setActiveTab, onOpenProspect }) {
+  const [drill, setDrill] = useState(null);
+  const rowOf = (p, value) => ({
+    id: p.id,
+    name: p.company || p.name,
+    sub: [p.company ? p.name : null, p.stage].filter(Boolean).join(" · "),
+    value,
+    prospectId: p.id,
+  });
   const [period, setPeriod] = useState("30");
   const [insight, setInsight] = useState(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
@@ -499,16 +620,50 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
         </div>
       </div>
 
+      {drill && <DrillModal {...drill} onClose={() => setDrill(null)} onOpenProspect={onOpenProspect} />}
+
       {/* Résumé exécutif — quatre chiffres */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", marginBottom: "22px" }}>
-        <ExecKpi value={formatEuros(pipelineTotal)} label="Pipeline ouvert" sub={`${open.length} opportunité${open.length > 1 ? "s" : ""} active${open.length > 1 ? "s" : ""}`} />
-        <ExecKpi value={gagnes.length} label="Deals gagnés" sub={tauxConversion !== null ? `${tauxConversion} % de conversion` : "Conversion non calculable"} />
-        <ExecKpi value={formatEuros(caGenere)} label="CA généré" sub={avgCycle !== null ? `Cycle moyen ${avgCycle} j` : "Cycle non calculable"} />
+        <ExecKpi
+          value={formatEuros(pipelineTotal)}
+          label="Pipeline ouvert"
+          sub={`${open.length} opportunité${open.length > 1 ? "s" : ""} active${open.length > 1 ? "s" : ""}`}
+          onDrill={() => setDrill({
+            title: "Pipeline ouvert",
+            subtitle: "Les opportunités qui composent ce montant",
+            rows: [...open].sort((a, b) => (b.deal_value || 0) - (a.deal_value || 0)).map((p) => rowOf(p, formatEuros(p.deal_value || 0))),
+          })}
+        />
+        <ExecKpi
+          value={gagnes.length}
+          label="Deals gagnés"
+          sub={tauxConversion !== null ? `${tauxConversion} % de conversion` : "Conversion non calculable"}
+          onDrill={() => setDrill({
+            title: "Deals gagnés",
+            subtitle: "Sur la période sélectionnée",
+            rows: [...gagnes].sort((a, b) => new Date(b.closed_at) - new Date(a.closed_at)).map((p) => rowOf(p, formatShortDate(p.closed_at))),
+          })}
+        />
+        <ExecKpi
+          value={formatEuros(caGenere)}
+          label="CA généré"
+          sub={avgCycle !== null ? `Cycle moyen ${avgCycle} j` : "Cycle non calculable"}
+          onDrill={() => setDrill({
+            title: "CA généré",
+            subtitle: "Les deals gagnés qui composent ce montant",
+            rows: [...gagnes].sort((a, b) => (b.deal_value || 0) - (a.deal_value || 0)).map((p) => rowOf(p, formatEuros(p.deal_value || 0))),
+          })}
+        />
         <ExecKpi
           value={pctWithNextAction !== null ? `${pctWithNextAction}/100` : "—"}
           label="Indice de suivi"
           sub={pctWithNextAction !== null ? "Opportunités avec une action planifiée" : "Données insuffisantes"}
           accent="var(--blue)"
+          onDrill={pctWithNextAction === null ? undefined : () => setDrill({
+            title: "Opportunités sans prochaine action",
+            subtitle: "Celles qui font baisser l'indice — ce sont elles qu'il faut traiter",
+            rows: open.filter((p) => !withNextAction.some((w) => w.id === p.id)).sort((a, b) => (b.deal_value || 0) - (a.deal_value || 0)).map((p) => rowOf(p, formatEuros(p.deal_value || 0))),
+          })}
         />
       </div>
 
@@ -706,12 +861,20 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
 }
 
 // Résumé exécutif : quatre chiffres, pas davantage.
-function ExecKpi({ value, label, sub, accent }) {
+function ExecKpi({ value, label, sub, accent, onDrill }) {
   return (
-    <div className="dash-card" style={{ padding: "16px 18px" }}>
+    <div
+      className={`dash-card${onDrill ? " hoverable" : ""}`}
+      role={onDrill ? "button" : undefined}
+      tabIndex={onDrill ? 0 : undefined}
+      onClick={onDrill}
+      onKeyDown={onDrill ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onDrill(); } } : undefined}
+      title={onDrill ? "Voir le détail" : undefined}
+      style={{ padding: "16px 18px", cursor: onDrill ? "pointer" : "default" }}>
       <div className="mono" style={{ fontSize: "22px", fontWeight: 700, color: accent || "var(--text)" }}>{value}</div>
       <div style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "2px" }}>{label}</div>
       {sub && <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "4px" }}>{sub}</div>}
+      {onDrill && <div style={{ fontSize: "10.5px", fontWeight: 600, color: "var(--blue)", marginTop: "7px" }}>Voir le détail →</div>}
     </div>
   );
 }
@@ -804,10 +967,18 @@ function HealthTile({ value, label, sub, accent }) {
   );
 }
 
-function SmartKpiTile({ value, label, desc, raw }) {
+function SmartKpiTile({ value, label, desc, raw, onDrill }) {
   const missing = value === null || value === undefined;
+  const clickable = onDrill && !missing;
   return (
-    <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px" }}>
+    <div
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={clickable ? onDrill : undefined}
+      onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onDrill(); } } : undefined}
+      className={clickable ? "focusable" : undefined}
+      title={clickable ? "Voir le détail" : undefined}
+      style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px", cursor: clickable ? "pointer" : "default" }}>
       <div className="mono" style={{ fontSize: "20px", fontWeight: 700, color: missing ? "var(--text-faint)" : "var(--text)" }}>
         {missing ? "—" : raw ? value : `${value} / 100`}
       </div>
