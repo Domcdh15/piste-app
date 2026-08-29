@@ -39,6 +39,7 @@ import {
   inputStyle,
   selectStyle,
 } from "../lib/ui.jsx";
+import { celebrate } from "../lib/celebrate.js";
 
 const TASK_TYPE_META = {
   appel_telephone: { label: "Appel téléphonique", color: "var(--amber)", Icon: PhoneIcon },
@@ -530,6 +531,8 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
       await logActivity(id, "note", `Étape passée de « ${p.stage} » à « ${stage} »`);
     }
     await handleUpdateProspect(id, changes);
+    const fete = progressionFranchie(p.stage, stage);
+    if (fete) celebrate(fete);
   }
   const priorityLabel =
     presetFilter === "chauds" ? "Prospects chauds" : presetFilter === "a-sauver" ? "Deals à sauver" : "Opportunités";
@@ -839,8 +842,38 @@ function KanbanBoard({ columns, nextTaskByProspect, onOpen, onMove, team, showOw
   );
 }
 
+// Deux pastilles pour lire une carte sans la lire : depuis combien de temps
+// le dossier est en souffrance, et dans combien de temps la prochaine action.
+function cardBadges(p, nextTask) {
+  const badges = [];
+  const jours = (iso) => Math.round((new Date(iso) - Date.now()) / 86400000);
+
+  const silence = p.last_contact_at ? Math.floor((Date.now() - new Date(p.last_contact_at)) / 86400000) : null;
+  if (silence === null) {
+    badges.push({ key: "mute", icon: AlertIcon, text: "jamais", color: "var(--red)", bg: "var(--red-dim)" });
+  } else if (silence >= 7) {
+    badges.push({ key: "mute", icon: AlertIcon, text: `${silence} j`, color: "var(--red)", bg: "var(--red-dim)" });
+  }
+
+  if (nextTask?.due_at) {
+    const d = jours(nextTask.due_at);
+    const meta = TASK_TYPE_META[nextTask.type] || TASK_TYPE_META.appel_telephone;
+    const enRetard = d < 0;
+    badges.push({
+      key: "next",
+      icon: meta.Icon,
+      text: enRetard ? `+${Math.abs(d)} j` : d === 0 ? "auj." : `dans ${d} j`,
+      color: enRetard ? "var(--red)" : meta.color,
+      bg: enRetard ? "var(--red-dim)" : "var(--panel2)",
+      title: `${meta.label} · ${enRetard ? `en retard de ${Math.abs(d)} jour${Math.abs(d) > 1 ? "s" : ""}` : d === 0 ? "aujourd'hui" : `dans ${d} jour${d > 1 ? "s" : ""}`}`,
+    });
+  }
+  return badges;
+}
+
 function OpportunityCard({ prospect: p, nextTask, onOpen, onDragStart, onDragEnd, team, showOwners }) {
   const action = nextActionInfo(p, nextTask);
+  const badges = cardBadges(p, nextTask);
 
   return (
     <div
@@ -863,7 +896,21 @@ function OpportunityCard({ prospect: p, nextTask, onOpen, onDragStart, onDragEnd
 
       <div className="mono" style={{ fontWeight: 700, fontSize: "14px", color: "var(--text)" }}>{formatEuros(p.deal_value)}</div>
 
-      <div style={{ fontSize: "11.5px", color: action.color, fontWeight: 600, marginTop: "1px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      {badges.length > 0 && (
+        <div style={{ display: "flex", gap: "5px", flexWrap: "wrap", marginTop: "2px" }}>
+          {badges.map((b) => (
+            <span
+              key={b.key}
+              title={b.title || (b.key === "mute" ? "Temps écoulé depuis le dernier échange" : undefined)}
+              style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: b.bg, color: b.color, borderRadius: "6px", padding: "3px 7px", fontSize: "10.5px", fontWeight: 700, whiteSpace: "nowrap" }}
+            >
+              <b.icon size={11} color={b.color} /> {b.text}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div style={{ fontSize: "11px", color: action.color, fontWeight: 600, marginTop: "1px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {action.text}
       </div>
     </div>
@@ -1200,6 +1247,8 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
     }
     await onUpdate(changes);
     history.reload();
+    const fete = progressionFranchie(prospect.stage, stage);
+    if (fete) celebrate(fete);
     if (STAGE_PLAYBOOK[stage]) setPlaybookStage(stage);
   }
 
@@ -2204,6 +2253,16 @@ function ProspectNotesCard({ prospect, onUpdate }) {
 
 // Ce que chaque étape appelle logiquement ensuite. Proposé, jamais imposé :
 // le commercial garde la main sur le contenu, la date, ou peut simplement ignorer.
+// Reculer une étape ou perdre l'affaire ne se fête pas : on ne célèbre que
+// ce qui avance, et le passage en client vaut mieux qu'une simple étape.
+function progressionFranchie(depuis, vers) {
+  if (vers === "Perdu") return null;
+  if (vers === "Gagné") return "client";
+  const a = OPEN_STAGES.indexOf(depuis);
+  const b = OPEN_STAGES.indexOf(vers);
+  return a >= 0 && b > a ? "step" : null;
+}
+
 const STAGE_PLAYBOOK = {
   "Contact établi": {
     type: "appel_telephone",
@@ -2245,6 +2304,7 @@ const STAGE_PLAYBOOK = {
 
 function StagePlaybookModal({ prospect, stage, session, settings, onClose, onDone }) {
   const play = STAGE_PLAYBOOK[stage];
+  const gagne = stage === "Gagné";
   const defaultDate = new Date(Date.now() + (play?.days ?? 3) * 86400000);
   const [type, setType] = useState(play?.type || "appel_telephone");
   const [note, setNote] = useState(play ? play.note(prospect) : "");
@@ -2272,10 +2332,15 @@ function StagePlaybookModal({ prospect, stage, session, settings, onClose, onDon
 
   return (
     <Modal onClose={onClose}>
-      <ModalTitle sub={`${prospect.company} est passé en « ${stage} »`}>Prochaine étape suggérée</ModalTitle>
+      <ModalTitle sub={gagne ? `${prospect.company} devient client.` : `${prospect.company} est passé en « ${stage} ».`}>
+        {gagne ? "Bravo, nouveau client" : "Étape franchie"}
+      </ModalTitle>
       <div style={{ display: "flex", gap: "9px", background: "var(--blue-dim)", borderRadius: "9px", padding: "11px 13px", marginBottom: "16px" }}>
         <SparklesIcon size={13} color="var(--blue)" style={{ flexShrink: 0, marginTop: "2px" }} />
         <div style={{ fontSize: "12.5px", color: "var(--blue-deep)", lineHeight: 1.5 }}>{play.why}</div>
+      </div>
+      <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-faint)", marginBottom: "8px" }}>
+        Prochaine étape suggérée
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         <select value={type} onChange={(e) => setType(e.target.value)} style={{ ...inputStyle, width: "100%" }}>
