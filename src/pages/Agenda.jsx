@@ -484,6 +484,10 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
             const laidTasks = layoutDayEvents(dayTasks.map((t) => ({ ...t, start: t.due_at, end: new Date(new Date(t.due_at).getTime() + 30 * 60000).toISOString() })));
             const isToday = d.toDateString() === now.toDateString();
             const eventsLeftPct = dayTasks.length > 0 ? TASK_LANE_PCT : 0;
+            // Sans rendez-vous d'agenda ce jour-là, rien ne justifie de tasser
+            // les tâches sur un tiers de la colonne : leur libellé était
+            // tronqué à « Envoy… » pendant que 68 % restaient vides.
+            const taskLanePct = dayEvents.length > 0 ? TASK_LANE_PCT : 100;
             return (
               <div key={d.toDateString()} style={{ position: "relative", borderLeft: "0.5px solid var(--hairline)", height: gridHeight }}>
                 {hours.map((h) => (
@@ -521,7 +525,7 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                           title={`${group.length} tâches à ${formatTime(group[0].event.due_at)}`}
                           style={{
                             position: "absolute", top, height: "26px",
-                            left: "1px", width: `calc(${TASK_LANE_PCT}% - 2px)`,
+                            left: "1px", width: `calc(${taskLanePct}% - 2px)`,
                             background: isOpen ? "var(--blue)" : "var(--panel2)", color: isOpen ? "#fff" : "var(--text-dim)",
                             border: `0.5px solid ${isOpen ? "var(--blue)" : "var(--hairline-strong)"}`, borderRadius: "5px",
                             fontSize: "10px", fontWeight: 700, zIndex: 2, textAlign: "left", padding: "0 5px",
@@ -581,7 +585,7 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
                       const height = Math.max(26, heightFor(task.start, task.end));
                       // Les colonnes ne servent qu'aux tâches réellement simultanées.
                       const cols = Math.min(colCount, group.length);
-                      const widthPct = TASK_LANE_PCT / cols;
+                      const widthPct = taskLanePct / cols;
                       const col = Math.min(colIndex, cols - 1);
                       nodes.push(
                         <div
