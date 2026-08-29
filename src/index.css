@@ -341,3 +341,98 @@ button {
 .assist-bubble-toggle:active {
   transform: scale(0.96);
 }
+
+/* ============================================================
+   MOBILE — tranche 1 : la barre latérale devient un tiroir
+   Les styles de mise en page quittent le JSX : un style inline ne
+   peut pas porter de media query, c'est ce qui empêchait toute
+   adaptation à l'écran.
+   ============================================================ */
+
+.app-sidebar {
+  width: 252px;
+  min-width: 252px;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 26px 16px;
+}
+
+/* La barre du haut n'existe que sur petit écran. */
+.mobile-topbar { display: none; }
+.sidebar-scrim { display: none; }
+
+@media (max-width: 900px) {
+  .app-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform 220ms ease;
+    box-shadow: var(--shadow-md);
+  }
+
+  .app-sidebar.is-open { transform: translateX(0); }
+
+  .sidebar-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: rgba(10, 17, 40, 0.45);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 220ms ease;
+  }
+
+  .sidebar-scrim.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    padding: 10px 14px;
+    background: var(--panel);
+    border-bottom: 0.5px solid var(--hairline);
+  }
+
+  /* Sans cette réserve, le contenu passe sous la barre au défilement. */
+  .app-main { min-width: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-sidebar,
+  .sidebar-scrim { transition: none; }
+}
+
+.burger {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 38px;
+  height: 38px;
+  padding: 0 9px;
+  border-radius: 10px;
+  background: var(--panel2);
+  border: 0.5px solid var(--hairline);
+}
+
+.burger span {
+  display: block;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--text-dim);
+}

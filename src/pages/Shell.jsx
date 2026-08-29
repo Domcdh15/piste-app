@@ -19,6 +19,21 @@ const COMPANY_FIELDS = [
   "devis_validity_days", "devis_payment_terms",
 ];
 
+// Titre affiché dans la barre du haut sur mobile : sans lui, on ne sait plus
+// sur quelle page on se trouve une fois le tiroir refermé.
+const TAB_LABELS = {
+  today: "Aujourd'hui",
+  planning: "Agenda",
+  pipeline: "Opportunités",
+  chauds: "Prospects chauds",
+  "a-sauver": "Deals à sauver",
+  assistant: "Assistant IA",
+  activities: "Activités",
+  settings: "Paramètres",
+  integrations: "Intégrations",
+  equipe: "Équipe",
+};
+
 const VALID_TABS = ["today", "planning", "pipeline", "chauds", "a-sauver", "assistant", "activities", "settings", "integrations", "equipe"];
 
 function tabFromHash() {
@@ -28,6 +43,7 @@ function tabFromHash() {
 
 export default function Shell({ session, team, reloadTeam }) {
   const [activeTab, setActiveTabState] = useState(tabFromHash);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Une fiche ouverte peut refuser qu'on la quitte — c'est la règle d'équipe
   // « aucun prospect sans prochaine action ». Sans ce point de passage, un clic
@@ -221,8 +237,32 @@ export default function Shell({ session, team, reloadTeam }) {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} prospects={prospects} />
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div
+        className={`sidebar-scrim${menuOpen ? " is-open" : ""}`}
+        onClick={() => setMenuOpen(false)}
+        aria-hidden="true"
+      />
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        prospects={prospects}
+        open={menuOpen}
+        onNavigate={() => setMenuOpen(false)}
+      />
+      <div className="app-main" style={{ flex: 1, minWidth: 0 }}>
+        <div className="mobile-topbar">
+          <button
+            className="burger focusable"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+            aria-expanded={menuOpen}
+          >
+            <span /><span /><span />
+          </button>
+          <span className="display" style={{ fontWeight: 700, fontSize: "15px", color: "var(--text)" }}>
+            {TAB_LABELS[activeTab] || "Closia"}
+          </span>
+        </div>
         {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} onOpenProspect={openProspect} settings={effectiveSettings} />}
         {activeTab === "planning" && <Agenda prospects={prospects} session={session} onOpenProspect={openProspect} settings={effectiveSettings} />}
         {(activeTab === "pipeline" || activeTab === "chauds" || activeTab === "a-sauver") && (

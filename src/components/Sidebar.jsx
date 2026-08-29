@@ -14,7 +14,10 @@ const SB_BORDER = "var(--hairline)";
 const SB_TEXT_DIM = "var(--text-dim)";
 const SB_TEXT_FAINT = "var(--text-faint)";
 
-export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
+export default function Sidebar({ activeTab, setActiveTab, prospects = [], open = false, onNavigate }) {
+  // Naviguer referme le tiroir : sans ça il resterait ouvert par-dessus la
+  // page qu'on vient de demander.
+  const go = (tab) => { setActiveTab(tab); onNavigate?.(); };
   const [todayCount, setTodayCount] = useState(null);
   const [hovered, setHovered] = useState(null);
 
@@ -35,24 +38,12 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
 
   return (
     <div
-      style={{
-        width: "252px",
-        minWidth: "252px",
-        height: "100vh",
-        position: "sticky",
-        top: 0,
-        alignSelf: "flex-start",
-        overflowY: "auto",
-        background: "var(--panel)",
-        borderRight: `0.5px solid ${SB_BORDER}`,
-        display: "flex",
-        flexDirection: "column",
-        padding: "26px 16px",
-      }}
+      className={`app-sidebar${open ? " is-open" : ""}`}
+      style={{ background: "var(--panel)", borderRight: `0.5px solid ${SB_BORDER}` }}
     >
       <button
         className="focusable"
-        onClick={() => setActiveTab("today")}
+        onClick={() => go("today")}
         style={{ display: "flex", alignItems: "center", gap: "10px", padding: "6px 8px", marginBottom: "34px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
       >
         <Logo size={30} />
@@ -69,7 +60,7 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
             <button
               key={item.key}
               className="focusable"
-              onClick={() => setActiveTab(item.key)}
+              onClick={() => go(item.key)}
               onMouseEnter={() => setHovered(item.key)}
               onMouseLeave={() => setHovered(null)}
               style={{
@@ -117,7 +108,7 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [] }) {
 
       <button
         className="focusable"
-        onClick={() => setActiveTab("settings")}
+        onClick={() => go("settings")}
         onMouseEnter={() => setHovered("settings")}
         onMouseLeave={() => setHovered(null)}
         style={{
