@@ -472,3 +472,11 @@ button {
     flex-shrink: 0;
   }
 }
+
+/* L'intitulé d'étape tenait sur trois lignes dans une colonne étroite
+   (« RENDEZ-VOUS PRÉVU »), ce qui décalait le haut de chaque colonne. */
+.kanban-col .section-eyebrow {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

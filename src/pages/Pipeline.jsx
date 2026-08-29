@@ -583,7 +583,9 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
         </div>
       </div>
 
-      <div style={{ padding: "22px 40px 64px", maxWidth: "980px" }}>
+      {/* La liste veut une longueur de ligne lisible ; le tableau veut toute
+          la largeur — sept colonnes bridées à 980 px tronquaient chaque nom. */}
+      <div style={{ padding: "22px 40px 64px", maxWidth: viewMode === "kanban" ? "none" : "1280px" }}>
       {(atRiskCount > 0 || noActionCount > 0) && (
         <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", padding: "10px 2px", borderTop: "0.5px solid var(--hairline)", borderBottom: "0.5px solid var(--hairline)", marginBottom: "20px", fontSize: "12.5px" }}>
           <span style={{ color: "var(--red)" }}>{atRiskCount} deal{atRiskCount > 1 ? "s" : ""} à risque</span>
