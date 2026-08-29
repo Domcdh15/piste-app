@@ -22,6 +22,10 @@ function parseHour(value, fallback) {
   return h >= 0 && h <= 23 ? h : fallback;
 }
 const ROW_HEIGHT = 56;
+// Le premier libellé horaire est centré sur sa ligne : posé à zéro, sa moitié
+// haute sortait de la grille et « 08:00 » apparaissait coupé. Cette marge lui
+// laisse la place, quelle que soit l'heure de début choisie.
+const GRID_TOP_PAD = 12;
 const TASK_LANE_PCT = 32;
 
 function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
@@ -46,7 +50,7 @@ function durationLabel(start, end) {
 function topFor(iso, startHour) {
   const d = new Date(iso);
   const hours = d.getHours() + d.getMinutes() / 60;
-  return (hours - startHour) * ROW_HEIGHT;
+  return GRID_TOP_PAD + (hours - startHour) * ROW_HEIGHT;
 }
 
 function heightFor(startIso, endIso) {
@@ -429,7 +433,7 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
 
   const hours = [];
   for (let h = startHour; h < endHour; h++) hours.push(h);
-  const gridHeight = (endHour - startHour) * ROW_HEIGHT;
+  const gridHeight = GRID_TOP_PAD + (endHour - startHour) * ROW_HEIGHT;
 
   const now = new Date();
   const nowTop = topFor(now.toISOString(), startHour);
@@ -469,7 +473,9 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
       )}
 
       <div style={{ display: "flex", maxHeight: "640px", overflowY: "auto" }}>
-        <div style={{ width: "56px", flexShrink: 0 }}>
+        {/* La colonne des heures suit la même marge que la grille, sinon les
+            libellés ne tombent plus sur leurs lignes. */}
+        <div style={{ width: "56px", flexShrink: 0, paddingTop: GRID_TOP_PAD }}>
           {hours.map((h) => (
             <div key={h} style={{ height: ROW_HEIGHT, borderTop: "0.5px solid var(--hairline)", fontSize: "10px", color: "var(--text-faint)", textAlign: "right", paddingRight: "6px", boxSizing: "border-box", transform: "translateY(-6px)" }}>
               {String(h).padStart(2, "0")}:00
@@ -491,7 +497,7 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
             return (
               <div key={d.toDateString()} style={{ position: "relative", borderLeft: "0.5px solid var(--hairline)", height: gridHeight }}>
                 {hours.map((h) => (
-                  <div key={h} style={{ position: "absolute", top: (h - startHour) * ROW_HEIGHT, left: 0, right: 0, borderTop: "0.5px solid var(--hairline)" }} />
+                  <div key={h} style={{ position: "absolute", top: GRID_TOP_PAD + (h - startHour) * ROW_HEIGHT, left: 0, right: 0, borderTop: "0.5px solid var(--hairline)" }} />
                 ))}
                 {isToday && showNowLine && (
                   <div style={{ position: "absolute", top: nowTop, left: 0, right: 0, height: "2px", background: "var(--red)", zIndex: 3 }}>
