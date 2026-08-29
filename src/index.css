@@ -436,3 +436,39 @@ button {
   border-radius: 2px;
   background: var(--text-dim);
 }
+
+/* ============================================================
+   TABLEAU — vue globale sans défilement horizontal
+   Sept colonnes à 268 px demandaient 1 948 px : il fallait
+   balayer à la souris pour voir la fin du pipeline. Elles se
+   partagent maintenant la largeur disponible.
+   ============================================================ */
+
+.kanban-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding-bottom: 10px;
+}
+
+.kanban-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Sous cette largeur, sept colonnes deviendraient illisibles :
+   on rend le défilement plutôt que d'écraser le texte. */
+@media (max-width: 1180px) {
+  .kanban-board {
+    display: flex;
+    overflow-x: auto;
+  }
+  .kanban-col {
+    width: 230px;
+    min-width: 230px;
+    flex-shrink: 0;
+  }
+}

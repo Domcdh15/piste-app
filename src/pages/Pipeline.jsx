@@ -779,7 +779,7 @@ function KanbanBoard({ columns, nextTaskByProspect, onOpen, onMove, team, showOw
   }
 
   return (
-    <div style={{ display: "flex", gap: "12px", overflowX: "auto", paddingBottom: "10px", alignItems: "flex-start" }}>
+    <div className="kanban-board">
       {columns.map((col) => {
         const total = col.items.reduce((sum, p) => sum + (p.deal_value || 0), 0);
         const accent = col.stage === "Gagné" ? "var(--success)" : col.stage === "Perdu" ? "var(--text-faint)" : STAGE_META[col.stage]?.color || "var(--blue)";
@@ -790,9 +790,8 @@ function KanbanBoard({ columns, nextTaskByProspect, onOpen, onMove, team, showOw
             onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOver(col.stage); }}
             onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver((d) => (d === col.stage ? null : d)); }}
             onDrop={(e) => handleDrop(e, col.stage)}
+            className="kanban-col"
             style={{
-              width: "268px", minWidth: "268px", flexShrink: 0,
-              display: "flex", flexDirection: "column",
               background: isTarget ? "var(--blue-dim)" : "var(--panel)",
               border: `1px solid ${isTarget ? "var(--blue)" : "var(--hairline)"}`,
               borderRadius: "var(--radius-lg)",
@@ -840,7 +839,6 @@ function KanbanBoard({ columns, nextTaskByProspect, onOpen, onMove, team, showOw
 
 function OpportunityCard({ prospect: p, nextTask, onOpen, onDragStart, onDragEnd, team, showOwners }) {
   const action = nextActionInfo(p, nextTask);
-  const days = p.last_contact_at ? Math.floor((Date.now() - new Date(p.last_contact_at)) / 86400000) : null;
 
   return (
     <div
@@ -852,7 +850,7 @@ function OpportunityCard({ prospect: p, nextTask, onOpen, onDragStart, onDragEnd
       onClick={onOpen}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
       className="focusable"
-      style={{ textAlign: "left", background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "11px 12px", display: "flex", flexDirection: "column", gap: "5px", cursor: "grab" }}
+      style={{ textAlign: "left", background: "var(--bg)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "10px 11px", display: "flex", flexDirection: "column", gap: "4px", cursor: "grab" }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
         <span className="display" style={{ fontWeight: 700, fontSize: "13px", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -861,12 +859,7 @@ function OpportunityCard({ prospect: p, nextTask, onOpen, onDragStart, onDragEnd
         {showOwners && <OwnerBadges team={team} prospect={p} />}
       </div>
 
-      {p.company && <div style={{ color: "var(--text-dim)", fontSize: "11.5px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>}
-
-      <div className="mono" style={{ fontWeight: 700, fontSize: "15px", color: "var(--text)" }}>{formatEuros(p.deal_value)}</div>
-
-      {/* Sans tâche, nextActionInfo dit déjà le délai : on ne le répète pas. */}
-      {nextTask && days !== null && <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>Contact il y a {days} j</div>}
+      <div className="mono" style={{ fontWeight: 700, fontSize: "14px", color: "var(--text)" }}>{formatEuros(p.deal_value)}</div>
 
       <div style={{ fontSize: "11.5px", color: action.color, fontWeight: 600, marginTop: "1px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {action.text}
