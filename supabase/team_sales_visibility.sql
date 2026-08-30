@@ -53,3 +53,35 @@ language sql security definer stable as $$
     and (my_team_role() = 'admin' or my_team_visibility() = 'team_detail')
   group by p.sales_owner_id;
 $$;
+
+-- Révision : le classement ne portait que sur le commercial responsable, si bien
+-- que le travail des Customer Success n'apparaissait nulle part. On part
+-- désormais de la liste des membres — chacun a sa ligne, et un CSM sans deal
+-- figure avec le portefeuille qu'il suit.
+drop function if exists team_stats_by_member();
+
+create function team_stats_by_member()
+returns table(
+  member_id uuid,
+  deals_won bigint,
+  deals_lost bigint,
+  revenue_won numeric,
+  prospect_count bigint,
+  csm_count bigint
+)
+language sql security definer stable as $$
+  select
+    m.user_id,
+    count(*) filter (where p.sales_owner_id = m.user_id and p.status = 'gagne'),
+    count(*) filter (where p.sales_owner_id = m.user_id and p.status = 'perdu'),
+    coalesce(sum(p.deal_value) filter (where p.sales_owner_id = m.user_id and p.status = 'gagne'), 0),
+    count(*) filter (where p.sales_owner_id = m.user_id),
+    count(*) filter (where p.csm_owner_id = m.user_id)
+  from team_members m
+  left join prospects p
+    on p.team_id = m.team_id
+   and (p.sales_owner_id = m.user_id or p.csm_owner_id = m.user_id)
+  where m.team_id = my_team_id()
+    and (my_team_role() = 'admin' or my_team_visibility() = 'team_detail')
+  group by m.user_id;
+$$;

@@ -133,19 +133,16 @@ export default function Activities({ prospects, onOpenProspect, session, team, s
           filter={filter}
           setFilter={setFilter}
           onOpenProspect={onOpenProspect}
-          teamStats={teamStats}
-          memberStats={memberStats}
-          team={team}
         />
       ) : (
-        <PerformanceTab prospects={prospects} activities={activities} feedItems={feedItems} session={session} teamStats={teamStats} settings={settings} setActiveTab={setActiveTab} onOpenProspect={onOpenProspect} />
+        <PerformanceTab prospects={prospects} activities={activities} feedItems={feedItems} session={session} teamStats={teamStats} memberStats={memberStats} team={team} settings={settings} setActiveTab={setActiveTab} onOpenProspect={onOpenProspect} />
       )}
       </div>
     </div>
   );
 }
 
-function ActivityTab({ prospects, feedItems, activities, loading, filter, setFilter, onOpenProspect, teamStats, memberStats, team }) {
+function ActivityTab({ prospects, feedItems, activities, loading, filter, setFilter, onOpenProspect }) {
   const [drill, setDrill] = useState(null);
   const nameOf = (id) => {
     const p = prospects.find((x) => x.id === id);
@@ -168,18 +165,6 @@ function ActivityTab({ prospects, feedItems, activities, loading, filter, setFil
 
   return (
     <>
-      {teamStats && (
-        <div style={{ display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px 16px", marginBottom: "18px" }}>
-          <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, letterSpacing: "0.03em" }}>ÉQUIPE</div>
-          <StatChip label="Prospects" value={teamStats.prospect_count ?? 0} />
-          <StatChip label="Deals gagnés" value={teamStats.deals_won ?? 0} />
-          <StatChip label="Deals perdus" value={teamStats.deals_lost ?? 0} />
-          <StatChip label="CA généré" value={formatEuros(teamStats.revenue_won || 0)} />
-        </div>
-      )}
-
-      {memberStats.length > 0 && <TeamMemberBreakdown memberStats={memberStats} team={team} />}
-
       <div style={{ display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap", marginBottom: "10px" }}>
         <span style={{ fontSize: "13px", fontWeight: 600 }}>Aujourd'hui · {todayActs.length + todayEmails.length} activités</span>
         <StatChip
@@ -338,6 +323,35 @@ function SignalsRow({ prospects, activities, onOpenProspect }) {
 
 // Détail nominatif : n'apparaît que si l'administrateur a ouvert ce niveau —
 // la fonction en base ne renvoie rien dans les deux autres cas.
+// Vue d'équipe : les totaux consolidés, puis le détail par personne quand
+// l'admin a ouvert ce niveau. Les deux fonctions d'agrégat appliquent
+// elles-mêmes la règle de visibilité — si elle est fermée, elles ne renvoient
+// rien et le bloc correspondant disparaît.
+function TeamPerformance({ teamStats, memberStats, team }) {
+  return (
+    <>
+      {teamStats && (
+        <div style={{ display: "flex", alignItems: "center", gap: "18px", flexWrap: "wrap", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "12px 16px", marginBottom: "18px" }}>
+          <div style={{ fontSize: "10px", color: "var(--text-faint)", fontWeight: 700, letterSpacing: "0.03em" }}>ÉQUIPE</div>
+          <StatChip label="Prospects" value={teamStats.prospect_count ?? 0} />
+          <StatChip label="Deals gagnés" value={teamStats.deals_won ?? 0} />
+          <StatChip label="Deals perdus" value={teamStats.deals_lost ?? 0} />
+          <StatChip label="CA généré" value={formatEuros(teamStats.revenue_won || 0)} />
+        </div>
+      )}
+
+      {memberStats.length > 0 ? (
+        <TeamMemberBreakdown memberStats={memberStats} team={team} />
+      ) : (
+        <div className="dash-card" style={{ padding: "18px", fontSize: "12.5px", color: "var(--text-dim)", lineHeight: 1.55 }}>
+          Le détail par personne n'est pas ouvert sur ce compte. Un administrateur
+          peut l'activer dans Paramètres → Équipe, en choisissant « Détail nominatif ».
+        </div>
+      )}
+    </>
+  );
+}
+
 function TeamMemberBreakdown({ memberStats, team }) {
   const members = team?.members || [];
 
@@ -352,7 +366,7 @@ function TeamMemberBreakdown({ memberStats, team }) {
 
   return (
     <div className="dash-card" style={{ padding: "16px 18px", marginBottom: "18px" }}>
-      <div className="section-eyebrow" style={{ marginBottom: "12px" }}>Par commercial</div>
+      <div className="section-eyebrow" style={{ marginBottom: "12px" }}>Par personne</div>
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {rows.map((r) => {
           const revenue = Number(r.revenue_won || 0);
@@ -367,7 +381,9 @@ function TeamMemberBreakdown({ memberStats, team }) {
                 </div>
               </div>
               <span className="mono" style={{ fontSize: "12px", color: "var(--text-dim)", textAlign: "right" }}>
-                {r.deals_won} gagné{Number(r.deals_won) > 1 ? "s" : ""}
+                {Number(r.csm_count) > 0 && Number(r.prospect_count) === 0
+                  ? `${r.csm_count} suivi${Number(r.csm_count) > 1 ? "s" : ""}`
+                  : `${r.deals_won} gagné${Number(r.deals_won) > 1 ? "s" : ""}`}
               </span>
               <span className="mono" style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
                 {formatEuros(revenue)}
@@ -477,7 +493,19 @@ function DeltaLine({ delta }) {
   );
 }
 
-function PerformanceTab({ prospects, activities, feedItems, session, teamStats, settings, setActiveTab, onOpenProspect }) {
+// Les chiffres d'équipe n'ont de sens qu'à plusieurs, et ne sont proposés qu'aux
+// formules Équipe et Business — mêmes seuils que l'attribution nominative.
+function teamPerfEnabled(team, settings) {
+  if (!team) return false;
+  const memberCount = team.members?.length || 1;
+  if (memberCount <= 1) return false;
+  const price = Number((team.team ? team.team.plan_price : settings?.plan_price) || 0);
+  return price >= 39;
+}
+
+function PerformanceTab({ prospects, activities, feedItems, session, teamStats, memberStats = [], team, settings, setActiveTab, onOpenProspect }) {
+  const [scope, setScope] = useState("perso");
+  const scopeAvailable = teamPerfEnabled(team, settings) && (teamStats || memberStats.length > 0);
   const [drill, setDrill] = useState(null);
   const daysSince = (iso) => (iso ? Math.floor((Date.now() - new Date(iso)) / 86400000) : null);
   const lastContactLabel = (p) => {
@@ -647,8 +675,30 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
     }
   }
 
+  // Le sélecteur n'apparaît que s'il y a une équipe à regarder : à un seul
+  // utilisateur, « Personnelle » et « Équipe » diraient la même chose.
+  const scopeSwitch = scopeAvailable ? (
+    <div style={{ display: "flex", gap: "4px", background: "var(--panel2)", borderRadius: "8px", padding: "3px", marginBottom: "18px", width: "fit-content" }}>
+      {[["perso", "Personnelle"], ["equipe", "Équipe"]].map(([key, label]) => (
+        <button key={key} className="focusable" onClick={() => setScope(key)} style={{ padding: "6px 14px", borderRadius: "6px", fontSize: "12.5px", fontWeight: 500, background: scope === key ? "var(--panel)" : "transparent", color: scope === key ? "var(--blue)" : "var(--text-dim)", boxShadow: scope === key ? "var(--shadow-sm)" : "none" }}>
+          {label}
+        </button>
+      ))}
+    </div>
+  ) : null;
+
+  if (scopeAvailable && scope === "equipe") {
+    return (
+      <>
+        {scopeSwitch}
+        <TeamPerformance teamStats={teamStats} memberStats={memberStats} team={team} />
+      </>
+    );
+  }
+
   return (
     <>
+      {scopeSwitch}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px", flexWrap: "wrap", gap: "10px" }}>
         <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Comprenez ce qui fait avancer vos opportunités et ce qui mérite votre attention.</div>
         <div style={{ display: "flex", gap: "4px", background: "var(--panel2)", borderRadius: "8px", padding: "3px" }}>
