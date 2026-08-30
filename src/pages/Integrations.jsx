@@ -12,9 +12,12 @@ const CATEGORIES = ["Toutes", "Agenda & Email", "CRM", "Productivité"];
 
 const CATALOG = [
   { key: "google", label: "Google Calendar & Gmail", category: "Agenda & Email", desc: "Synchronisez vos rendez-vous, envoyez vos relances depuis Gmail, et permettez à Closia de s'appuyer sur vos échanges réels pour les rédiger.", real: true, permissions: "Lecture de l'agenda (calendar.readonly), envoi d'email (gmail.send), synchronisation de signature (gmail.settings.basic) et lecture des échanges avec vos prospects (gmail.readonly)" },
-  // Le code Outlook est complet (agenda, envoi, lecture des échanges) — il ne manque que
-  // MICROSOFT_CLIENT_ID / MICROSOFT_CLIENT_SECRET dans Vercel. Repasser real: true une fois
-  // l'inscription d'application Azure créée, sans autre modification.
+  // Toute la logique Outlook (agenda, envoi, lecture des échanges) vit toujours dans
+  // api/_lib/providers.js, qui ne compte pas dans le plafond de fonctions Vercel. Seules
+  // les deux routes OAuth ont été retirées, faute d'inscription d'application Azure et
+  // pour libérer deux emplacements. Pour rétablir :
+  //   git revert <commit « Met Outlook de côté »>, MICROSOFT_CLIENT_ID / _SECRET dans
+  //   Vercel, puis real: true ici.
   { key: "microsoft", label: "Outlook Calendar & Mail", category: "Agenda & Email", desc: "Synchronisez vos événements, envoyez vos relances depuis Outlook, et permettez à Closia de s'appuyer sur vos échanges réels pour les rédiger.", permissions: "Lecture de l'agenda (Calendars.Read), envoi d'email (Mail.Send) et lecture des échanges avec vos prospects (Mail.Read)" },
   { key: "hubspot", label: "HubSpot", category: "CRM", desc: "Reprenez vos contacts, entreprises et opportunités HubSpot dans Closia — exportez-les depuis HubSpot, puis importez le fichier CSV ou Excel.", importable: true },
   { key: "salesforce", label: "Salesforce", category: "CRM", desc: "Reprenez vos comptes, contacts et opportunités Salesforce — exportez-les depuis Salesforce, puis importez le fichier CSV ou Excel.", importable: true },
@@ -64,7 +67,9 @@ export default function Integrations({ session, onBack, setActiveTab, onOpenImpo
   }
 
   function connect(provider) {
-    window.location.href = `/api/${provider}/authorize?token=${encodeURIComponent(session.access_token)}`;
+    // L'aller et le retour OAuth partagent une seule fonction serverless : on
+    // entre donc par /callback, sans paramètre « code ».
+    window.location.href = `/api/${provider}/callback?token=${encodeURIComponent(session.access_token)}`;
   }
 
   const q = search.trim().toLowerCase();

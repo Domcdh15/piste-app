@@ -3,6 +3,10 @@ import { ensureFreshToken, sendEmail } from "../_lib/providers.js";
 import { PLAN_TIERS } from "../_lib/plans.js";
 
 const VALID_STATUSES = ["trialing", "active", "cancelled"];
+
+// Tables que le back-office peut éditer ligne à ligne. Reprises de l'ancien
+// endpoint update-lead, replié ici pour libérer une fonction serverless.
+const EDITABLE_TABLES = ["prospects", "tasks", "activities", "user_settings", "teams", "support_requests"];
 const APP_URL = "https://piste-app-seven.vercel.app";
 
 // Boîte mail utilisée pour envoyer automatiquement les liens d'invitation client —
@@ -59,6 +63,43 @@ export default async function handler(req, res) {
 
   const { userId, subscription_status, banned, action } = req.body || {};
   const admin = supabaseAdmin();
+
+  // ---- Édition directe d'une ligne, et suivi des demandes de démo ----
+  // Ces deux branches viennent de l'ancien /api/admin/update-lead. Elles se
+  // distinguent des actions « utilisateur » par leurs clés : « table » ou
+  // « contacted », là où le reste du fichier travaille sur « userId ».
+  const { table, id, patch, deleteRow, contacted } = req.body || {};
+
+  if (table) {
+    if (!EDITABLE_TABLES.includes(table)) {
+      return res.status(400).json({ error: "Table non autorisée" });
+    }
+    if (!id) return res.status(400).json({ error: "id manquant" });
+    const key = table === "user_settings" ? "user_id" : "id";
+
+    if (deleteRow) {
+      const { error } = await admin.from(table).delete().eq(key, id);
+      if (error) return res.status(500).json({ error: "La suppression a échoué" });
+      return res.status(200).json({ ok: true });
+    }
+
+    if (!patch || typeof patch !== "object") {
+      return res.status(400).json({ error: "patch manquant" });
+    }
+    const { error } = await admin.from(table).update(patch).eq(key, id);
+    if (error) return res.status(500).json({ error: "La mise à jour a échoué" });
+    return res.status(200).json({ ok: true });
+  }
+
+  if (typeof contacted === "boolean") {
+    if (!id) return res.status(400).json({ error: "id manquant" });
+    const { error } = await admin
+      .from("leads")
+      .update({ contacted, contacted_at: contacted ? new Date().toISOString() : null })
+      .eq("id", id);
+    if (error) return res.status(500).json({ error: "La mise à jour a échoué" });
+    return res.status(200).json({ ok: true });
+  }
 
   if (action === "create_client") {
     const { email, password, firstName, lastName, companyName, tier } = req.body || {};
