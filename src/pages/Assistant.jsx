@@ -86,7 +86,7 @@ export default function Assistant({ session, prospects, onOpenProspect, settings
           </div>
         </div>
       </div>
-      <div style={{ maxWidth: "920px", padding: "22px 32px 60px" }}>
+      <div style={{ padding: "22px 32px 60px" }}>
 
         {view.type === "home" ? (
           <>

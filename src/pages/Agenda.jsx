@@ -25,7 +25,10 @@ const ROW_HEIGHT = 56;
 // Le premier libellé horaire est centré sur sa ligne : posé à zéro, sa moitié
 // haute sortait de la grille et « 08:00 » apparaissait coupé. Cette marge lui
 // laisse la place, quelle que soit l'heure de début choisie.
-const GRID_TOP_PAD = 12;
+// Marge en haut de la grille. Elle doit dépasser le décalage appliqué aux
+// libellés d'heures (5 px), sinon le premier sort du cadre et se retrouve
+// coupé en deux par le bord.
+const GRID_TOP_PAD = 16;
 const TASK_LANE_PCT = 32;
 
 function startOfDay(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
@@ -475,9 +478,23 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
       <div style={{ display: "flex", maxHeight: "640px", overflowY: "auto" }}>
         {/* La colonne des heures suit la même marge que la grille, sinon les
             libellés ne tombent plus sur leurs lignes. */}
-        <div style={{ width: "56px", flexShrink: 0, paddingTop: GRID_TOP_PAD }}>
+        {/* Les libellés sont posés en absolu sur les mêmes coordonnées que les
+            lignes de la grille : empilés en flux, le moindre écart d'arrondi les
+            désalignait, et le premier débordait par le haut. */}
+        <div style={{ width: "56px", flexShrink: 0, position: "relative", height: gridHeight }}>
           {hours.map((h) => (
-            <div key={h} style={{ height: ROW_HEIGHT, borderTop: "0.5px solid var(--hairline)", fontSize: "10px", color: "var(--text-faint)", textAlign: "right", paddingRight: "6px", boxSizing: "border-box", transform: "translateY(-6px)" }}>
+            <div
+              key={h}
+              style={{
+                position: "absolute",
+                top: GRID_TOP_PAD + (h - startHour) * ROW_HEIGHT - 5,
+                right: "6px",
+                fontSize: "10px",
+                lineHeight: 1,
+                color: "var(--text-faint)",
+                whiteSpace: "nowrap",
+              }}
+            >
               {String(h).padStart(2, "0")}:00
             </div>
           ))}
