@@ -2357,6 +2357,76 @@ function StagePlaybookModal({ prospect, stage, session, settings, onClose, onDon
   );
 }
 
+// Envoi d'un document à signer. L'adresse est pré-remplie avec celle du
+// prospect : c'est le cas courant, et une adresse retapée est une adresse
+// fausse une fois sur dix.
+function SendToSignModal({ doc, prospect, session, onClose, onSent }) {
+  const [email, setEmail] = useState(prospect.email || "");
+  const [nom, setNom] = useState(prospect.name || "");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [erreur, setErreur] = useState("");
+  const [lien, setLien] = useState(null);
+  const [envoyeParMail, setEnvoyeParMail] = useState(false);
+
+  async function envoyer() {
+    setBusy(true); setErreur("");
+    try {
+      const res = await fetch("/api/sign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "create", documentId: doc.id, signerEmail: email.trim(), signerName: nom.trim(), message: message.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "L'envoi a échoué");
+      setLien(data.link);
+      setEnvoyeParMail(!!data.emailSent);
+      onSent?.();
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (lien) {
+    return (
+      <Modal onClose={onClose}>
+        <ModalTitle sub={doc.file_name}>{envoyeParMail ? "Envoyé à signer" : "Lien de signature prêt"}</ModalTitle>
+        <div style={{ fontSize: "12.5px", color: "var(--text-dim)", lineHeight: 1.6, marginBottom: "14px" }}>
+          {envoyeParMail
+            ? `Le document est parti depuis votre boîte vers ${email}. Un code de vérification lui sera envoyé au moment de signer.`
+            : "Votre boîte Gmail n'est pas reliée, l'email n'a donc pas pu partir automatiquement. Transmettez ce lien vous-même :"}
+        </div>
+        <input readOnly value={lien} onClick={(e) => e.target.select()} style={{ ...inputStyle, width: "100%", fontSize: "11.5px" }} />
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "18px" }}>
+          <button className="focusable" onClick={onClose} style={{ background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px 18px", fontSize: "13px" }}>
+            Fermer
+          </button>
+        </div>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal onClose={onClose}>
+      <ModalTitle sub={doc.file_name}>Envoyer à signer</ModalTitle>
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Adresse du signataire" style={{ ...inputStyle, width: "100%" }} />
+        <input value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Nom du signataire" style={{ ...inputStyle, width: "100%" }} />
+        <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="Message d'accompagnement (facultatif)" style={{ ...inputStyle, width: "100%", resize: "vertical" }} />
+      </div>
+      <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px", lineHeight: 1.5 }}>
+        Signature électronique simple : l'adresse du signataire est vérifiée par un code à usage unique, et Closia conserve
+        l'empreinte du document, l'horodatage, l'adresse IP et le navigateur. Sans valeur probante renforcée au sens d'une
+        signature qualifiée.
+      </div>
+      {erreur && <div style={{ fontSize: "12px", color: "var(--red)", marginTop: "10px" }}>{erreur}</div>}
+      <ModalActions onCancel={onClose} onConfirm={envoyer} confirmLabel="Envoyer" busy={busy} disabled={!email.trim()} />
+    </Modal>
+  );
+}
+
 function formatFileSize(bytes) {
   if (!bytes) return "";
   if (bytes < 1024) return `${bytes} o`;
@@ -2380,6 +2450,8 @@ const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
 function DocumentsCard({ prospect, session, team, onCreateDevis, refreshKey }) {
   const [docs, setDocs] = useState([]);
+  const [signatures, setSignatures] = useState([]);
+  const [signDoc, setSignDoc] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -2393,6 +2465,13 @@ function DocumentsCard({ prospect, session, team, onCreateDevis, refreshKey }) {
       .eq("prospect_id", prospect.id)
       .order("created_at", { ascending: false });
     setDocs(data || []);
+    // L'état des signatures est lu à part : la table est protégée par ses
+    // propres règles, et un commercial ne voit que ses demandes.
+    const { data: sigs } = await supabase
+      .from("document_signatures")
+      .select("document_id, status, signer_email, signed_name, signed_at")
+      .eq("prospect_id", prospect.id);
+    setSignatures(sigs || []);
     setLoading(false);
   }
 
@@ -2476,6 +2555,16 @@ function DocumentsCard({ prospect, session, team, onCreateDevis, refreshKey }) {
       <input ref={fileRef} type="file" onChange={upload} style={{ display: "none" }} />
       {error && <div style={{ fontSize: "12px", color: "var(--red)", marginBottom: "10px" }}>{error}</div>}
 
+      {signDoc && (
+        <SendToSignModal
+          doc={signDoc}
+          prospect={prospect}
+          session={session}
+          onClose={() => setSignDoc(null)}
+          onSent={load}
+        />
+      )}
+
       {loading ? (
         <div style={{ fontSize: "12.5px", color: "var(--text-faint)" }}>Chargement…</div>
       ) : docs.length === 0 ? (
@@ -2503,6 +2592,20 @@ function DocumentsCard({ prospect, session, team, onCreateDevis, refreshKey }) {
                     {[formatFileSize(d.file_size), formatShortDate(d.created_at)].filter(Boolean).join(" · ")}
                   </div>
                 </button>
+                {(() => {
+                  const sig = signatures.find((x) => x.document_id === d.id);
+                  if (sig?.status === "signe") {
+                    return <span title={`Signé par ${sig.signed_name || sig.signer_email} le ${formatShortDate(sig.signed_at)}`} style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--green, var(--blue))", background: "var(--blue-dim)", borderRadius: "6px", padding: "3px 7px", whiteSpace: "nowrap" }}>Signé</span>;
+                  }
+                  if (sig && sig.status !== "refuse") {
+                    return <span title={`Envoyé à ${sig.signer_email}`} style={{ fontSize: "10.5px", fontWeight: 700, color: "var(--amber)", background: "var(--panel2)", borderRadius: "6px", padding: "3px 7px", whiteSpace: "nowrap" }}>En attente</span>;
+                  }
+                  return (
+                    <button className="focusable" onClick={() => setSignDoc(d)} style={{ fontSize: "10.5px", fontWeight: 600, color: "var(--blue)", background: "var(--blue-dim)", border: "0.5px solid #147ff555", borderRadius: "6px", padding: "3px 8px", whiteSpace: "nowrap" }} title="Envoyer ce document à signer">
+                      Faire signer
+                    </button>
+                  );
+                })()}
                 <button className="focusable" onClick={() => remove(d)} disabled={busy} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "13px", padding: "0 4px" }} title="Supprimer">
                   ✕
                 </button>
@@ -3047,8 +3150,14 @@ function ProspectOwnersPanel({ prospect, session, team, onAssigned }) {
     }
   }
 
-  // Les deux responsabilités sont toujours affichées : un prospect a un
-  // commercial qui le signe et un CSM qui le garde, même si la case est vide.
+  // Le relais vers un CSM ne se propose que s'il y a quelqu'un à qui le passer,
+  // et qu'une fois l'affaire gagnée : proposer un accompagnement client sur un
+  // prospect qu'on n'a pas encore signé n'a pas de sens, et une case vide qui ne
+  // sert jamais finit par être du bruit.
+  const csmOptions = members.filter((m) => m.role === "customer_success");
+  const equipeAvecCsm = csmOptions.length > 0;
+  const estClient = prospect.stage === "Gagné";
+
   const SLOTS = [
     {
       label: "COMMERCIAL RESPONSABLE",
@@ -3056,21 +3165,27 @@ function ProspectOwnersPanel({ prospect, session, team, onAssigned }) {
       // L'admin peut porter les deux casquettes : il figure dans les deux listes.
       options: members.filter((m) => m.role === "sales" || m.role === "admin"),
       onChange: (id) => assign({ salesOwnerId: id }),
+      readOnly: !isAdmin,
     },
-    {
+    // C'est le commercial qui passe le relais, pas l'admin : il sait quand le
+    // dossier est prêt et à qui le confier.
+    equipeAvecCsm && estClient && {
       label: "CSM RESPONSABLE",
       ownerId: prospect.csm_owner_id,
-      options: members.filter((m) => m.role === "customer_success" || m.role === "admin"),
+      options: [...csmOptions, ...members.filter((m) => m.role === "admin")],
       onChange: (id) => assign({ csmOwnerId: id }),
+      readOnly: false,
     },
-  ];
+  ].filter(Boolean);
+
+  if (SLOTS.length === 0) return null;
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
+    <div style={{ display: "grid", gridTemplateColumns: SLOTS.length > 1 ? "1fr 1fr" : "1fr", gap: "8px", marginBottom: "10px" }}>
       {SLOTS.map((slot) => (
         <div key={slot.label}>
           <div style={{ color: "var(--text-faint)", fontSize: "10px", marginBottom: "3px" }}>{slot.label}</div>
-          {isAdmin ? (
+          {!slot.readOnly ? (
             <select value={slot.ownerId || ""} disabled={busy} onChange={(e) => slot.onChange(e.target.value || null)} style={selectStyle}>
               <option value="">— Non attribué —</option>
               {slot.options.map((m) => <option key={m.user_id} value={m.user_id}>{memberLabel(m)}</option>)}

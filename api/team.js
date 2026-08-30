@@ -74,23 +74,43 @@ export default async function handler(req, res) {
   const { action } = req.body || {};
 
   if (action === "assign_prospect") {
-    // L'interface ne montre les sélecteurs qu'à l'administrateur : le serveur
-    // doit appliquer la même règle, sinon un commercial peut se réattribuer
-    // le portefeuille d'un collègue par un appel direct.
-    if (membership.role !== "admin") {
-      return res.status(403).json({ error: "Réservé à l'administrateur de l'équipe" });
-    }
-
     const { prospectId, salesOwnerId, csmOwnerId } = req.body;
     if (!prospectId) return res.status(400).json({ error: "prospectId manquant" });
 
     const { data: before } = await admin
       .from("prospects")
-      .select("sales_owner_id, csm_owner_id, team_id")
+      .select("user_id, sales_owner_id, csm_owner_id, team_id, stage")
       .eq("id", prospectId)
       .eq("team_id", membership.team_id)
       .maybeSingle();
     if (!before) return res.status(404).json({ error: "Prospect introuvable" });
+
+    // Changer le commercial responsable reste une décision d'administrateur :
+    // sinon n'importe qui se réattribue le portefeuille d'un collègue par un
+    // appel direct, l'interface ne protégeant rien.
+    //
+    // Passer le relais à un CSM, en revanche, appartient au commercial du
+    // dossier : c'est lui qui sait quand l'affaire est prête à être confiée.
+    // Uniquement sur une affaire gagnée, et uniquement sur son propre dossier.
+    if (membership.role !== "admin") {
+      if (salesOwnerId !== undefined) {
+        return res.status(403).json({ error: "Seul un administrateur peut changer le commercial responsable." });
+      }
+      const sien = [before.user_id, before.sales_owner_id].includes(user.id);
+      if (!sien) return res.status(403).json({ error: "Ce dossier n'est pas le vôtre." });
+      if (before.stage !== "Gagné") {
+        return res.status(400).json({ error: "Le relais vers un CSM se passe une fois l'affaire gagnée." });
+      }
+      if (csmOwnerId) {
+        const { data: cible } = await admin
+          .from("team_members")
+          .select("role")
+          .eq("team_id", membership.team_id)
+          .eq("user_id", csmOwnerId)
+          .maybeSingle();
+        if (!cible) return res.status(400).json({ error: "Cette personne ne fait pas partie de votre équipe." });
+      }
+    }
 
     const patch = {};
     if (salesOwnerId !== undefined) patch.sales_owner_id = salesOwnerId;
