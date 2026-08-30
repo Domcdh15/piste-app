@@ -1,5 +1,6 @@
 import { supabaseAdmin, getUserFromToken, bearerToken } from "../_lib/supabase.js";
 import { ensureFreshToken, sendEmail, listRecentMessages, setGmailSignature, getGmailSignature, fetchEmailThreadWith } from "../_lib/providers.js";
+import { postSlack } from "../_lib/slack.js";
 
 function buildVacationReply(s) {
   const lines = [(s.vacation_message || "").trim() || "Je suis actuellement absent(e)."];
@@ -162,6 +163,57 @@ async function runSequences(admin) {
   return { sent, stopped };
 }
 
+// Le point du matin dans Slack. Un seul message par équipe, volontairement
+// court : trois nombres et ce qui brûle. Un canal qu'on doit lire en entier
+// finit par n'être plus lu du tout.
+async function runSlackBriefs(admin) {
+  const { data: canaux } = await admin
+    .from("team_integrations")
+    .select("team_id, slack_webhook_url")
+    .not("slack_webhook_url", "is", null)
+    .eq("slack_daily_brief", true);
+
+  if (!canaux?.length) return 0;
+
+  const finDuJour = new Date();
+  finDuJour.setHours(23, 59, 59, 999);
+  const maintenant = new Date().toISOString();
+  let envoyes = 0;
+
+  for (const canal of canaux) {
+    try {
+      const [{ data: taches }, { data: prospects }] = await Promise.all([
+        admin.from("tasks").select("due_at").eq("team_id", canal.team_id).eq("done", false),
+        admin.from("prospects").select("id, company, name, deal_value, last_contact_at, stage").eq("team_id", canal.team_id),
+      ]);
+
+      const aFaire = (taches || []).filter((t) => t.due_at && t.due_at <= finDuJour.toISOString()).length;
+      const enRetard = (taches || []).filter((t) => t.due_at && t.due_at < maintenant).length;
+
+      const ouverts = (prospects || []).filter((p) => p.stage !== "Gagné" && p.stage !== "Perdu");
+      const silencieux = ouverts
+        .filter((p) => !p.last_contact_at || (Date.now() - new Date(p.last_contact_at)) / 86400000 >= 7)
+        .sort((a, b) => Number(b.deal_value || 0) - Number(a.deal_value || 0));
+
+      const lignes = [`*Closia — le point du matin*`, `${aFaire} action${aFaire > 1 ? "s" : ""} à mener aujourd'hui · ${enRetard} en retard · ${silencieux.length} dossier${silencieux.length > 1 ? "s" : ""} sans nouvelles depuis une semaine`];
+
+      for (const p of silencieux.slice(0, 3)) {
+        const jours = p.last_contact_at ? Math.floor((Date.now() - new Date(p.last_contact_at)) / 86400000) : null;
+        const montant = p.deal_value ? ` — ${Math.round(Number(p.deal_value)).toLocaleString("fr-FR")} €` : "";
+        lignes.push(`• ${p.company || p.name}${montant} · ${jours === null ? "jamais contacté" : `${jours} jours sans échange`}`);
+      }
+
+      await postSlack(canal.slack_webhook_url, lignes.join("\n"));
+      envoyes++;
+    } catch (e) {
+      // Un canal révoqué ou une équipe en erreur ne doit pas priver les autres
+      // de leur point du matin.
+      continue;
+    }
+  }
+  return envoyes;
+}
+
 // fichier) pour rester sous la limite de 12 fonctions serverless du plan Vercel Hobby.
 export default async function handler(req, res) {
   if (req.method === "GET" && req.query?.action === "vacation_check") {
@@ -174,7 +226,8 @@ export default async function handler(req, res) {
     // Les deux traitements quotidiens partagent le même passage : le plan
     // Hobby ne déclenche un cron qu'une fois par jour.
     const sequences = await runSequences(admin);
-    return res.status(200).json({ ok: true, repliesSent, sequences });
+    const slackBriefs = await runSlackBriefs(admin);
+    return res.status(200).json({ ok: true, repliesSent, sequences, slackBriefs });
   }
 
   const user = await getUserFromToken(bearerToken(req));

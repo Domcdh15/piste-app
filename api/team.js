@@ -32,9 +32,10 @@ export default async function handler(req, res) {
   if (!membership) return res.status(404).json({ error: "Aucune équipe associée à ce compte" });
 
   if (req.method === "GET") {
-    const [{ data: team }, { data: members }] = await Promise.all([
+    const [{ data: team }, { data: members }, { data: integ }] = await Promise.all([
       admin.from("teams").select("*").eq("id", membership.team_id).single(),
       admin.from("team_members").select("id, user_id, role").eq("team_id", membership.team_id),
+      admin.from("team_integrations").select("*").eq("team_id", membership.team_id).maybeSingle(),
     ]);
 
     const enriched = await Promise.all(
@@ -54,7 +55,16 @@ export default async function handler(req, res) {
       })
     );
 
-    return res.status(200).json({ team, role: membership.role, members: enriched });
+    // On ne renvoie jamais le webhook ni le jeton : l'interface a seulement
+    // besoin de savoir si la connexion existe.
+    const integrations = {
+      slack: !!integ?.slack_webhook_url,
+      slackDailyBrief: integ?.slack_daily_brief !== false,
+      notion: !!integ?.notion_token,
+      notionDatabaseId: integ?.notion_database_id || null,
+    };
+
+    return res.status(200).json({ team, role: membership.role, members: enriched, integrations });
   }
 
   if (req.method !== "POST") {
@@ -212,6 +222,46 @@ export default async function handler(req, res) {
     }
     if (Object.keys(patch).length === 0) return res.status(400).json({ error: "Aucun champ à mettre à jour" });
     const { error } = await admin.from("teams").update(patch).eq("id", membership.team_id);
+    if (error) return res.status(500).json({ error: "L'enregistrement a échoué" });
+    return res.status(200).json({ ok: true });
+  }
+
+  if (action === "set_integration") {
+    // Réservé aux formules Équipe et Business : c'est là que le besoin de
+    // diffuser vers un canal partagé apparaît.
+    const { data: teamRow } = await admin.from("teams").select("plan_price").eq("id", membership.team_id).single();
+    if (Number(teamRow?.plan_price ?? 19) < 39) {
+      return res.status(403).json({ error: "Les intégrations Slack et Notion sont incluses à partir de la formule Équipe." });
+    }
+
+    const { slack_webhook_url, slack_daily_brief, notion_token, notion_database_id } = req.body;
+    const patch = { team_id: membership.team_id, updated_at: new Date().toISOString() };
+
+    if (slack_webhook_url !== undefined) {
+      const url = (slack_webhook_url || "").trim();
+      if (url && !/^https:\/\/hooks\.slack\.com\//.test(url)) {
+        return res.status(400).json({ error: "Cette adresse n'est pas un webhook Slack (elle doit commencer par https://hooks.slack.com/)." });
+      }
+      patch.slack_webhook_url = url || null;
+    }
+    if (slack_daily_brief !== undefined) patch.slack_daily_brief = !!slack_daily_brief;
+    if (notion_token !== undefined) {
+      const t = (notion_token || "").trim();
+      if (t && !/^(secret_|ntn_)/.test(t)) {
+        return res.status(400).json({ error: "Ce jeton ne ressemble pas à un jeton d'intégration Notion." });
+      }
+      patch.notion_token = t || null;
+    }
+    if (notion_database_id !== undefined) {
+      // Notion accepte l'identifiant avec ou sans tirets : on normalise.
+      const raw = (notion_database_id || "").trim().replace(/-/g, "");
+      if (raw && !/^[0-9a-f]{32}$/i.test(raw)) {
+        return res.status(400).json({ error: "L'identifiant de base Notion doit comporter 32 caractères." });
+      }
+      patch.notion_database_id = raw || null;
+    }
+
+    const { error } = await admin.from("team_integrations").upsert(patch, { onConflict: "team_id" });
     if (error) return res.status(500).json({ error: "L'enregistrement a échoué" });
     return res.status(200).json({ ok: true });
   }

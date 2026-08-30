@@ -290,7 +290,7 @@ export default function Shell({ session, team, reloadTeam }) {
         {activeTab === "assistant" && <Assistant session={session} prospects={prospects} onOpenProspect={openProspect} settings={effectiveSettings} />}
         {activeTab === "activities" && <Activities prospects={prospects} onOpenProspect={openProspect} session={session} team={team} settings={effectiveSettings} setActiveTab={setActiveTab} />}
         {activeTab === "settings" && <Settings session={session} prospects={prospects} settings={settings} reloadSettings={loadSettings} team={team} reloadTeam={reloadTeam} setActiveTab={setActiveTab} />}
-        {activeTab === "integrations" && <Integrations session={session} onBack={() => setActiveTab("settings")} setActiveTab={setActiveTab} onOpenImport={() => { setJumpToShowImport(true); setActiveTab("pipeline"); }} />}
+        {activeTab === "integrations" && <Integrations session={session} team={team} reloadTeam={reloadTeam} onBack={() => setActiveTab("settings")} setActiveTab={setActiveTab} onOpenImport={() => { setJumpToShowImport(true); setActiveTab("pipeline"); }} />}
         {activeTab === "equipe" && <EquipePage session={session} team={team} reloadTeam={reloadTeam} />}
       </div>
       {hasAssistantBubbleAccess && <AssistantBubble session={session} />}
