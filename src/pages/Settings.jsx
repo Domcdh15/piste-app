@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { formatEuros, buildSignatureBlock, PlugIcon } from "../lib/ui.jsx";
+import { formatEuros, buildSignatureBlock } from "../lib/ui.jsx";
 
 const TONES = ["Professionnel", "Chaleureux", "Direct"];
 const DETAIL_LEVELS = ["Court", "Équilibré", "Détaillé"];
@@ -10,7 +10,7 @@ const INITIATIVE_LEVELS = [
   { value: "Proactif", desc: "Closia cherche activement les actions à effectuer." },
 ];
 // Rubriques dont les champs passent par `set` et ont donc besoin du bouton Enregistrer.
-const SAVEABLE = ["profil", "notifications", "objectifs", "organisation", "ia"];
+const SAVEABLE = ["profil", "notifications", "organisation", "ia"];
 
 const WEEKDAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
@@ -82,7 +82,6 @@ export default function Settings({ session, prospects, settings, reloadSettings,
   const navItems = [
     { key: "profil", label: "Mon profil", icon: "👤" },
     { key: "notifications", label: "Notifications", icon: "🔔" },
-    { key: "objectifs", label: "Objectifs commerciaux", icon: "🎯" },
     { key: "organisation", label: "Organisation quotidienne", icon: "📅" },
     { key: "ia", label: "Assistant IA", icon: "✨" },
     isAdmin && { key: "equipe", label: "Équipe", icon: "👥" },
@@ -126,7 +125,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
               <button
                 key={n.key}
                 className="focusable"
-                onClick={() => setActive(n.key)}
+                onClick={() => (n.key === "integrations" ? setActiveTab?.("integrations") : setActive(n.key))}
                 style={{
                   display: "flex", alignItems: "center", gap: "9px", width: "100%", textAlign: "left",
                   padding: "9px 12px", borderRadius: "9px", border: "none", fontSize: "13px",
@@ -188,23 +187,6 @@ export default function Settings({ session, prospects, settings, reloadSettings,
         <Toggle label="Prospects chauds détectés par l'IA" checked={local.notif_hot_leads} onChange={(v) => set({ notif_hot_leads: v })} />
         <Toggle label="Récapitulatif quotidien par email" checked={local.notif_daily_recap} onChange={(v) => set({ notif_daily_recap: v })} last />
       </Section>
-              </>
-            )}
-
-            {active === "objectifs" && (
-              <>
-      <Section title="Objectifs commerciaux">
-        <Field label="Objectif de CA mensuel (€)">
-          <input type="number" value={local.objective_monthly_revenue ?? ""} onChange={(e) => set({ objective_monthly_revenue: e.target.value ? Number(e.target.value) : null })} style={inputSm} placeholder="ex : 20000" />
-        </Field>
-        <Field label="Objectif de deals gagnés / mois" last>
-          <input type="number" value={local.objective_monthly_deals ?? ""} onChange={(e) => set({ objective_monthly_deals: e.target.value ? Number(e.target.value) : null })} style={inputSm} placeholder="ex : 5" />
-        </Field>
-        {local.objective_monthly_revenue ? (
-          <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>Soit {formatEuros(local.objective_monthly_revenue)} de CA visé ce mois-ci.</div>
-        ) : null}
-      </Section>
-                <ObjectivesProgress local={local} prospects={prospects} />
               </>
             )}
 
@@ -429,17 +411,6 @@ export default function Settings({ session, prospects, settings, reloadSettings,
           <BillingPanel local={local} session={session} team={team} reloadSettings={reloadSettings} reloadTeam={reloadTeam} />
         </Section>
       )}
-              </>
-            )}
-
-            {active === "integrations" && (
-              <>
-      <Section title="Intégrations">
-        <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "12px" }}>Connectez vos outils commerciaux (agenda, CRM, email) à Closia.</div>
-        <button className="focusable" onClick={() => setActiveTab?.("integrations")} style={{ display: "flex", alignItems: "center", gap: "8px", ...btnGhost }}>
-          <PlugIcon size={13} color="var(--text-dim)" /> Gérer les intégrations
-        </button>
-      </Section>
               </>
             )}
 

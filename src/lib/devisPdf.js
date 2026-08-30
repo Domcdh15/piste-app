@@ -24,13 +24,44 @@ function frDate(d) {
   return d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 }
 
+// Taux de TVA applicables en France métropolitaine. « 0 » couvre les opérations
+// exonérées ou non soumises, distinctes de la franchise en base qui, elle, se
+// règle globalement dans les paramètres de l'entreprise.
+export const VAT_RATES = [20, 10, 5.5, 2.1, 0];
+
+// Ventilation de la TVA par taux. Un devis qui mélange plusieurs taux — de la
+// main-d'œuvre à 10 % et des fournitures à 20 %, par exemple — doit présenter
+// une base par taux : un total unique ne permettrait pas de vérifier le calcul.
+export function vatBreakdown(items, settings) {
+  const exempt = !!settings?.vat_exempt;
+  const defaut = exempt ? 0 : Number(settings?.vat_rate ?? 20);
+
+  const parTaux = new Map();
+  let totalHT = 0;
+
+  for (const it of items || []) {
+    const ht = (Number(it.qty) || 0) * (Number(it.unitPrice) || 0);
+    if (!ht) continue;
+    const taux = exempt ? 0 : Number(it.vatRate ?? defaut);
+    totalHT += ht;
+    parTaux.set(taux, (parTaux.get(taux) || 0) + ht);
+  }
+
+  const lignes = [...parTaux.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([taux, base]) => ({ taux, base, montant: base * (taux / 100) }));
+  const totalTVA = lignes.reduce((s, l) => s + l.montant, 0);
+
+  return { exempt, totalHT, lignes, totalTVA, totalTTC: totalHT + totalTVA, multiple: lignes.length > 1 };
+}
+
 export async function buildDevisPdf({ prospect, settings, items, total, number }) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4" });
 
   const vatExempt = !!settings?.vat_exempt;
-  const vatRate = vatExempt ? 0 : Number(settings?.vat_rate ?? 20);
-  const vatAmount = total * (vatRate / 100);
+  const tva = vatBreakdown(items, settings);
+  const vatAmount = tva.totalTVA;
   const validityDays = Number(settings?.devis_validity_days ?? 30);
   const today = new Date();
   const validUntil = new Date(today.getTime() + validityDays * 86400000);
@@ -114,11 +145,13 @@ export async function buildDevisPdf({ prospect, settings, items, total, number }
   y += boxH + 12;
 
   // --- Lignes ---
+  const colVat = tva.multiple ? MARGIN + CONTENT_W - 92 : null;
   const colQty = MARGIN + CONTENT_W - 78;
   const colUnit = MARGIN + CONTENT_W - 52;
   const colTotal = MARGIN + CONTENT_W;
 
   label("Description", MARGIN, y);
+  if (colVat) doc.text("TVA", colVat, y, { align: "right" });
   doc.text("QTÉ", colQty, y, { align: "right" });
   doc.text("PRIX UNITAIRE", colUnit, y, { align: "right" });
   doc.text("TOTAL", colTotal, y, { align: "right" });
@@ -146,9 +179,13 @@ export async function buildDevisPdf({ prospect, settings, items, total, number }
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     setColor(INK);
-    const wrapped = doc.splitTextToSize(it.description || "—", colQty - MARGIN - 6);
+    const wrapped = doc.splitTextToSize(it.description || "—", (colVat || colQty) - MARGIN - 6);
     doc.text(wrapped, MARGIN, y);
     setColor(DIM);
+    if (colVat) {
+      const taux = vatExempt ? 0 : Number(it.vatRate ?? settings?.vat_rate ?? 20);
+      doc.text(`${String(taux).replace(".", ",")} %`, colVat, y, { align: "right" });
+    }
     doc.text(String(qty), colQty, y, { align: "right" });
     doc.text(euros(unit), colUnit, y, { align: "right" });
     doc.setFont("helvetica", "bold");
@@ -176,15 +213,20 @@ export async function buildDevisPdf({ prospect, settings, items, total, number }
     y += strong ? 7 : 5.5;
   };
 
-  line("Total HT", euros(total));
-  if (vatExempt) line("TVA", "Non applicable");
-  else line(`TVA ${vatRate} %`, euros(vatAmount));
+  line("Total HT", euros(tva.totalHT));
+  if (vatExempt) {
+    line("TVA", "Non applicable");
+  } else {
+    for (const l of tva.lignes) {
+      line(`TVA ${String(l.taux).replace(".", ",")} % sur ${euros(l.base)}`, euros(l.montant));
+    }
+  }
 
   doc.setDrawColor(INK[0], INK[1], INK[2]);
   doc.setLineWidth(0.4);
   doc.line(totalsX, y - 3, MARGIN + CONTENT_W, y - 3);
   y += 2;
-  line(vatExempt ? "Total" : "Total TTC", euros(total + vatAmount), true);
+  line(vatExempt ? "Total" : "Total TTC", euros(tva.totalTTC), true);
 
   // --- Conditions ---
   y += 8;

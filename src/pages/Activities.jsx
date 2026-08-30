@@ -1005,19 +1005,22 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
           value={momentumIndex}
           explain={momentumIndex >= 50 ? "Votre activité progresse par rapport à la période précédente." : "Votre activité ralentit par rapport à la période précédente."}
         />
-        <div style={{ marginBottom: 0 }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "10px", marginBottom: "5px" }}>
-            <span style={{ fontSize: "12.5px", fontWeight: 600 }}>Couverture pipeline</span>
-            <span className="mono" style={{ fontSize: "13px", fontWeight: 700, color: coverageRatio !== null ? "var(--blue)" : "var(--text-faint)" }}>
-              {coverageRatio !== null ? `${coverageRatio.toFixed(1)}x` : "—"}
-            </span>
+        {/* L'indice ne s'affiche que si un objectif existe : la page qui permettait
+            de le définir a été retirée, et renvoyer l'utilisateur vers un écran
+            absent serait pire que de ne rien montrer. */}
+        {coverageRatio !== null && (
+          <div style={{ marginBottom: 0 }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "10px", marginBottom: "5px" }}>
+              <span style={{ fontSize: "12.5px", fontWeight: 600 }}>Couverture pipeline</span>
+              <span className="mono" style={{ fontSize: "13px", fontWeight: 700, color: "var(--blue)" }}>
+                {`${coverageRatio.toFixed(1)}x`}
+              </span>
+            </div>
+            <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>
+              Pipeline ouvert rapporté à votre objectif de CA mensuel.
+            </div>
           </div>
-          <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>
-            {coverageRatio !== null
-              ? "Pipeline ouvert rapporté à votre objectif de CA mensuel."
-              : "Définissez un objectif de CA mensuel dans Paramètres pour activer cet indice."}
-          </div>
-        </div>
+        )}
       </div>
 
       {/* 7. Insights Closia — un seul espace IA */}
