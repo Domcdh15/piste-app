@@ -217,8 +217,11 @@ export async function buildDevisPdf({ prospect, settings, items, total, number }
   if (vatExempt) {
     line("TVA", "Non applicable");
   } else {
+    // La base par taux n'est utile — et exigible — que lorsque plusieurs taux
+    // coexistent. À taux unique, elle répète le total HT juste au-dessus.
     for (const l of tva.lignes) {
-      line(`TVA ${String(l.taux).replace(".", ",")} % sur ${euros(l.base)}`, euros(l.montant));
+      const nom = `TVA ${String(l.taux).replace(".", ",")} %`;
+      line(tva.multiple ? `${nom} sur ${euros(l.base)}` : nom, euros(l.montant));
     }
   }
 
