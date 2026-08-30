@@ -28,9 +28,17 @@ const CATALOG = [
   { key: "stripe", label: "Stripe", category: "Productivité", desc: "Suivre les paiements liés à vos deals gagnés." },
 ];
 
+// Pistes à l'étude, sans date annoncée. Citer le nom d'un outil pour décrire une
+// compatibilité future est licite ; laisser croire qu'elle existe déjà ne l'est
+// pas. D'où le libellé, et l'absence de ces outils dans ce que les formules
+// payantes incluent.
 const COMING_LATER = [
-  { key: "zapier", label: "Zapier", desc: "Connectez Closia à des milliers d'applications." },
-  { key: "make", label: "Make", desc: "Automatisez vos workflows commerciaux." },
+  { key: "pennylane", label: "Pennylane", desc: "Transformer un devis signé en facture, sans ressaisie." },
+  { key: "qonto", label: "Qonto", desc: "Transformer un devis signé en facture, sans ressaisie." },
+  { key: "evoliz", label: "Evoliz", desc: "Transformer un devis signé en facture, sans ressaisie." },
+  { key: "tiime", label: "Tiime", desc: "Transformer un devis signé en facture, sans ressaisie." },
+  { key: "zapier", label: "Zapier", desc: "Connecter Closia à des milliers d'applications." },
+  { key: "make", label: "Make", desc: "Automatiser vos enchaînements commerciaux." },
 ];
 
 // Slack et Notion demandent chacun un identifiant fourni par le client — une
@@ -147,8 +155,10 @@ export default function Integrations({ session, team, reloadTeam, onBack, setAct
       )}
 
       <div style={{ marginTop: "8px", marginBottom: "32px" }}>
-        <div className="display" style={{ fontWeight: 700, fontSize: "14px", marginBottom: "2px" }}>Bientôt disponible</div>
-        <div style={{ color: "var(--text-dim)", fontSize: "12.5px", marginBottom: "14px" }}>D'autres outils arrivent prochainement.</div>
+        <div className="display" style={{ fontWeight: 700, fontSize: "14px", marginBottom: "2px" }}>À l'étude</div>
+        <div style={{ color: "var(--text-dim)", fontSize: "12.5px", marginBottom: "14px" }}>
+          Des pistes que nous explorons, sans date annoncée. Elles ne font pas partie de ce que votre formule inclut aujourd'hui.
+        </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           {COMING_LATER.map((t) => (
             <div key={t.key} style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px", flex: "1 1 200px", minWidth: "180px" }}>
