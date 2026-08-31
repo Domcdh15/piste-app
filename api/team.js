@@ -61,7 +61,7 @@ export default async function handler(req, res) {
     const { data: cles } = membership.role === "admin"
       ? await admin
           .from("api_keys")
-          .select("id, name, prefix, last_used_at, created_at")
+          .select("id, name, prefix, scope, user_id, last_used_at, created_at")
           .eq("team_id", membership.team_id)
           .is("revoked_at", null)
           .order("created_at", { ascending: false })
@@ -292,6 +292,21 @@ export default async function handler(req, res) {
     const nom = (req.body.name || "").trim();
     if (!nom) return res.status(400).json({ error: "Donnez un nom à cette clé" });
 
+    // Portée et porteur. Une clé « own » ne voit que les dossiers de la
+    // personne qui la porte ; une clé « team » voit toute l'équipe. C'est
+    // l'administrateur qui tranche, parce qu'une clé contourne l'interface :
+    // si chacun pouvait en fabriquer une, personne ne saurait plus ce qui sort
+    // du CRM ni vers où.
+    const scope = req.body.scope === "own" ? "own" : "team";
+    const porteur = req.body.holderId || user.id;
+
+    if (porteur !== user.id) {
+      const { data: membre } = await admin
+        .from("team_members").select("user_id")
+        .eq("team_id", membership.team_id).eq("user_id", porteur).maybeSingle();
+      if (!membre) return res.status(400).json({ error: "Cette personne ne fait pas partie de votre équipe." });
+    }
+
     // 32 octets tirés au sort : imprévisible, et suffisamment court pour être
     // recopié à la main dans Zapier sans erreur.
     const cle = `clo_live_${crypto.randomBytes(24).toString("base64url")}`;
@@ -299,14 +314,16 @@ export default async function handler(req, res) {
 
     const { error } = await admin.from("api_keys").insert({
       team_id: membership.team_id,
-      user_id: user.id,
+      user_id: porteur,
       name: nom,
+      scope,
       key_hash: empreinte,
       prefix: cle.slice(0, 17),
     });
     if (error) return res.status(500).json({ error: "La création de la clé a échoué" });
 
-    await journal(admin, membership.team_id, user.id, "cle_api_creee", nom);
+    await journal(admin, membership.team_id, user.id, "cle_api_creee",
+      `${nom} · ${scope === "own" ? `dossiers de ${await memberLabel(admin, porteur)}` : "toute l'équipe"}`);
 
     // La clé n'est renvoyée qu'ici, une seule fois. Elle n'est stockée nulle
     // part en clair : elle est irrécupérable si elle est perdue.

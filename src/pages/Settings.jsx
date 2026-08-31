@@ -659,7 +659,14 @@ const VISIBILITY_HINT = {
 function ApiKeysPanel({ session, team, onChanged }) {
   const cles = team.apiKeys || [];
   const [nom, setNom] = useState("");
+  const [portee, setPortee] = useState("team");
+  const [porteur, setPorteur] = useState("");
   const [nouvelle, setNouvelle] = useState(null);
+  const membres = team.members || [];
+  const nomDe = (id) => {
+    const m = membres.find((x) => x.user_id === id);
+    return m ? (m.first_name || m.last_name ? `${m.first_name || ""} ${m.last_name || ""}`.trim() : m.email) : "—";
+  };
   const [busy, setBusy] = useState(false);
   const [erreur, setErreur] = useState("");
 
@@ -678,7 +685,12 @@ function ApiKeysPanel({ session, team, onChanged }) {
     if (!nom.trim() || busy) return;
     setBusy(true); setErreur("");
     try {
-      const d = await appel({ action: "create_api_key", name: nom.trim() });
+      const d = await appel({
+        action: "create_api_key",
+        name: nom.trim(),
+        scope: portee,
+        holderId: portee === "own" ? porteur || undefined : undefined,
+      });
       setNouvelle(d.key);
       setNom("");
       onChanged?.();
@@ -699,8 +711,10 @@ function ApiKeysPanel({ session, team, onChanged }) {
         CLÉS D'API
       </div>
       <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "12px", lineHeight: 1.5 }}>
-        Pour relier Closia à Zapier, à Make ou à vos propres outils. Une clé donne accès aux données
-        de toute l'équipe : ne la partagez pas, et révoquez-la dès qu'elle ne sert plus.
+        Pour relier Closia à Zapier, à Make ou à vos propres outils. Choisissez ce que la clé peut
+        voir : toute l'équipe, pour un automatisme de pilotage, ou les seuls dossiers d'une personne,
+        pour ses propres automatismes. Une clé contourne l'interface — ne la partagez pas, et
+        révoquez-la dès qu'elle ne sert plus.
       </div>
 
       {nouvelle && (
@@ -725,6 +739,9 @@ function ApiKeysPanel({ session, team, onChanged }) {
         <div key={k.id} style={{ display: "flex", alignItems: "center", gap: "9px", marginBottom: "7px", flexWrap: "wrap" }}>
           <span style={{ fontSize: "12.5px", fontWeight: 500, flex: "0 0 auto" }}>{k.name}</span>
           <span className="mono" style={{ fontSize: "11px", color: "var(--text-faint)" }}>{k.prefix}…</span>
+          <span title={k.scope === "own" ? "Ne voit que les dossiers de son porteur" : "Voit tous les dossiers de l'équipe"} style={{ fontSize: "10.5px", fontWeight: 700, padding: "3px 7px", borderRadius: "5px", background: k.scope === "own" ? "var(--panel2)" : "var(--blue-dim)", color: k.scope === "own" ? "var(--text-dim)" : "var(--blue)", whiteSpace: "nowrap" }}>
+            {k.scope === "own" ? nomDe(k.user_id) : "Toute l'équipe"}
+          </span>
           <span style={{ fontSize: "11px", color: "var(--text-faint)", marginLeft: "auto" }}>
             {k.last_used_at ? `utilisée le ${new Date(k.last_used_at).toLocaleDateString("fr-FR")}` : "jamais utilisée"}
           </span>
@@ -734,7 +751,20 @@ function ApiKeysPanel({ session, team, onChanged }) {
         </div>
       ))}
 
-      <div style={{ display: "flex", gap: "7px", marginTop: cles.length ? "10px" : 0 }}>
+      <div style={{ display: "flex", gap: "7px", marginTop: cles.length ? "12px" : 0, marginBottom: "7px", flexWrap: "wrap" }}>
+        <select value={portee} onChange={(e) => setPortee(e.target.value)} style={{ ...inputSm, flex: "1 1 160px" }}>
+          <option value="team">Toute l'équipe</option>
+          <option value="own">Les dossiers d'une seule personne</option>
+        </select>
+        {portee === "own" && (
+          <select value={porteur} onChange={(e) => setPorteur(e.target.value)} style={{ ...inputSm, flex: "1 1 140px" }}>
+            <option value="">Choisir la personne</option>
+            {membres.map((m) => <option key={m.user_id} value={m.user_id}>{nomDe(m.user_id)}</option>)}
+          </select>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: "7px" }}>
         <input
           value={nom}
           onChange={(e) => setNom(e.target.value)}
@@ -742,7 +772,7 @@ function ApiKeysPanel({ session, team, onChanged }) {
           placeholder="Nom de la clé — « Zapier », « Make »…"
           style={{ ...inputSm, flex: 1 }}
         />
-        <button className="focusable" onClick={creer} disabled={busy || !nom.trim()} style={{ ...btnGhost, fontSize: "11.5px", padding: "6px 12px", opacity: nom.trim() ? 1 : 0.5 }}>
+        <button className="focusable" onClick={creer} disabled={busy || !nom.trim() || (portee === "own" && !porteur)} style={{ ...btnGhost, fontSize: "11.5px", padding: "6px 12px", opacity: nom.trim() && (portee !== "own" || porteur) ? 1 : 0.5 }}>
           Créer
         </button>
       </div>

@@ -76,6 +76,14 @@ create table if not exists api_keys (
   revoked_at timestamptz,
   created_at timestamptz not null default now()
 );
+-- Portée : « team » voit tous les dossiers de l'équipe, « own » les seuls
+-- dossiers du porteur (colonne user_id) — le prédicat exact des règles d'accès
+-- de prospects, reproduit côté API puisqu'elle travaille en rôle de service.
+alter table api_keys add column if not exists scope text not null default 'team';
+do $$ begin
+  alter table api_keys add constraint api_keys_scope_check check (scope in ('team', 'own'));
+exception when duplicate_object then null; end $$;
+
 create index if not exists api_keys_hash_idx on api_keys(key_hash) where revoked_at is null;
 create index if not exists api_keys_team_idx on api_keys(team_id);
 alter table api_keys enable row level security;
