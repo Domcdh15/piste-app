@@ -53,7 +53,107 @@ function endOfToday() {
   return d;
 }
 
+// Bilan de la semaine. Volontairement nourri de chiffres réels et non d'une
+// impression : ce qui a été fait, ce qui a glissé, et où en est l'objectif.
+// L'assistant commente, il n'invente pas les données.
+function WeeklyReview({ session, prospects, settings, onClose }) {
+  const [texte, setTexte] = useState("");
+  const [busy, setBusy] = useState(true);
+  const [erreur, setErreur] = useState("");
+
+  useEffect(() => {
+    let annule = false;
+    (async () => {
+      try {
+        const debut = new Date();
+        debut.setDate(debut.getDate() - 7);
+        const debutISO = debut.toISOString();
+
+        const [{ data: acts }, { data: taches }, { data: emails }] = await Promise.all([
+          supabase.from("activities").select("type, created_at, prospect_id").gte("created_at", debutISO),
+          supabase.from("tasks").select("done, due_at, completed_at, created_at"),
+          supabase.from("emails_generes").select("id, created_at").gte("created_at", debutISO),
+        ]);
+
+        const maintenant = new Date().toISOString();
+        const compte = (t) => (acts || []).filter((a) => a.type === t).length;
+        const faites = (taches || []).filter((t) => t.done && t.completed_at >= debutISO).length;
+        const enRetard = (taches || []).filter((t) => !t.done && t.due_at && t.due_at < maintenant).length;
+
+        const gagnes = prospects.filter((p) => p.status === "gagne" && p.closed_at >= debutISO);
+        const perdus = prospects.filter((p) => p.status === "perdu" && p.closed_at >= debutISO);
+        const ouverts = prospects.filter((p) => p.stage !== "Gagné" && p.stage !== "Perdu");
+        const silencieux = ouverts.filter(
+          (p) => !p.last_contact_at || (Date.now() - new Date(p.last_contact_at)) / 86400000 >= 7
+        );
+        const caGagne = gagnes.reduce((s, p) => s + Number(p.deal_value || 0), 0);
+        const objectifCA = Number(settings?.objective_monthly_revenue || 0);
+
+        const prompt = `Tu es un coach commercial francophone. Rédige le bilan de la semaine écoulée d'un commercial, à partir des chiffres réels ci-dessous. N'invente aucun chiffre, aucun nom, aucun fait.
+
+CHIFFRES DE LA SEMAINE
+Appels aboutis : ${compte("appel_abouti")}
+Appels manqués : ${compte("appel_manque")}
+Rendez-vous physiques : ${compte("rdv_physique")}
+Visios : ${compte("appel_visio")}
+Emails rédigés : ${(emails || []).length}
+Tâches terminées : ${faites}
+Tâches en retard à ce jour : ${enRetard}
+Deals gagnés : ${gagnes.length} pour ${caGagne} €
+Deals perdus : ${perdus.length}
+Opportunités ouvertes : ${ouverts.length}
+Dont sans échange depuis plus de 7 jours : ${silencieux.length}
+${objectifCA ? `Objectif de chiffre d'affaires mensuel : ${objectifCA} €` : "Aucun objectif mensuel défini."}
+
+STRUCTURE ATTENDUE, en texte simple sans markdown ni titre :
+1. Deux phrases sur ce qui a marché cette semaine, en citant les chiffres.
+2. Deux phrases sur ce qui a glissé, sans complaisance mais sans dramatiser.
+3. Trois recommandations concrètes pour la semaine qui vient, une par ligne, commençant par un verbe à l'infinitif.
+
+Ton direct et professionnel, vouvoiement. Pas d'emoji. Maximum 200 mots.`;
+
+        const r = await callAI(prompt, session.access_token);
+        if (!annule) setTexte((r || "").trim());
+      } catch (e) {
+        if (!annule) setErreur(e.message || "Le bilan n'a pas pu être rédigé.");
+      } finally {
+        if (!annule) setBusy(false);
+      }
+    })();
+    return () => { annule = true; };
+  }, []);
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,17,40,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 130, padding: "20px" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg)", borderRadius: "14px", boxShadow: "var(--shadow-md)", padding: "26px", maxWidth: "540px", width: "100%", maxHeight: "86vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "9px", marginBottom: "4px" }}>
+          <SparklesIcon size={15} color="var(--blue)" />
+          <span className="display" style={{ fontWeight: 700, fontSize: "16px" }}>Votre semaine</span>
+        </div>
+        <div style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "18px" }}>
+          Les sept derniers jours, chiffres à l'appui.
+        </div>
+
+        {busy ? (
+          <div style={{ fontSize: "13px", color: "var(--text-dim)" }}>Lecture de votre semaine…</div>
+        ) : erreur ? (
+          <div style={{ fontSize: "13px", color: "var(--red)", lineHeight: 1.55 }}>{erreur}</div>
+        ) : (
+          <div style={{ fontSize: "14px", color: "var(--text)", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{texte}</div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "22px" }}>
+          <button className="focusable" onClick={onClose} style={{ background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "9px 18px", fontSize: "13px" }}>
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Today({ prospects, setActiveTab, session, reload, onOpenProspect, settings }) {
+  const [showReview, setShowReview] = useState(false);
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [tip, setTip] = useState("");
@@ -211,8 +311,15 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
     heroMessage = `${attentionCount} opportunité${attentionCount > 1 ? "s" : ""} nécessite${attentionCount > 1 ? "nt" : ""} votre attention.`;
   }
 
+  // Le bilan se propose à partir du jeudi : plus tôt, la semaine n'a rien à
+  // raconter ; le lundi, il est déjà trop tard pour en tirer quelque chose.
+  const finDeSemaine = [4, 5, 6].includes(new Date().getDay());
+
   return (
     <div style={{ background: "var(--bg)", minHeight: "100vh" }}>
+      {showReview && (
+        <WeeklyReview session={session} prospects={prospects} settings={settings} onClose={() => setShowReview(false)} />
+      )}
       <div style={{ padding: "32px 40px 0" }}>
         <div className="hero-card" style={{ padding: "34px 38px" }}>
           <div style={{ position: "relative", zIndex: 1 }}>
@@ -228,6 +335,15 @@ Réponds uniquement avec la phrase de conseil, sans guillemets ni préambule.`;
                   {heroMessage}
                   {overdueTasks.length > 0 && <span style={{ color: "#ffd9d4" }}> · {overdueTasks.length} en retard</span>}
                 </div>
+                {finDeSemaine && (
+                  <button
+                    className="focusable"
+                    onClick={() => setShowReview(true)}
+                    style={{ marginTop: "14px", display: "inline-flex", alignItems: "center", gap: "7px", background: "rgba(255,255,255,0.16)", color: "#fff", border: "0.5px solid rgba(255,255,255,0.3)", borderRadius: "8px", padding: "8px 14px", fontSize: "13px", fontWeight: 600 }}
+                  >
+                    <SparklesIcon size={13} color="#fff" /> Le bilan de ma semaine
+                  </button>
+                )}
               </div>
               <button
                 className="focusable"
