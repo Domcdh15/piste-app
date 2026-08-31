@@ -243,7 +243,10 @@ export default function Shell({ session, team, reloadTeam }) {
   // formules de Solo par une fonctionnalité réelle, pas par un quota.
   const planPrice = Number(team?.team?.plan_price ?? settings?.plan_price ?? 0);
   const planTier = planTierFor(planPrice).name;
-  const hasTicketsAccess = ["Équipe", "Business", "Sur mesure"].includes(planTier);
+  // Sans équipe, il n'y a pas de tickets à lire ni de team_id à écrire : mieux
+  // vaut ne pas montrer l'onglet que d'offrir un écran qui échoue à chaque geste.
+  const hasTeam = !!team?.team?.id;
+  const hasTicketsAccess = hasTeam && ["Équipe", "Business", "Sur mesure"].includes(planTier);
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
