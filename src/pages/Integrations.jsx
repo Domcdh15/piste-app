@@ -24,6 +24,7 @@ const CATALOG = [
   { key: "pipedrive", label: "Pipedrive", category: "CRM", desc: "Reprenez vos prospects et opportunités Pipedrive — exportez-les depuis Pipedrive, puis importez le fichier CSV ou Excel.", importable: true },
   { key: "aircall", label: "Aircall", category: "Productivité", desc: "Logger automatiquement vos appels." },
   { key: "notion", label: "Notion", category: "Productivité", configurable: true, desc: "Envoyez vos comptes rendus d'appel et vos notes de réunion dans une base Notion, sans les recopier." },
+  { key: "emailing", label: "Brevo ou Mailjet", category: "Productivité", configurable: true, desc: "Poussez vos contacts vers votre plateforme d'emailing pour vos campagnes, sans ressaisie. L'envoi reste chez elle, avec sa délivrabilité et ses désinscriptions." },
   { key: "slack", label: "Slack", category: "Productivité", configurable: true, desc: "Recevez le point du matin dans un canal : ce qu'il y a à mener aujourd'hui, ce qui est en retard, les dossiers sans nouvelles." },
   { key: "stripe", label: "Stripe", category: "Productivité", desc: "Suivre les paiements liés à vos deals gagnés." },
 ];
@@ -141,7 +142,7 @@ export default function Integrations({ session, team, reloadTeam, onBack, setAct
                   tool={t}
                   connected={t.real && status[t.key]}
                   loading={loading}
-                  configured={t.key === "slack" ? !!team?.integrations?.slack : t.key === "notion" ? !!team?.integrations?.notion : false}
+                  configured={!!team?.integrations?.[t.key]}
                   planOk={integrationsEnabled(team)}
                   onConfigure={() => setSetupKey(t.key)}
                   onConnect={() => (t.real ? setConfirmKey(t.key) : null)}
@@ -260,6 +261,19 @@ const SETUP = {
     exemple: "https://hooks.slack.com/services/...",
     cle: "slack_webhook_url",
   },
+  emailing: {
+    titre: "Envoyer vos contacts vers votre plateforme d'emailing",
+    quoi: "Closia n'envoie pas de campagnes : il pousse vos contacts vers Brevo ou Mailjet, dont c'est le métier. Ces plateformes portent l'infrastructure d'envoi, la réputation du domaine et les désinscriptions — trois choses qu'une boîte Gmail ne sait pas faire à l'échelle d'une campagne.",
+    etapes: [
+      "Créez un compte sur Brevo ou Mailjet, puis ouvrez la section des clés d'API.",
+      "Copiez la clé et collez-la ci-dessous. Mailjet en fournit deux : la clé et son secret.",
+      "Indiquez l'identifiant de la liste qui doit recevoir les contacts (Brevo uniquement).",
+      "Depuis une fiche ou la liste des opportunités, envoyez vos contacts vers la plateforme.",
+    ],
+    champ: "Clé d'API",
+    exemple: "xkeysib-… (Brevo) ou votre clé Mailjet",
+    cle: "emailing_api_key",
+  },
   notion: {
     titre: "Envoyer vos notes dans Notion",
     quoi: "Vos comptes rendus d'appel et vos notes de réunion partent dans une base Notion, sans recopie.",
@@ -279,6 +293,9 @@ function IntegrationSetupModal({ which, session, integrations, onClose, onSaved 
   const cfg = SETUP[which];
   const [valeur, setValeur] = useState("");
   const [baseId, setBaseId] = useState(integrations.notionDatabaseId || "");
+  const [fournisseur, setFournisseur] = useState(integrations.emailingProvider || "brevo");
+  const [secret, setSecret] = useState("");
+  const [listeId, setListeId] = useState(integrations.emailingListId || "");
   const [brief, setBrief] = useState(integrations.slackDailyBrief !== false);
   const [busy, setBusy] = useState(false);
   const [erreur, setErreur] = useState("");
@@ -302,6 +319,11 @@ function IntegrationSetupModal({ which, session, integrations, onClose, onSaved 
       if (valeur.trim()) corps[cfg.cle] = valeur.trim();
       if (which === "slack") corps.slack_daily_brief = brief;
       if (which === "notion" && baseId.trim()) corps.notion_database_id = baseId.trim();
+      if (which === "emailing") {
+        corps.emailing_provider = fournisseur;
+        if (secret.trim()) corps.emailing_api_secret = secret.trim();
+        if (listeId.trim()) corps.emailing_list_id = listeId.trim();
+      }
       if (Object.keys(corps).length === 0) { setErreur("Rien à enregistrer."); setBusy(false); return; }
       await appelEquipe(corps);
       onSaved();
@@ -315,7 +337,11 @@ function IntegrationSetupModal({ which, session, integrations, onClose, onSaved 
   async function retirer() {
     setBusy(true); setErreur(""); setMessage("");
     try {
-      await appelEquipe(which === "slack" ? { slack_webhook_url: "" } : { notion_token: "", notion_database_id: "" });
+      await appelEquipe(
+        which === "slack" ? { slack_webhook_url: "" }
+        : which === "emailing" ? { emailing_api_key: "", emailing_api_secret: "", emailing_provider: "", emailing_list_id: "" }
+        : { notion_token: "", notion_database_id: "" }
+      );
       onSaved();
     } catch (e) {
       setErreur(e.message);
@@ -361,6 +387,28 @@ function IntegrationSetupModal({ which, session, integrations, onClose, onSaved 
           placeholder={dejaConfigure ? "Déjà enregistré — remplissez pour remplacer" : cfg.exemple}
           style={{ ...champStyle, marginBottom: "12px" }}
         />
+
+        {which === "emailing" && (
+          <>
+            <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "var(--text-dim)", marginBottom: "5px" }}>Plateforme</label>
+            <select value={fournisseur} onChange={(e) => setFournisseur(e.target.value)} style={{ ...champStyle, marginBottom: "12px" }}>
+              <option value="brevo">Brevo</option>
+              <option value="mailjet">Mailjet</option>
+            </select>
+            {fournisseur === "mailjet" && (
+              <>
+                <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "var(--text-dim)", marginBottom: "5px" }}>Clé secrète</label>
+                <input value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="Mailjet en fournit une avec la clé" style={{ ...champStyle, marginBottom: "12px" }} />
+              </>
+            )}
+            {fournisseur === "brevo" && (
+              <>
+                <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "var(--text-dim)", marginBottom: "5px" }}>Identifiant de la liste</label>
+                <input value={listeId} onChange={(e) => setListeId(e.target.value)} placeholder="Un nombre, visible dans Brevo" style={{ ...champStyle, marginBottom: "12px" }} />
+              </>
+            )}
+          </>
+        )}
 
         {which === "notion" && (
           <>

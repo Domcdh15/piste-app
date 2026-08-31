@@ -3765,6 +3765,39 @@ function SequenceModal({ prospect, history, session, settings, onClose, onCreate
   const [drafts, setDrafts] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // Modèles enregistrés par l'utilisateur, en plus des trois rythmes fournis.
+  const [templates, setTemplates] = useState([]);
+  const [naming, setNaming] = useState(false);
+  const [newName, setNewName] = useState("");
+
+  async function loadTemplates() {
+    const { data } = await supabase
+      .from("sequence_templates")
+      .select("id, name, steps, user_id")
+      .order("created_at", { ascending: true });
+    setTemplates(data || []);
+  }
+
+  useEffect(() => { loadTemplates(); }, []);
+
+  async function saveTemplate() {
+    const name = newName.trim();
+    if (!name) return;
+    await supabase.from("sequence_templates").insert({
+      user_id: session.user.id,
+      team_id: prospect.team_id || null,
+      name,
+      steps: days.map((d) => ({ days: d })),
+    });
+    setNewName("");
+    setNaming(false);
+    loadTemplates();
+  }
+
+  async function removeTemplate(id) {
+    await supabase.from("sequence_templates").delete().eq("id", id);
+    loadTemplates();
+  }
 
   function setDay(i, value) {
     const n = Math.max(1, Math.min(120, Number(value) || 1));
@@ -3887,7 +3920,69 @@ Règles :
                 {preset.label} · {preset.days.length} messages
               </button>
             ))}
+
+            {templates.map((t) => {
+              const tDays = (t.steps || []).map((x) => Number(x.days) || 1);
+              const actif = days.join() === tDays.join();
+              return (
+                <span key={t.id} style={{ display: "inline-flex", alignItems: "center" }}>
+                  <button
+                    className="focusable"
+                    onClick={() => setDays(tDays)}
+                    style={{
+                      fontSize: "11.5px", padding: "6px 8px 6px 11px", borderRadius: "999px 0 0 999px",
+                      background: actif ? "var(--blue-dim)" : "var(--panel2)",
+                      color: actif ? "var(--blue)" : "var(--text-dim)",
+                      border: "0.5px solid var(--hairline)", borderRight: "none", fontWeight: 600,
+                    }}
+                  >
+                    {t.name} · {tDays.length} messages
+                  </button>
+                  {t.user_id === session.user.id && (
+                    <button
+                      className="focusable"
+                      onClick={() => removeTemplate(t.id)}
+                      title="Supprimer ce modèle"
+                      style={{
+                        fontSize: "11px", padding: "6px 9px 6px 5px", borderRadius: "0 999px 999px 0",
+                        background: actif ? "var(--blue-dim)" : "var(--panel2)", color: "var(--text-faint)",
+                        border: "0.5px solid var(--hairline)", borderLeft: "none",
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </span>
+              );
+            })}
           </div>
+
+          {naming ? (
+            <div style={{ display: "flex", gap: "6px", marginBottom: "14px" }}>
+              <input
+                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") saveTemplate(); if (e.key === "Escape") setNaming(false); }}
+                placeholder="Nom du modèle"
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              <button className="focusable" onClick={saveTemplate} disabled={!newName.trim()} style={{ fontSize: "12px", padding: "8px 14px", borderRadius: "8px", background: "var(--blue)", color: "#fff", border: "none", fontWeight: 600, opacity: newName.trim() ? 1 : 0.5 }}>
+                Enregistrer
+              </button>
+              <button className="focusable" onClick={() => setNaming(false)} style={{ fontSize: "12px", padding: "8px 12px", borderRadius: "8px", background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)" }}>
+                Annuler
+              </button>
+            </div>
+          ) : (
+            <button
+              className="focusable"
+              onClick={() => setNaming(true)}
+              style={{ background: "none", border: "none", padding: 0, marginBottom: "14px", fontSize: "11.5px", color: "var(--blue)", fontWeight: 600 }}
+            >
+              + Enregistrer ce rythme comme modèle
+            </button>
+          )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: "7px", marginBottom: "16px" }}>
             {days.map((d, i) => (

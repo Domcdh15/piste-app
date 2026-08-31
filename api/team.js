@@ -62,6 +62,9 @@ export default async function handler(req, res) {
       slackDailyBrief: integ?.slack_daily_brief !== false,
       notion: !!integ?.notion_token,
       notionDatabaseId: integ?.notion_database_id || null,
+      emailing: !!integ?.emailing_api_key,
+      emailingProvider: integ?.emailing_provider || null,
+      emailingListId: integ?.emailing_list_id || null,
     };
 
     return res.status(200).json({ team, role: membership.role, members: enriched, integrations });
@@ -272,6 +275,18 @@ export default async function handler(req, res) {
       }
       patch.notion_token = t || null;
     }
+    const { emailing_provider, emailing_api_key, emailing_api_secret, emailing_list_id } = req.body;
+    if (emailing_provider !== undefined) {
+      const v = (emailing_provider || "").trim();
+      if (v && !["brevo", "mailjet"].includes(v)) {
+        return res.status(400).json({ error: "Plateforme d'emailing inconnue" });
+      }
+      patch.emailing_provider = v || null;
+    }
+    if (emailing_api_key !== undefined) patch.emailing_api_key = (emailing_api_key || "").trim() || null;
+    if (emailing_api_secret !== undefined) patch.emailing_api_secret = (emailing_api_secret || "").trim() || null;
+    if (emailing_list_id !== undefined) patch.emailing_list_id = (emailing_list_id || "").trim() || null;
+
     if (notion_database_id !== undefined) {
       // Notion accepte l'identifiant avec ou sans tirets : on normalise.
       const raw = (notion_database_id || "").trim().replace(/-/g, "");

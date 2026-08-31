@@ -126,5 +126,72 @@ export default async function handler(req, res) {
     }
   }
 
+  // ---- Emailing : Brevo ou Mailjet -------------------------------------
+  //
+  // Closia ne devient pas un outil d'emailing : il pousse les contacts vers une
+  // plateforme dont c'est le métier, qui porte l'infrastructure d'envoi, la
+  // réputation du domaine et la gestion des désinscriptions. Envoyer des
+  // campagnes depuis la boîte Gmail d'un commercial ferait restreindre son
+  // adresse professionnelle au premier signalement en spam.
+  if (action === "emailing_sync") {
+    const { emailing_provider: fournisseur, emailing_api_key: cle,
+            emailing_api_secret: secret, emailing_list_id: liste } = integ;
+    if (!fournisseur || !cle) return res.status(400).json({ error: "Aucune plateforme d'emailing configurée" });
+
+    const { prospectIds } = req.body;
+    let q = ctx.admin
+      .from("prospects")
+      .select("email, name, company")
+      .eq("team_id", ctx.membership.team_id)
+      .not("email", "is", null);
+    if (Array.isArray(prospectIds) && prospectIds.length > 0) q = q.in("id", prospectIds);
+
+    const { data: contacts } = await q;
+    if (!contacts?.length) return res.status(400).json({ error: "Aucun contact avec une adresse email" });
+
+    let envoyes = 0;
+    const echecs = [];
+
+    for (const c of contacts) {
+      const prenom = (c.name || "").split(" ")[0] || "";
+      const nom = (c.name || "").split(" ").slice(1).join(" ");
+      try {
+        let r;
+        if (fournisseur === "brevo") {
+          r = await fetch("https://api.brevo.com/v3/contacts", {
+            method: "POST",
+            headers: { "api-key": cle, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: c.email,
+              attributes: { PRENOM: prenom, NOM: nom, ENTREPRISE: c.company || "" },
+              listIds: liste ? [Number(liste)] : undefined,
+              updateEnabled: true,
+            }),
+          });
+        } else {
+          // Mailjet s'authentifie en Basic avec la clé et son secret.
+          const auth = Buffer.from(`${cle}:${secret || ""}`).toString("base64");
+          r = await fetch("https://api.mailjet.com/v3/REST/contact", {
+            method: "POST",
+            headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ Email: c.email, Name: c.name || "" }),
+          });
+        }
+        // Un contact déjà présent n'est pas une erreur : c'est le cas courant.
+        if (r.ok || r.status === 400 || r.status === 409) envoyes++;
+        else echecs.push(`${c.email} (${r.status})`);
+      } catch (e) {
+        echecs.push(c.email);
+      }
+    }
+
+    return res.status(200).json({
+      ok: true,
+      envoyes,
+      total: contacts.length,
+      echecs: echecs.slice(0, 5),
+    });
+  }
+
   res.status(400).json({ error: "Action inconnue" });
 }
