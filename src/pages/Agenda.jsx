@@ -124,6 +124,8 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedEventId, setSelectedEventId] = useState(null);
+  const [ignored, setIgnored] = useState(new Set());
+  const [newContact, setNewContact] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [visibleTypes, setVisibleTypes] = useState(() => new Set(TASK_TYPE_KEYS));
   const [showAddForm, setShowAddForm] = useState(false);
@@ -179,8 +181,39 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
     await supabase.from("tasks").update({ done: true, completed_at: new Date().toISOString() }).eq("id", task.id);
   }
 
+  useEffect(() => {
+    supabase
+      .from("ignored_contacts")
+      .select("email")
+      .then(({ data }) => setIgnored(new Set((data || []).map((r) => r.email.toLowerCase()))));
+  }, []);
+
+  async function ignorerContact(email) {
+    const e = email.toLowerCase();
+    setIgnored((prev) => new Set([...prev, e]));
+    await supabase.from("ignored_contacts").insert({ user_id: session.user.id, email: e });
+  }
+
   const prospectById = Object.fromEntries(prospects.map((p) => [p.id, p]));
   const prospectByEmail = Object.fromEntries(prospects.filter((p) => p.email).map((p) => [p.email.toLowerCase(), p]));
+
+  // Participants d'un rendez-vous qui ne correspondent à aucune fiche.
+  //
+  // Deux garde-fous, sans lesquels la fonction devient une nuisance : on écarte
+  // les adresses du domaine de l'utilisateur — sinon chaque réunion interne
+  // proposerait de créer des fiches pour ses propres collègues — et celles
+  // qu'il a déjà refusées, sinon le même prestataire reviendrait chaque semaine.
+  const monDomaine = (session?.user?.email || "").split("@")[1]?.toLowerCase() || "";
+
+  function unknownAttendees(event) {
+    return (event.attendees || [])
+      .map((e) => (e || "").toLowerCase().trim())
+      .filter((e) => e && e.includes("@"))
+      .filter((e) => e !== (session?.user?.email || "").toLowerCase())
+      .filter((e) => !monDomaine || e.split("@")[1] !== monDomaine)
+      .filter((e) => !prospectByEmail[e])
+      .filter((e) => !ignored.has(e));
+  }
 
   function matchProspect(event) {
     for (const email of event.attendees || []) {
@@ -364,7 +397,25 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
         </div>
 
         {selectedEvent && (
-          <EventDetailPanel event={selectedEvent} prospect={matchProspect(selectedEvent)} session={session} onOpenProspect={onOpenProspect} onClose={() => setSelectedEventId(null)} />
+          <EventDetailPanel
+            event={selectedEvent}
+            prospect={matchProspect(selectedEvent)}
+            inconnus={unknownAttendees(selectedEvent)}
+            onCreerContact={(email) => setNewContact({ email, event: selectedEvent })}
+            onIgnorer={ignorerContact}
+            session={session}
+            onOpenProspect={onOpenProspect}
+            onClose={() => setSelectedEventId(null)}
+          />
+        )}
+        {newContact && (
+          <NewContactModal
+            email={newContact.email}
+            event={newContact.event}
+            session={session}
+            onClose={() => setNewContact(null)}
+            onCreated={(id) => onOpenProspect?.(id)}
+          />
         )}
         {panelTask && (view === "Liste" ? (
           <TaskDetailPanel task={panelTask} prospect={prospectById[panelTask.prospect_id]} onClose={() => setPanelTask(null)} onDone={() => { toggleTaskDone(panelTask); setPanelTask(null); }} onReport={(d) => reportTask(panelTask, d)} onOpenProspect={onOpenProspect} />
@@ -687,7 +738,91 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
   );
 }
 
-function EventDetailPanel({ event, prospect, session, onOpenProspect, onClose }) {
+// Création d'une fiche depuis un participant inconnu. Le nom et l'entreprise
+// sont devinés à partir de l'adresse : « jean.dupont@menuiserie-martin.fr »
+// donne « Jean Dupont » chez « Menuiserie Martin ». Tout reste modifiable —
+// une déduction imposée agace plus qu'elle n'aide.
+function devineIdentite(email) {
+  const [local, domaine = ""] = email.split("@");
+  const mots = local.split(/[._-]+/).filter(Boolean);
+  const capitale = (m) => m.charAt(0).toUpperCase() + m.slice(1);
+  const nom = mots.length >= 2 ? `${capitale(mots[0])} ${capitale(mots[1])}` : capitale(mots[0] || "");
+  const GENERIQUES = ["gmail", "outlook", "hotmail", "yahoo", "orange", "free", "wanadoo", "laposte", "sfr", "icloud", "me", "live", "msn", "protonmail"];
+  const racine = domaine.split(".")[0] || "";
+  const entreprise = GENERIQUES.includes(racine.toLowerCase())
+    ? ""
+    : racine.split(/[-_]/).map(capitale).join(" ");
+  return { nom, entreprise };
+}
+
+function NewContactModal({ email, event, session, onClose, onCreated }) {
+  const devine = devineIdentite(email);
+  const [nom, setNom] = useState(devine.nom);
+  const [entreprise, setEntreprise] = useState(devine.entreprise);
+  const [busy, setBusy] = useState(false);
+  const [erreur, setErreur] = useState("");
+
+  async function creer() {
+    if (busy) return;
+    setBusy(true); setErreur("");
+    const { data, error } = await supabase
+      .from("prospects")
+      .insert({
+        user_id: session.user.id,
+        created_via: "agenda",
+        name: nom.trim() || email,
+        company: entreprise.trim(),
+        email,
+        stage: "Rendez-vous prévu",
+        status: "attente",
+        priority: 60,
+        deal_value: 0,
+      })
+      .select("id")
+      .single();
+
+    if (error) { setErreur("La création a échoué."); setBusy(false); return; }
+
+    // Le rendez-vous qui a fait naître la fiche mérite d'y figurer : sans ça,
+    // l'historique commence par un blanc.
+    await supabase.from("activities").insert({
+      user_id: session.user.id,
+      prospect_id: data.id,
+      type: "note",
+      note: `Fiche créée depuis l'agenda — « ${event.title} » le ${new Date(event.start).toLocaleDateString("fr-FR")}`,
+    });
+
+    setBusy(false);
+    onCreated?.(data.id);
+    onClose();
+  }
+
+  const champ = { width: "100%", boxSizing: "border-box", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", padding: "9px 12px" };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,17,40,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 130, padding: "20px" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg)", borderRadius: "12px", boxShadow: "var(--shadow-md)", padding: "20px", maxWidth: "400px", width: "100%" }}>
+        <div className="display" style={{ fontWeight: 700, fontSize: "15px", marginBottom: "3px" }}>Nouveau contact</div>
+        <div className="mono" style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "16px" }}>{email}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
+          <input value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Nom et prénom" style={champ} />
+          <input value={entreprise} onChange={(e) => setEntreprise(e.target.value)} placeholder="Entreprise" style={champ} />
+        </div>
+        {erreur && <div style={{ fontSize: "12px", color: "var(--red)", marginTop: "10px" }}>{erreur}</div>}
+        <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
+          <button className="focusable" onClick={creer} disabled={busy} style={{ flex: 1, background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
+            {busy ? "Création…" : "Créer la fiche"}
+          </button>
+          <button className="focusable" onClick={onClose} style={{ background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px 16px", fontSize: "13px" }}>
+            Annuler
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EventDetailPanel({ event, prospect, inconnus = [], onCreerContact, onIgnorer, session, onOpenProspect, onClose }) {
   const [tasks, setTasks] = useState([]);
   const [prep, setPrep] = useState(null);
   const [loadingPrep, setLoadingPrep] = useState(false);
@@ -757,8 +892,32 @@ ${context}`;
         </div>
       )}
 
+      {/* Participants qui ne correspondent à aucune fiche. On propose, on
+          n'impose pas : « Plus jamais » retient l'adresse pour ne plus la
+          reproposer, sinon un prestataire récurrent reviendrait chaque semaine. */}
+      {inconnus.length > 0 && (
+        <div style={{ marginBottom: "14px", paddingBottom: "14px", borderBottom: "0.5px solid var(--hairline)" }}>
+          <div style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--text-faint)", marginBottom: "8px" }}>
+            {inconnus.length > 1 ? "PARTICIPANTS INCONNUS" : "PARTICIPANT INCONNU"}
+          </div>
+          {inconnus.map((email) => (
+            <div key={email} style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px", flexWrap: "wrap" }}>
+              <span className="mono" style={{ fontSize: "11.5px", color: "var(--text-dim)", flex: "1 1 150px", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{email}</span>
+              <button className="focusable" onClick={() => onCreerContact?.(email)} style={{ fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", whiteSpace: "nowrap" }}>
+                Créer la fiche
+              </button>
+              <button className="focusable" onClick={() => onIgnorer?.(email)} title="Ne plus proposer cette adresse" style={{ fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-faint)", border: "0.5px solid var(--hairline)", whiteSpace: "nowrap" }}>
+                Plus jamais
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {!prospect ? (
-        <div style={{ color: "var(--text-faint)", fontSize: "12px" }}>Aucun prospect associé — l'invité(e) de l'événement ne correspond à aucun email enregistré dans Closia.</div>
+        inconnus.length === 0 && (
+          <div style={{ color: "var(--text-faint)", fontSize: "12px" }}>Aucun prospect associé — l'invité(e) de l'événement ne correspond à aucun email enregistré dans Closia.</div>
+        )
       ) : (
         <>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px", paddingBottom: "14px", borderBottom: "0.5px solid var(--hairline)" }}>
