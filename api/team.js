@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { getUserFromToken, bearerToken, supabaseAdmin } from "./_lib/supabase.js";
 import { planTierFor } from "./_lib/plans.js";
 
@@ -55,6 +56,17 @@ export default async function handler(req, res) {
       admin.from("team_integrations").select("*").eq("team_id", membership.team_id).maybeSingle(),
     ]);
 
+    // Les clés ne sont listées qu'à l'administrateur, et jamais avec leur
+    // empreinte : seul le préfixe permet de reconnaître celle qu'on révoque.
+    const { data: cles } = membership.role === "admin"
+      ? await admin
+          .from("api_keys")
+          .select("id, name, prefix, last_used_at, created_at")
+          .eq("team_id", membership.team_id)
+          .is("revoked_at", null)
+          .order("created_at", { ascending: false })
+      : { data: [] };
+
     const enriched = await Promise.all(
       (members || []).map(async (m) => {
         const [{ data: u }, { data: settings }] = await Promise.all([
@@ -85,7 +97,7 @@ export default async function handler(req, res) {
       emailingListId: integ?.emailing_list_id || null,
     };
 
-    return res.status(200).json({ team, role: membership.role, members: enriched, integrations });
+    return res.status(200).json({ team, role: membership.role, members: enriched, integrations, apiKeys: cles || [] });
   }
 
   if (req.method !== "POST") {
@@ -268,6 +280,53 @@ export default async function handler(req, res) {
     if (Object.keys(patch).length === 0) return res.status(400).json({ error: "Aucun champ à mettre à jour" });
     const { error } = await admin.from("teams").update(patch).eq("id", membership.team_id);
     if (error) return res.status(500).json({ error: "L'enregistrement a échoué" });
+    return res.status(200).json({ ok: true });
+  }
+
+  if (action === "create_api_key") {
+    // Une clé donne accès à toutes les données de l'équipe : elle relève donc
+    // de l'administrateur, et de la même formule que les autres intégrations.
+    if (await teamPrice(admin, membership.team_id) < 39) {
+      return res.status(403).json({ error: "Les clés d'API sont incluses à partir de la formule Équipe." });
+    }
+    const nom = (req.body.name || "").trim();
+    if (!nom) return res.status(400).json({ error: "Donnez un nom à cette clé" });
+
+    // 32 octets tirés au sort : imprévisible, et suffisamment court pour être
+    // recopié à la main dans Zapier sans erreur.
+    const cle = `clo_live_${crypto.randomBytes(24).toString("base64url")}`;
+    const empreinte = crypto.createHash("sha256").update(cle).digest("hex");
+
+    const { error } = await admin.from("api_keys").insert({
+      team_id: membership.team_id,
+      user_id: user.id,
+      name: nom,
+      key_hash: empreinte,
+      prefix: cle.slice(0, 17),
+    });
+    if (error) return res.status(500).json({ error: "La création de la clé a échoué" });
+
+    await journal(admin, membership.team_id, user.id, "cle_api_creee", nom);
+
+    // La clé n'est renvoyée qu'ici, une seule fois. Elle n'est stockée nulle
+    // part en clair : elle est irrécupérable si elle est perdue.
+    return res.status(200).json({ ok: true, key: cle });
+  }
+
+  if (action === "revoke_api_key") {
+    const { keyId } = req.body;
+    if (!keyId) return res.status(400).json({ error: "keyId manquant" });
+    const { data: cible } = await admin
+      .from("api_keys").select("name")
+      .eq("id", keyId).eq("team_id", membership.team_id).maybeSingle();
+    if (!cible) return res.status(404).json({ error: "Clé introuvable" });
+
+    const { error } = await admin
+      .from("api_keys").update({ revoked_at: new Date().toISOString() })
+      .eq("id", keyId).eq("team_id", membership.team_id);
+    if (error) return res.status(500).json({ error: "La révocation a échoué" });
+
+    await journal(admin, membership.team_id, user.id, "cle_api_revoquee", cible.name);
     return res.status(200).json({ ok: true });
   }
 

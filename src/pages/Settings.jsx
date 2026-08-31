@@ -653,6 +653,105 @@ const VISIBILITY_HINT = {
   team_detail: "Chacun voit le classement nominatif. Motivant dans une équipe soudée, pesant ailleurs.",
 };
 
+// Clés d'API, pour Zapier, Make ou tout appel direct. La clé n'est affichée
+// qu'une fois : elle est hachée en base, donc irrécupérable ensuite. Mieux vaut
+// en régénérer une que laisser croire qu'on peut la relire.
+function ApiKeysPanel({ session, team, onChanged }) {
+  const cles = team.apiKeys || [];
+  const [nom, setNom] = useState("");
+  const [nouvelle, setNouvelle] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [erreur, setErreur] = useState("");
+
+  async function appel(corps) {
+    const res = await fetch("/api/team", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify(corps),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "L'opération a échoué");
+    return data;
+  }
+
+  async function creer() {
+    if (!nom.trim() || busy) return;
+    setBusy(true); setErreur("");
+    try {
+      const d = await appel({ action: "create_api_key", name: nom.trim() });
+      setNouvelle(d.key);
+      setNom("");
+      onChanged?.();
+    } catch (e) { setErreur(e.message); } finally { setBusy(false); }
+  }
+
+  async function revoquer(keyId) {
+    setBusy(true); setErreur("");
+    try {
+      await appel({ action: "revoke_api_key", keyId });
+      onChanged?.();
+    } catch (e) { setErreur(e.message); } finally { setBusy(false); }
+  }
+
+  return (
+    <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "0.5px solid var(--hairline)" }}>
+      <div style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--text-faint)", marginBottom: "4px" }}>
+        CLÉS D'API
+      </div>
+      <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "12px", lineHeight: 1.5 }}>
+        Pour relier Closia à Zapier, à Make ou à vos propres outils. Une clé donne accès aux données
+        de toute l'équipe : ne la partagez pas, et révoquez-la dès qu'elle ne sert plus.
+      </div>
+
+      {nouvelle && (
+        <div style={{ background: "var(--blue-dim)", borderRadius: "9px", padding: "12px 14px", marginBottom: "12px" }}>
+          <div style={{ fontSize: "12px", color: "var(--blue-deep)", marginBottom: "7px", lineHeight: 1.5 }}>
+            Copiez cette clé maintenant : elle ne sera plus jamais affichée.
+          </div>
+          <input
+            readOnly
+            value={nouvelle}
+            onClick={(e) => e.target.select()}
+            className="mono"
+            style={{ ...inputSm, width: "100%", fontSize: "11.5px" }}
+          />
+          <button className="focusable" onClick={() => setNouvelle(null)} style={{ background: "none", border: "none", padding: 0, marginTop: "8px", fontSize: "11.5px", color: "var(--blue)", fontWeight: 600 }}>
+            J'ai copié la clé
+          </button>
+        </div>
+      )}
+
+      {cles.map((k) => (
+        <div key={k.id} style={{ display: "flex", alignItems: "center", gap: "9px", marginBottom: "7px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "12.5px", fontWeight: 500, flex: "0 0 auto" }}>{k.name}</span>
+          <span className="mono" style={{ fontSize: "11px", color: "var(--text-faint)" }}>{k.prefix}…</span>
+          <span style={{ fontSize: "11px", color: "var(--text-faint)", marginLeft: "auto" }}>
+            {k.last_used_at ? `utilisée le ${new Date(k.last_used_at).toLocaleDateString("fr-FR")}` : "jamais utilisée"}
+          </span>
+          <button className="focusable" onClick={() => revoquer(k.id)} disabled={busy} style={{ fontSize: "11px", padding: "5px 9px", borderRadius: "6px", background: "var(--red-dim)", color: "var(--red)", border: "0.5px solid var(--hairline)" }}>
+            Révoquer
+          </button>
+        </div>
+      ))}
+
+      <div style={{ display: "flex", gap: "7px", marginTop: cles.length ? "10px" : 0 }}>
+        <input
+          value={nom}
+          onChange={(e) => setNom(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") creer(); }}
+          placeholder="Nom de la clé — « Zapier », « Make »…"
+          style={{ ...inputSm, flex: 1 }}
+        />
+        <button className="focusable" onClick={creer} disabled={busy || !nom.trim()} style={{ ...btnGhost, fontSize: "11.5px", padding: "6px 12px", opacity: nom.trim() ? 1 : 0.5 }}>
+          Créer
+        </button>
+      </div>
+
+      {erreur && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "8px" }}>{erreur}</div>}
+    </div>
+  );
+}
+
 // Objectifs fixés par l'administrateur, formule Business. Ce sont les seuls
 // réglages d'un utilisateur qu'un tiers peut écrire : ils passent donc par
 // api/team.js, jamais par le client.
@@ -998,6 +1097,7 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConn
 
       {error && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "10px" }}>{error}</div>}
 
+      {isAdmin && hasTeamControls && <ApiKeysPanel session={session} team={team} onChanged={reloadTeam} />}
       {isAdmin && isBusiness && <TeamObjectives session={session} team={team} onSaved={reloadTeam} />}
       {isAdmin && isBusiness && <TeamAuditLog team={team} />}
 
