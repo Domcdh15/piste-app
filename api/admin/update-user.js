@@ -7,7 +7,7 @@ const VALID_STATUSES = ["trialing", "active", "cancelled"];
 // Tables que le back-office peut éditer ligne à ligne. Reprises de l'ancien
 // endpoint update-lead, replié ici pour libérer une fonction serverless.
 const EDITABLE_TABLES = ["prospects", "tasks", "activities", "user_settings", "teams", "support_requests"];
-const APP_URL = "https://piste-app-seven.vercel.app";
+const APP_URL = "https://app.clos-ia.fr";
 
 // Boîte mail utilisée pour envoyer automatiquement les liens d'invitation client —
 // doit être un compte Closia avec Gmail connecté dans Intégrations (sinon fallback

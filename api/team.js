@@ -20,7 +20,7 @@ async function teamPrice(admin, teamId) {
   const { data } = await admin.from("teams").select("plan_price").eq("id", teamId).single();
   return Number(data?.plan_price ?? 19);
 }
-const APP_URL = "https://piste-app-seven.vercel.app";
+const APP_URL = "https://app.clos-ia.fr";
 
 async function memberLabel(admin, userId) {
   if (!userId) return "Non attribué";
