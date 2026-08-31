@@ -28,6 +28,19 @@ export default async function handler(req, res) {
   const resetAt = settings?.ai_calls_reset_at ? new Date(settings.ai_calls_reset_at) : null;
   const needsReset = !resetAt || resetAt <= now;
   const currentUsage = needsReset ? 0 : settings?.ai_calls_used || 0;
+
+  // Alerte à 70 % du quota. Le coût de l'API est le seul poste qui grandit avec
+  // l'usage sans que personne ne le voie venir : sans ce repère, un
+  // dépassement se découvre sur la facture du mois suivant. Une seule trace par
+  // période — le franchissement, pas chaque appel au-delà.
+  const seuil = Math.floor(tier.aiQuota * 0.7);
+  if (currentUsage + 1 === seuil) {
+    await admin.from("admin_audit_log").insert({
+      target_user_id: user.id,
+      action: "quota_ia_70",
+      detail: `${seuil} générations sur ${tier.aiQuota} (forfait ${tier.name})`,
+    });
+  }
   const nextResetAt = needsReset ? new Date(now.getTime() + 30 * 86400000).toISOString() : settings.ai_calls_reset_at;
 
   if (currentUsage >= monthlyLimit) {
