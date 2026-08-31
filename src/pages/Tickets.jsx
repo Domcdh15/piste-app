@@ -97,6 +97,33 @@ function formatHeure(d) {
   return new Date(d).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
+// Un ticket arrive rarement sans destinataire naturel : si le contact est déjà
+// client, c'est le CSM qui le suit ; s'il est encore prospect, c'est le
+// commercial. Quand personne n'est nommé, le ticket revient à l'admin — mieux
+// vaut un responsable par défaut qu'un ticket que personne ne regarde.
+const STAGE_CLIENT = "Gagné";
+
+export function proprietaireParDefaut(client, membres = []) {
+  const admin = membres.find((m) => m.role === "admin")?.user_id || null;
+  if (!client) return admin;
+  const estClient = client.stage === STAGE_CLIENT;
+  const pressenti = estClient
+    ? client.csm_owner_id || client.sales_owner_id
+    : client.sales_owner_id || client.csm_owner_id;
+  // Un propriétaire qui a quitté l'équipe ne doit pas récupérer le ticket.
+  const present = pressenti && membres.some((m) => m.user_id === pressenti);
+  return present ? pressenti : admin;
+}
+
+export function motifAttribution(client, membres = [], choisi) {
+  if (!choisi) return null;
+  const admin = membres.find((m) => m.role === "admin")?.user_id || null;
+  if (client && client.stage === STAGE_CLIENT && choisi === client.csm_owner_id) return "Suivi par le CSM du client.";
+  if (client && choisi === client.sales_owner_id) return "Suivi par le commercial du contact.";
+  if (choisi === admin) return "Personne n'est encore rattaché à ce contact : l'admin en devient responsable.";
+  return null;
+}
+
 export default function Tickets({ session, prospects = [], team, onOpenProspect }) {
   const [tickets, setTickets] = useState([]);
   const [chargement, setChargement] = useState(true);
@@ -314,7 +341,10 @@ function ModaleCreation({ session, team, prospects, membres, onFermer, onCree })
   const [objet, setObjet] = useState("");
   const [prospectId, setProspectId] = useState("");
   const [priorite, setPriorite] = useState("normale");
-  const [assigne, setAssigne] = useState(session?.user?.id || "");
+  const [assigne, setAssigne] = useState(() => proprietaireParDefaut(null, membres) || "");
+  // Choisir soi-même un responsable doit tenir : la règle ne se réapplique
+  // qu'aussi longtemps que personne n'a touché le champ.
+  const [assigneManuel, setAssigneManuel] = useState(false);
   const [echeance, setEcheance] = useState("");
   const [message, setMessage] = useState("");
   const [envoi, setEnvoi] = useState(false);
@@ -322,6 +352,13 @@ function ModaleCreation({ session, team, prospects, membres, onFermer, onCree })
 
   const propositions = objetsProposes(team)[type] || [];
   const teamId = team?.team?.id;
+
+  const clientChoisi = prospects.find((p) => p.id === prospectId) || null;
+
+  useEffect(() => {
+    if (assigneManuel) return;
+    setAssigne(proprietaireParDefaut(clientChoisi, membres) || "");
+  }, [prospectId, assigneManuel, membres, clientChoisi]);
 
   const clients = useMemo(
     () => [...prospects].sort((a, b) => (a.company || a.name || "").localeCompare(b.company || b.name || "")),
@@ -334,7 +371,7 @@ function ModaleCreation({ session, team, prospects, membres, onFermer, onCree })
     setEnvoi(true);
     setErreur(null);
 
-    const client = prospects.find((p) => p.id === prospectId);
+    const client = clientChoisi;
     const { data, error } = await supabase
       .from("tickets")
       .insert({
@@ -448,8 +485,12 @@ function ModaleCreation({ session, team, prospects, membres, onFermer, onCree })
           </Champ>
         </div>
 
-        <Champ label="Assigné à">
-          <select value={assigne} onChange={(e) => setAssigne(e.target.value)} style={{ ...selectStyle, fontSize: "13px", padding: "8px 10px" }}>
+        <Champ label="Assigné à" aide={assigneManuel ? null : motifAttribution(clientChoisi, membres, assigne)}>
+          <select
+            value={assigne}
+            onChange={(e) => { setAssigneManuel(true); setAssigne(e.target.value); }}
+            style={{ ...selectStyle, fontSize: "13px", padding: "8px 10px" }}
+          >
             <option value="">Personne</option>
             {membres.map((m) => (
               <option key={m.user_id} value={m.user_id}>

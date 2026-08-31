@@ -7,6 +7,8 @@ import Pipeline from "./Pipeline.jsx";
 import Assistant from "./Assistant.jsx";
 import Activities from "./Activities.jsx";
 import Tickets from "./Tickets.jsx";
+import { planTierFor } from "../../api/_lib/plans.js";
+import { PageTitle, TicketIcon } from "../lib/ui.jsx";
 import Settings from "./Settings.jsx";
 import Integrations from "./Integrations.jsx";
 import EquipePage from "./EquipePage.jsx";
@@ -237,6 +239,12 @@ export default function Shell({ session, team, reloadTeam }) {
   const billingPrice = Number((isTeamBilling ? team.team?.plan_price : settings?.plan_price) || 0);
   const hasAssistantBubbleAccess = billingPrice > 39;
 
+  // Les tickets sont réservés à Équipe et Business : c'est ce qui distingue ces
+  // formules de Solo par une fonctionnalité réelle, pas par un quota.
+  const planPrice = Number(team?.team?.plan_price ?? settings?.plan_price ?? 0);
+  const planTier = planTierFor(planPrice).name;
+  const hasTicketsAccess = ["Équipe", "Business", "Sur mesure"].includes(planTier);
+
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <div
@@ -248,6 +256,7 @@ export default function Shell({ session, team, reloadTeam }) {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         prospects={prospects}
+        hasTickets={hasTicketsAccess}
         open={menuOpen}
         onNavigate={() => setMenuOpen(false)}
       />
@@ -289,7 +298,9 @@ export default function Shell({ session, team, reloadTeam }) {
             onGuardResolved={resumePendingTab}
           />
         )}
-        {activeTab === "tickets" && <Tickets session={session} prospects={prospects} team={team} onOpenProspect={openProspect} />}
+        {activeTab === "tickets" && (hasTicketsAccess
+          ? <Tickets session={session} prospects={prospects} team={team} onOpenProspect={openProspect} />
+          : <TicketsVerrouilles planTier={planTier} setActiveTab={setActiveTab} />)}
         {activeTab === "assistant" && <Assistant session={session} prospects={prospects} onOpenProspect={openProspect} settings={effectiveSettings} />}
         {activeTab === "activities" && <Activities prospects={prospects} onOpenProspect={openProspect} session={session} team={team} settings={effectiveSettings} setActiveTab={setActiveTab} />}
         {activeTab === "settings" && <Settings session={session} prospects={prospects} settings={settings} reloadSettings={loadSettings} team={team} reloadTeam={reloadTeam} setActiveTab={setActiveTab} />}
@@ -297,6 +308,29 @@ export default function Shell({ session, team, reloadTeam }) {
         {activeTab === "equipe" && <EquipePage session={session} team={team} reloadTeam={reloadTeam} />}
       </div>
       {hasAssistantBubbleAccess && <AssistantBubble session={session} />}
+    </div>
+  );
+}
+
+function TicketsVerrouilles({ planTier, setActiveTab }) {
+  return (
+    <div style={{ padding: "28px 32px 60px", maxWidth: "560px" }}>
+      <PageTitle icon={TicketIcon} color="var(--blue)" style={{ marginBottom: "16px" }}>Tickets</PageTitle>
+      <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "var(--radius-lg, 14px)", padding: "24px" }}>
+        <div style={{ fontSize: "14px", fontWeight: 600, marginBottom: "8px" }}>Disponible à partir de la formule Équipe</div>
+        <p style={{ fontSize: "13px", color: "var(--text-dim)", lineHeight: 1.6, margin: "0 0 16px" }}>
+          Les tickets suivent les demandes de vos clients — devis, problèmes, réclamations — jusqu'à
+          leur résolution, avec un responsable, un fil de discussion et des notes internes.
+          Votre formule actuelle est {planTier}.
+        </p>
+        <button
+          className="focusable"
+          onClick={() => setActiveTab("settings")}
+          style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "9px 16px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}
+        >
+          Voir les formules
+        </button>
+      </div>
     </div>
   );
 }

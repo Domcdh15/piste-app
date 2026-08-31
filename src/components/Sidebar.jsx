@@ -15,7 +15,7 @@ const SB_BORDER = "var(--hairline)";
 const SB_TEXT_DIM = "var(--text-dim)";
 const SB_TEXT_FAINT = "var(--text-faint)";
 
-export default function Sidebar({ activeTab, setActiveTab, prospects = [], open = false, onNavigate }) {
+export default function Sidebar({ activeTab, setActiveTab, prospects = [], hasTickets = false, open = false, onNavigate }) {
   // Naviguer referme le tiroir : sans ça il resterait ouvert par-dessus la
   // page qu'on vient de demander.
   const go = (tab) => { setActiveTab(tab); onNavigate?.(); };
@@ -33,12 +33,12 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [], open 
       .lte("due_at", endOfToday.toISOString())
       .then(({ count }) => setTodayCount(count ?? null));
 
-    supabase
+    if (hasTickets) supabase
       .from("tickets")
       .select("id", { count: "exact", head: true })
       .in("status", ["nouveau", "en_cours", "attente_client"])
       .then(({ count }) => setTicketCount(count ?? null));
-  }, []);
+  }, [hasTickets]);
 
   const pipelineCount = prospects.filter((p) => !CLOSED_STAGES.includes(p.stage)).length;
 
@@ -59,7 +59,7 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [], open 
       </button>
 
       <nav style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1 }}>
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.filter((item) => item.key !== "tickets" || hasTickets).map((item) => {
           const active = activeTab === item.key;
           const isHovered = hovered === item.key;
           const count = counts[item.key];
