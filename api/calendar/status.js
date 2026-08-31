@@ -1,7 +1,6 @@
 import { supabaseAdmin, getUserFromToken, bearerToken } from "../_lib/supabase.js";
 import { ensureFreshToken, sendEmail, listRecentMessages, setGmailSignature, getGmailSignature, fetchEmailThreadWith } from "../_lib/providers.js";
 import { postSlack } from "../_lib/slack.js";
-import { genererTexte } from "../_lib/ia.js";
 
 function buildVacationReply(s) {
   const lines = [(s.vacation_message || "").trim() || "Je suis actuellement absent(e)."];
@@ -167,15 +166,6 @@ async function runSequences(admin) {
 // Le point du matin dans Slack. Un seul message par équipe, volontairement
 // court : trois nombres et ce qui brûle. Un canal qu'on doit lire en entier
 // finit par n'être plus lu du tout.
-// Nom lisible d'un membre, pour le rapport hebdomadaire.
-async function memberLabelLocal(admin, userId) {
-  const { data: s } = await admin
-    .from("user_settings").select("first_name, last_name").eq("user_id", userId).maybeSingle();
-  if (s && (s.first_name || s.last_name)) return `${s.first_name || ""} ${s.last_name || ""}`.trim();
-  const { data: u } = await admin.auth.admin.getUserById(userId);
-  return u?.user?.email || "Membre de l'équipe";
-}
-
 async function runSlackBriefs(admin) {
   const { data: canaux } = await admin
     .from("team_integrations")
@@ -258,51 +248,6 @@ async function runWeeklyReports(admin) {
         (p) => !p.last_contact_at || (Date.now() - new Date(p.last_contact_at)) / 86400000 >= 7
       );
 
-      // Bilan individuel de chaque membre, rédigé par l'assistant à partir de
-      // ses chiffres réels. C'est ce qui transforme un tableau de bord en outil
-      // de management : l'admin voit la semaine de chacun sans avoir à demander.
-      const { data: membres } = await admin
-        .from("team_members").select("user_id").eq("team_id", equipe.id);
-
-      const bilans = [];
-      for (const membre of membres || []) {
-        try {
-          const [{ data: actes }, { data: tks }, { data: fiches }] = await Promise.all([
-            admin.from("activities").select("type").eq("user_id", membre.user_id).gte("created_at", ilYAUneSemaine),
-            admin.from("tasks").select("done, due_at, completed_at").eq("user_id", membre.user_id),
-            admin.from("prospects").select("status, deal_value, closed_at").eq("sales_owner_id", membre.user_id),
-          ]);
-          const nom = await memberLabelLocal(admin, membre.user_id);
-          const n = (t) => (actes || []).filter((a) => a.type === t).length;
-          const faites = (tks || []).filter((t) => t.done && t.completed_at >= ilYAUneSemaine).length;
-          const retard = (tks || []).filter((t) => !t.done && t.due_at && t.due_at < new Date().toISOString()).length;
-          const gag = (fiches || []).filter((p) => p.status === "gagne" && p.closed_at >= ilYAUneSemaine);
-
-          // Une semaine sans la moindre trace ne mérite pas un paragraphe
-          // rédigé : la mentionner en une ligne est plus parlant.
-          if ((actes || []).length === 0 && faites === 0 && gag.length === 0) {
-            bilans.push(`${nom} — aucune activité enregistrée cette semaine.`);
-            continue;
-          }
-
-          const texte = await genererTexte(
-            `Tu es un coach commercial francophone. Resume en TROIS phrases maximum la semaine de ce commercial, a partir de ces chiffres reels. N'invente rien.
-
-Appels aboutis : ${n("appel_abouti")} - manques : ${n("appel_manque")}
-Rendez-vous : ${n("rdv_physique")} - visios : ${n("appel_visio")}
-Taches terminees : ${faites} - en retard aujourd'hui : ${retard}
-Deals gagnes : ${gag.length} pour ${gag.reduce((acc, p) => acc + Number(p.deal_value || 0), 0)} EUR
-
-Une phrase sur ce qui a marche, une sur ce qui a glisse, une recommandation.
-Texte simple, sans titre ni puce, vouvoiement, pas d'emoji.`,
-            350
-          );
-          bilans.push(`${nom}\n${texte}`);
-        } catch (e) {
-          continue;
-        }
-      }
-
       const euros = (n) => `${Math.round(n).toLocaleString("fr-FR")} €`;
       const corps = [
         `Votre point hebdomadaire — ${equipe.name || "votre équipe"}`,
@@ -320,7 +265,6 @@ Texte simple, sans titre ni puce, vouvoiement, pas d'emoji.`,
               .map((p) => `- ${p.company || p.name} — ${euros(Number(p.deal_value || 0))}`)
               .join("\n")
           : "Aucun dossier en souffrance cette semaine.",
-        bilans.length ? "\n———————————————\nLA SEMAINE DE CHACUN\n\n" + bilans.join("\n\n") : "",
       ].join("\n");
 
       for (const a of admins) {
