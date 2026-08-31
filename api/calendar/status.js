@@ -214,6 +214,81 @@ async function runSlackBriefs(admin) {
   return envoyes;
 }
 
+// Le point hebdomadaire du manager, réservé à Business. Envoyé le lundi depuis
+// la boîte de l'administrateur : c'est ce qui fait qu'un dirigeant rouvre son
+// CRM au lieu de l'oublier. Le cron passe tous les jours, on ne fait rien les
+// six autres.
+async function runWeeklyReports(admin) {
+  if (new Date().getDay() !== 1) return 0;
+
+  const { data: equipes } = await admin.from("teams").select("id, name, plan_price");
+  const business = (equipes || []).filter((t) => Number(t.plan_price ?? 19) > 69);
+  if (!business.length) return 0;
+
+  const ilYAUneSemaine = new Date(Date.now() - 7 * 86400000).toISOString();
+  let envoyes = 0;
+
+  for (const equipe of business) {
+    try {
+      const { data: admins } = await admin
+        .from("team_members").select("user_id").eq("team_id", equipe.id).eq("role", "admin");
+      if (!admins?.length) continue;
+
+      const [{ data: prospects }, { data: taches }] = await Promise.all([
+        admin.from("prospects").select("company, name, stage, status, deal_value, last_contact_at, closed_at").eq("team_id", equipe.id),
+        admin.from("tasks").select("due_at, done").eq("team_id", equipe.id).eq("done", false),
+      ]);
+
+      const ouverts = (prospects || []).filter((p) => p.stage !== "Gagné" && p.stage !== "Perdu");
+      const pipeline = ouverts.reduce((s, p) => s + Number(p.deal_value || 0), 0);
+      const gagnes = (prospects || []).filter((p) => p.status === "gagne" && p.closed_at && p.closed_at >= ilYAUneSemaine);
+      const perdus = (prospects || []).filter((p) => p.status === "perdu" && p.closed_at && p.closed_at >= ilYAUneSemaine);
+      const enRetard = (taches || []).filter((t) => t.due_at && t.due_at < new Date().toISOString()).length;
+      const silencieux = ouverts.filter(
+        (p) => !p.last_contact_at || (Date.now() - new Date(p.last_contact_at)) / 86400000 >= 7
+      );
+
+      const euros = (n) => `${Math.round(n).toLocaleString("fr-FR")} €`;
+      const corps = [
+        `Votre point hebdomadaire — ${equipe.name || "votre équipe"}`,
+        "",
+        `Pipeline ouvert : ${euros(pipeline)} sur ${ouverts.length} opportunités`,
+        `Cette semaine : ${gagnes.length} gagnée(s) pour ${euros(gagnes.reduce((s, p) => s + Number(p.deal_value || 0), 0))}, ${perdus.length} perdue(s)`,
+        `Tâches en retard : ${enRetard}`,
+        `Dossiers sans nouvelles depuis une semaine : ${silencieux.length}`,
+        "",
+        silencieux.length
+          ? "À regarder en priorité :\n" +
+            silencieux
+              .sort((a, b) => Number(b.deal_value || 0) - Number(a.deal_value || 0))
+              .slice(0, 5)
+              .map((p) => `- ${p.company || p.name} — ${euros(Number(p.deal_value || 0))}`)
+              .join("\n")
+          : "Aucun dossier en souffrance cette semaine.",
+      ].join("\n");
+
+      for (const a of admins) {
+        const { data: conn } = await admin
+          .from("calendar_connections").select("*")
+          .eq("user_id", a.user_id).eq("provider", "google").maybeSingle();
+        if (!conn) continue;
+        const { data: u } = await admin.auth.admin.getUserById(a.user_id);
+        if (!u?.user?.email) continue;
+        const accessToken = await ensureFreshToken(admin, conn);
+        await sendEmail("google", accessToken, {
+          to: u.user.email,
+          subject: `Closia — votre point hebdomadaire`,
+          body: corps,
+        });
+        envoyes++;
+      }
+    } catch (e) {
+      continue;
+    }
+  }
+  return envoyes;
+}
+
 // fichier) pour rester sous la limite de 12 fonctions serverless du plan Vercel Hobby.
 export default async function handler(req, res) {
   if (req.method === "GET" && req.query?.action === "vacation_check") {
@@ -227,7 +302,8 @@ export default async function handler(req, res) {
     // Hobby ne déclenche un cron qu'une fois par jour.
     const sequences = await runSequences(admin);
     const slackBriefs = await runSlackBriefs(admin);
-    return res.status(200).json({ ok: true, repliesSent, sequences, slackBriefs });
+    const weeklyReports = await runWeeklyReports(admin);
+    return res.status(200).json({ ok: true, repliesSent, sequences, slackBriefs, weeklyReports });
   }
 
   const user = await getUserFromToken(bearerToken(req));

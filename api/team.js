@@ -2,6 +2,23 @@ import { getUserFromToken, bearerToken, supabaseAdmin } from "./_lib/supabase.js
 import { planTierFor } from "./_lib/plans.js";
 
 const ROLES = ["admin", "sales", "customer_success"];
+const BUSINESS_MIN_PRICE = 70;
+
+// Journal d'équipe : on n'y consigne que ce qui engage les autres — une
+// réattribution, un changement de rôle, un départ. Tracer chaque clic
+// produirait un registre que personne ne lit.
+async function journal(admin, teamId, actorId, action, detail) {
+  try {
+    await admin.from("team_audit_log").insert({ team_id: teamId, actor_id: actorId, action, detail });
+  } catch (e) {
+    // Le journal ne doit jamais faire échouer l'action qu'il observe.
+  }
+}
+
+async function teamPrice(admin, teamId) {
+  const { data } = await admin.from("teams").select("plan_price").eq("id", teamId).single();
+  return Number(data?.plan_price ?? 19);
+}
 const APP_URL = "https://piste-app-seven.vercel.app";
 
 async function memberLabel(admin, userId) {
@@ -62,6 +79,7 @@ export default async function handler(req, res) {
       slackDailyBrief: integ?.slack_daily_brief !== false,
       notion: !!integ?.notion_token,
       notionDatabaseId: integ?.notion_database_id || null,
+      isBusiness: Number(team?.plan_price ?? 19) > BUSINESS_MIN_PRICE - 1,
       emailing: !!integ?.emailing_api_key,
       emailingProvider: integ?.emailing_provider || null,
       emailingListId: integ?.emailing_list_id || null,
@@ -129,6 +147,7 @@ export default async function handler(req, res) {
       notes.push(`CSM responsable : ${await memberLabel(admin, before.csm_owner_id)} → ${await memberLabel(admin, csmOwnerId)}`);
     }
     if (notes.length > 0) {
+      await journal(admin, membership.team_id, user.id, "reassignation", notes.join(" · "));
       await admin.from("activities").insert({
         prospect_id: prospectId,
         user_id: user.id,
@@ -154,6 +173,7 @@ export default async function handler(req, res) {
     }
     const { error } = await admin.from("team_members").update({ role }).eq("team_id", membership.team_id).eq("user_id", userId);
     if (error) return res.status(500).json({ error: "La mise à jour du rôle a échoué" });
+    await journal(admin, membership.team_id, user.id, "changement_role", `${await memberLabel(admin, userId)} → ${role}`);
     return res.status(200).json({ ok: true });
   }
 
@@ -168,8 +188,10 @@ export default async function handler(req, res) {
     if (target?.role === "admin" && (await countAdmins(admin, membership.team_id)) <= 1) {
       return res.status(400).json({ error: "Impossible de retirer le dernier administrateur" });
     }
+    const label = await memberLabel(admin, userId);
     const { error } = await admin.from("team_members").delete().eq("team_id", membership.team_id).eq("user_id", userId);
     if (error) return res.status(500).json({ error: "La suppression a échoué" });
+    await journal(admin, membership.team_id, user.id, "retrait_membre", label);
     return res.status(200).json({ ok: true });
   }
 
@@ -246,6 +268,34 @@ export default async function handler(req, res) {
     if (Object.keys(patch).length === 0) return res.status(400).json({ error: "Aucun champ à mettre à jour" });
     const { error } = await admin.from("teams").update(patch).eq("id", membership.team_id);
     if (error) return res.status(500).json({ error: "L'enregistrement a échoué" });
+    return res.status(200).json({ ok: true });
+  }
+
+  if (action === "set_objective") {
+    // Fixer un objectif à quelqu'un d'autre est un geste de management : il
+    // appartient à Business, et l'écriture passe par le serveur puisque les
+    // réglages d'un utilisateur ne sont pas modifiables par ses collègues.
+    if (await teamPrice(admin, membership.team_id) < BUSINESS_MIN_PRICE) {
+      return res.status(403).json({ error: "Les objectifs par commercial sont inclus dans la formule Business." });
+    }
+    const { userId, revenue, deals } = req.body;
+    if (!userId) return res.status(400).json({ error: "userId manquant" });
+
+    const { data: cible } = await admin
+      .from("team_members").select("user_id")
+      .eq("team_id", membership.team_id).eq("user_id", userId).maybeSingle();
+    if (!cible) return res.status(400).json({ error: "Cette personne ne fait pas partie de votre équipe." });
+
+    const patch = {};
+    if (revenue !== undefined) patch.objective_monthly_revenue = revenue === "" || revenue === null ? null : Number(revenue);
+    if (deals !== undefined) patch.objective_monthly_deals = deals === "" || deals === null ? null : Number(deals);
+    if (Object.keys(patch).length === 0) return res.status(400).json({ error: "Aucun objectif à enregistrer" });
+
+    const { error } = await admin.from("user_settings").update(patch).eq("user_id", userId);
+    if (error) return res.status(500).json({ error: "L'enregistrement a échoué" });
+
+    await journal(admin, membership.team_id, user.id, "objectif",
+      `${await memberLabel(admin, userId)} · ${patch.objective_monthly_revenue ?? "—"} € / ${patch.objective_monthly_deals ?? "—"} deals`);
     return res.status(200).json({ ok: true });
   }
 

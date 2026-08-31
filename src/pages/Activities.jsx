@@ -387,6 +387,13 @@ function TeamMemberBreakdown({ memberStats, team }) {
               </span>
               <span className="mono" style={{ fontSize: "13px", fontWeight: 700, color: "var(--text)", textAlign: "right" }}>
                 {formatEuros(revenue)}
+                {/* L'objectif ne s'affiche que s'il a été fixé : une barre vide
+                    à côté de chaque nom serait un reproche permanent. */}
+                {Number(r.objective_revenue) > 0 && (
+                  <span style={{ display: "block", fontSize: "10.5px", fontWeight: 600, marginTop: "2px", color: revenue >= Number(r.objective_revenue) ? "var(--green, var(--blue))" : "var(--text-faint)" }}>
+                    {Math.round((revenue / Number(r.objective_revenue)) * 100)} % de {formatEuros(Number(r.objective_revenue))}
+                  </span>
+                )}
               </span>
             </div>
           );

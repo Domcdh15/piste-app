@@ -653,10 +653,120 @@ const VISIBILITY_HINT = {
   team_detail: "Chacun voit le classement nominatif. Motivant dans une équipe soudée, pesant ailleurs.",
 };
 
+// Objectifs fixés par l'administrateur, formule Business. Ce sont les seuls
+// réglages d'un utilisateur qu'un tiers peut écrire : ils passent donc par
+// api/team.js, jamais par le client.
+function TeamObjectives({ session, team, onSaved }) {
+  const membres = (team.members || []).filter((m) => m.role !== "customer_success");
+  const [brouillons, setBrouillons] = useState({});
+  const [busy, setBusy] = useState("");
+  const [erreur, setErreur] = useState("");
+
+  const nom = (m) => (m.first_name || m.last_name ? `${m.first_name || ""} ${m.last_name || ""}`.trim() : m.email);
+
+  async function enregistrer(userId) {
+    const d = brouillons[userId] || {};
+    setBusy(userId); setErreur("");
+    try {
+      const res = await fetch("/api/team", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "set_objective", userId, revenue: d.revenue ?? "", deals: d.deals ?? "" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "L'enregistrement a échoué");
+      onSaved?.();
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "0.5px solid var(--hairline)" }}>
+      <div style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--text-faint)", marginBottom: "4px" }}>
+        OBJECTIFS PAR COMMERCIAL
+      </div>
+      <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "12px", lineHeight: 1.5 }}>
+        L'atteinte s'affiche dans Activité &amp; Données, onglet Performance, vue Équipe.
+      </div>
+      {membres.map((m) => (
+        <div key={m.user_id} style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "12.5px", flex: "1 1 140px", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{nom(m)}</span>
+          <input
+            type="number" placeholder="CA €"
+            onChange={(e) => setBrouillons((b) => ({ ...b, [m.user_id]: { ...b[m.user_id], revenue: e.target.value } }))}
+            style={{ ...inputSm, width: "92px" }}
+          />
+          <input
+            type="number" placeholder="deals"
+            onChange={(e) => setBrouillons((b) => ({ ...b, [m.user_id]: { ...b[m.user_id], deals: e.target.value } }))}
+            style={{ ...inputSm, width: "70px" }}
+          />
+          <button className="focusable" onClick={() => enregistrer(m.user_id)} disabled={busy === m.user_id} style={{ ...btnGhost, fontSize: "11.5px", padding: "6px 11px" }}>
+            {busy === m.user_id ? "…" : "Fixer"}
+          </button>
+        </div>
+      ))}
+      {erreur && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "6px" }}>{erreur}</div>}
+    </div>
+  );
+}
+
+// Journal d'équipe : qui a réattribué, changé un rôle, retiré quelqu'un.
+function TeamAuditLog({ team }) {
+  const [lignes, setLignes] = useState(null);
+  const nom = (id) => {
+    const m = (team.members || []).find((x) => x.user_id === id);
+    return m ? (m.first_name || m.last_name ? `${m.first_name || ""} ${m.last_name || ""}`.trim() : m.email) : "Ancien membre";
+  };
+  const LIBELLE = { reassignation: "Réattribution", changement_role: "Changement de rôle", retrait_membre: "Retrait", objectif: "Objectif fixé" };
+
+  useEffect(() => {
+    supabase
+      .from("team_audit_log")
+      .select("id, actor_id, action, detail, created_at")
+      .order("created_at", { ascending: false })
+      .limit(25)
+      .then(({ data }) => setLignes(data || []));
+  }, []);
+
+  return (
+    <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "0.5px solid var(--hairline)" }}>
+      <div style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em", color: "var(--text-faint)", marginBottom: "10px" }}>
+        JOURNAL D'ACTIVITÉ DE L'ÉQUIPE
+      </div>
+      {lignes === null ? (
+        <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Chargement…</div>
+      ) : lignes.length === 0 ? (
+        <div style={{ fontSize: "12px", color: "var(--text-faint)", lineHeight: 1.5 }}>
+          Rien à signaler. Les réattributions, changements de rôle et retraits apparaîtront ici.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "7px" }}>
+          {lignes.map((l) => (
+            <div key={l.id} style={{ display: "flex", gap: "9px", fontSize: "12px", lineHeight: 1.45 }}>
+              <span className="mono" style={{ color: "var(--text-faint)", flexShrink: 0, fontSize: "11px" }}>
+                {new Date(l.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}
+              </span>
+              <span style={{ color: "var(--text-dim)", minWidth: 0 }}>
+                <strong style={{ color: "var(--text)" }}>{LIBELLE[l.action] || l.action}</strong>
+                {" · "}{nom(l.actor_id)}{l.detail ? ` — ${l.detail}` : ""}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConnected }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [showInvite, setShowInvite] = useState(false);
+  const isBusiness = !!team?.integrations?.isBusiness;
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("sales");
   const [overageInfo, setOverageInfo] = useState(null);
@@ -887,6 +997,9 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConn
       ))}
 
       {error && <div style={{ color: "var(--red)", fontSize: "12px", marginTop: "10px" }}>{error}</div>}
+
+      {isAdmin && isBusiness && <TeamObjectives session={session} team={team} onSaved={reloadTeam} />}
+      {isAdmin && isBusiness && <TeamAuditLog team={team} />}
 
       {isAdmin && hasTeamControls && (
         <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "0.5px solid var(--hairline)" }}>
