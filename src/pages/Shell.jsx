@@ -6,6 +6,7 @@ import Agenda from "./Agenda.jsx";
 import Pipeline from "./Pipeline.jsx";
 import Assistant from "./Assistant.jsx";
 import Activities from "./Activities.jsx";
+import Tickets from "./Tickets.jsx";
 import Settings from "./Settings.jsx";
 import Integrations from "./Integrations.jsx";
 import EquipePage from "./EquipePage.jsx";
@@ -25,6 +26,7 @@ const TAB_LABELS = {
   today: "Aujourd'hui",
   planning: "Agenda",
   pipeline: "Opportunités",
+  tickets: "Tickets",
   chauds: "Prospects chauds",
   "a-sauver": "Deals à sauver",
   assistant: "Assistant IA",
@@ -34,7 +36,7 @@ const TAB_LABELS = {
   equipe: "Équipe",
 };
 
-const VALID_TABS = ["today", "planning", "pipeline", "chauds", "a-sauver", "assistant", "activities", "settings", "integrations", "equipe"];
+const VALID_TABS = ["today", "planning", "pipeline", "tickets", "chauds", "a-sauver", "assistant", "activities", "settings", "integrations", "equipe"];
 
 function tabFromHash() {
   const tab = window.location.hash.slice(1);
@@ -287,6 +289,7 @@ export default function Shell({ session, team, reloadTeam }) {
             onGuardResolved={resumePendingTab}
           />
         )}
+        {activeTab === "tickets" && <Tickets session={session} prospects={prospects} team={team} onOpenProspect={openProspect} />}
         {activeTab === "assistant" && <Assistant session={session} prospects={prospects} onOpenProspect={openProspect} settings={effectiveSettings} />}
         {activeTab === "activities" && <Activities prospects={prospects} onOpenProspect={openProspect} session={session} team={team} settings={effectiveSettings} setActiveTab={setActiveTab} />}
         {activeTab === "settings" && <Settings session={session} prospects={prospects} settings={settings} reloadSettings={loadSettings} team={team} reloadTeam={reloadTeam} setActiveTab={setActiveTab} />}

@@ -480,6 +480,16 @@ export function GearIcon(props) {
   );
 }
 
+export function TicketIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M21 8V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v2a2 2 0 0 1 0 4v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2a2 2 0 0 1 0-4Z" />
+      <line x1="13" y1="5" x2="13" y2="7" />
+      <line x1="13" y1="11" x2="13" y2="13" />
+      <line x1="13" y1="17" x2="13" y2="19" />
+    </Icon>
+  );
+}
 export function ArrowLeftIcon(props) {
   return (
     <Icon {...props}>

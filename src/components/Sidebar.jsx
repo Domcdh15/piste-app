@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { CLOSED_STAGES, HomeIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIcon, GearIcon, Logo } from "../lib/ui.jsx";
+import { CLOSED_STAGES, HomeIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIcon, TicketIcon, GearIcon, Logo } from "../lib/ui.jsx";
 
 const NAV_ITEMS = [
   { key: "today", label: "Aujourd'hui", Icon: HomeIcon },
   { key: "pipeline", label: "Opportunités", Icon: TargetIcon },
   { key: "planning", label: "Agenda", Icon: CalendarIcon },
+  { key: "tickets", label: "Tickets", Icon: TicketIcon },
   { key: "assistant", label: "Assistant IA", Icon: SparklesIcon },
   { key: "activities", label: "Activités", Icon: ListIcon },
 ];
@@ -19,6 +20,7 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [], open 
   // page qu'on vient de demander.
   const go = (tab) => { setActiveTab(tab); onNavigate?.(); };
   const [todayCount, setTodayCount] = useState(null);
+  const [ticketCount, setTicketCount] = useState(null);
   const [hovered, setHovered] = useState(null);
 
   useEffect(() => {
@@ -30,11 +32,17 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [], open 
       .eq("done", false)
       .lte("due_at", endOfToday.toISOString())
       .then(({ count }) => setTodayCount(count ?? null));
+
+    supabase
+      .from("tickets")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["nouveau", "en_cours", "attente_client"])
+      .then(({ count }) => setTicketCount(count ?? null));
   }, []);
 
   const pipelineCount = prospects.filter((p) => !CLOSED_STAGES.includes(p.stage)).length;
 
-  const counts = { today: todayCount, pipeline: pipelineCount || null };
+  const counts = { today: todayCount, pipeline: pipelineCount || null, tickets: ticketCount || null };
 
   return (
     <div
