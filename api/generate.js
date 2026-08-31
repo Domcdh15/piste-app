@@ -18,11 +18,14 @@ export default async function handler(req, res) {
 
   const admin = supabaseAdmin();
   const [{ data: settings }, price] = await Promise.all([
-    admin.from("user_settings").select("ai_calls_used, ai_calls_reset_at").eq("user_id", user.id).maybeSingle(),
+    admin.from("user_settings").select("ai_calls_used, ai_calls_reset_at, ai_extra_credits").eq("user_id", user.id).maybeSingle(),
     planPriceForUser(admin, user.id),
   ]);
   const tier = planTierFor(price);
-  const monthlyLimit = tier.aiQuota;
+  // Les recharges achetées s'ajoutent au quota du forfait et se remettent à
+  // zéro avec lui : une recharge sert le mois où elle est achetée, pas au-delà.
+  const extra = settings?.ai_extra_credits || 0;
+  const monthlyLimit = tier.aiQuota + extra;
 
   const now = new Date();
   const resetAt = settings?.ai_calls_reset_at ? new Date(settings.ai_calls_reset_at) : null;
@@ -33,19 +36,27 @@ export default async function handler(req, res) {
   // l'usage sans que personne ne le voie venir : sans ce repère, un
   // dépassement se découvre sur la facture du mois suivant. Une seule trace par
   // période — le franchissement, pas chaque appel au-delà.
-  const seuil = Math.floor(tier.aiQuota * 0.7);
+  const seuil = Math.floor(monthlyLimit * 0.7);
   if (currentUsage + 1 === seuil) {
     await admin.from("admin_audit_log").insert({
       target_user_id: user.id,
       action: "quota_ia_70",
-      detail: `${seuil} générations sur ${tier.aiQuota} (forfait ${tier.name})`,
+      detail: `${seuil} générations sur ${monthlyLimit} (forfait ${tier.name}${extra ? ` + ${extra} de recharge` : ""})`,
     });
   }
   const nextResetAt = needsReset ? new Date(now.getTime() + 30 * 86400000).toISOString() : settings.ai_calls_reset_at;
 
   if (currentUsage >= monthlyLimit) {
+    // On propose une recharge plutôt qu'un changement de forfait : changer de
+    // formule pour un seul mois chargé n'a pas de sens, et bloquer net
+    // quelqu'un qui se sert de l'outil est le meilleur moyen de le perdre.
     return res.status(429).json({
-      error: `Limite de ${monthlyLimit} générations IA (forfait ${tier.name}) atteinte pour ce mois. Réessaie après le ${new Date(nextResetAt).toLocaleDateString("fr-FR")}, ou passe à un forfait supérieur dans Paramètres.`,
+      error: `Vos ${monthlyLimit} générations du mois sont épuisées`
+        + (extra ? ` (${tier.aiQuota} du forfait ${tier.name} + ${extra} de recharge)` : ` (forfait ${tier.name})`)
+        + `. Le compteur repart le ${new Date(nextResetAt).toLocaleDateString("fr-FR")}. Pour continuer dès maintenant, demandez une recharge depuis Paramètres — 500 générations pour 19 €.`,
+      quotaExhausted: true,
+      limit: monthlyLimit,
+      resetAt: nextResetAt,
     });
   }
 

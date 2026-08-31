@@ -220,6 +220,19 @@ export default async function handler(req, res) {
     const seatsUsed = currentCount || 0;
     const willBeCount = seatsUsed + 1;
 
+    // Formule plafonnée : on ne facture pas un siège de plus, on renvoie vers
+    // le palier au-dessus. Un client qui dépasse doit changer de formule, sinon
+    // la grille affichée sur le site ne veut plus rien dire.
+    if (willBeCount > tier.seats && tier.overagePrice === null) {
+      return res.status(403).json({
+        error: `La formule ${tier.name} couvre ${tier.seats} utilisateur${tier.seats > 1 ? "s" : ""}.`
+          + (tier.nextTier ? ` Passez à ${tier.nextTier} pour inviter davantage de personnes.` : ""),
+        seatsIncluded: tier.seats,
+        seatsUsed,
+        nextTier: tier.nextTier,
+      });
+    }
+
     if (willBeCount > tier.seats && !confirmOverage) {
       return res.status(200).json({
         needsConfirmation: true,

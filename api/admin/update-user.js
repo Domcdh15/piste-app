@@ -171,6 +171,41 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, setPasswordLink, emailSent });
   }
 
+  if (action === "grant_ai_credits") {
+    // Attribution manuelle d'une recharge, en attendant Stripe. À dix ou vingt
+    // comptes c'est parfaitement tenable, et ça apprend surtout si quelqu'un en
+    // veut vraiment avant de construire l'achat en autonomie.
+    const { credits, amountEur, note } = req.body;
+    const n = Number(credits);
+    if (!userId || !Number.isFinite(n) || n <= 0) {
+      return res.status(400).json({ error: "Indiquez un nombre de générations positif" });
+    }
+
+    const { data: current } = await admin
+      .from("user_settings").select("ai_extra_credits").eq("user_id", userId).maybeSingle();
+
+    const { error } = await admin
+      .from("user_settings")
+      .update({ ai_extra_credits: (current?.ai_extra_credits || 0) + n })
+      .eq("user_id", userId);
+    if (error) return res.status(500).json({ error: "L'attribution a échoué" });
+
+    const { data: membre } = await admin
+      .from("team_members").select("team_id").eq("user_id", userId).maybeSingle();
+
+    await admin.from("ai_credit_grants").insert({
+      user_id: userId,
+      team_id: membre?.team_id || null,
+      credits: n,
+      amount_eur: amountEur != null && amountEur !== "" ? Number(amountEur) : null,
+      granted_by: admin_user.id,
+      note: note || null,
+    });
+
+    await logAudit(admin, userId, `Recharge IA : +${n} générations${amountEur ? ` (${amountEur} €)` : ""}`);
+    return res.status(200).json({ ok: true, credits: (current?.ai_extra_credits || 0) + n });
+  }
+
   if (action === "change_plan") {
     const { tier, customPrice } = req.body || {};
     const tierName = COMPED_TIER_NAMES[tier] || tier;
