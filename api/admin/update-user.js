@@ -130,6 +130,29 @@ export default async function handler(req, res) {
     });
     if (settingsError) return res.status(500).json({ error: settingsError.message });
 
+    // Chaque compte reçoit son équipe, y compris en Solo. Tout ce qui est
+    // cloisonné par équipe — tickets, entreprises, partage — passe par
+    // my_team_id() : un compte sans équipe voit ces écrans vides sans qu'on
+    // sache pourquoi. Le tarif est porté par l'équipe, marquée offerte pour
+    // qu'un compte gratuit ne vienne pas gonfler le MRR.
+    const { data: newTeam, error: teamError } = await admin
+      .from("teams")
+      .insert({
+        name: companyName,
+        company_name: companyName,
+        plan_price: planTier.maxPrice,
+        is_comped: true,
+        subscription_status: "active",
+      })
+      .select()
+      .single();
+    if (teamError) return res.status(500).json({ error: `Compte créé, mais l'équipe a échoué : ${teamError.message}` });
+
+    const { error: memberError } = await admin
+      .from("team_members")
+      .insert({ team_id: newTeam.id, user_id: created.user.id, role: "admin" });
+    if (memberError) return res.status(500).json({ error: `Compte créé, mais le rattachement à l'équipe a échoué : ${memberError.message}` });
+
     await admin.from("prospects").insert({
       user_id: PRO_ACCOUNT_USER_ID,
       created_via: "back_office",
@@ -149,7 +172,7 @@ export default async function handler(req, res) {
     const emailSent = setPasswordLink ? await sendInviteEmail(admin, email, firstName, setPasswordLink) : false;
     await logAudit(admin, created.user.id, "Compte créé", `Formule ${tierName}, gratuit`);
 
-    return res.status(200).json({ ok: true, email, password: finalPassword, userId: created.user.id, setPasswordLink, emailSent, tier: tierName });
+    return res.status(200).json({ ok: true, email, password: finalPassword, userId: created.user.id, teamId: newTeam.id, setPasswordLink, emailSent, tier: tierName });
   }
 
   if (!userId) {

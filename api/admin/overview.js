@@ -1,4 +1,5 @@
 import { getUserFromToken, bearerToken, supabaseAdmin, isAdminUser, applyAdminCors } from "../_lib/supabase.js";
+import { planTierFor } from "../_lib/plans.js";
 
 const DEFAULT_PRICE = 19;
 
@@ -81,7 +82,8 @@ export default async function handler(req, res) {
     const membership = membershipByUserId[u.id];
     const team = membership ? teamsById[membership.team_id] : null;
     const memberCount = membership ? memberCountByTeamId[membership.team_id] || 1 : 1;
-    const useTeamBilling = memberCount > 1 && team;
+    const useTeamBilling = !!team && (memberCount > 1 || team.plan_price != null);
+    const price = useTeamBilling ? (team.plan_price ?? null) : (s.plan_price ?? DEFAULT_PRICE);
 
     return {
       id: u.id,
@@ -99,8 +101,11 @@ export default async function handler(req, res) {
       team_id: membership?.team_id || null,
       team_role: membership?.role || null,
       team_member_count: memberCount,
-      plan_price: useTeamBilling ? (team.plan_price ?? null) : (s.plan_price ?? DEFAULT_PRICE),
-      is_comped: !useTeamBilling && !!s.is_comped,
+      plan_price: price,
+      // Le nom de la formule est déduit ici, jamais recalculé par le back
+      // office : deux grilles finiraient par diverger.
+      plan_tier: price == null ? null : planTierFor(price).name,
+      is_comped: useTeamBilling ? !!team.is_comped : !!s.is_comped,
       trial_ends_at: useTeamBilling ? team.trial_ends_at : (s.trial_ends_at || null),
       subscription_status: useTeamBilling ? team.subscription_status : (s.subscription_status || null),
     };

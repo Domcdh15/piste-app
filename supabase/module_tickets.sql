@@ -129,3 +129,12 @@ create policy "joindre un fichier" on ticket_attachments for insert
   with check (exists (
     select 1 from ticket_messages m join tickets t on t.id = m.ticket_id
     where m.id = ticket_attachments.ticket_message_id and t.team_id = my_team_id()));
+
+-- Une équipe peut être offerte comme un compte individuel peut l'être :
+-- comptes de test, de démonstration, clients accompagnés. Sans cette colonne,
+-- dès qu'une équipe porte son propre tarif, sa gratuité était perdue et son
+-- abonnement fictif venait gonfler le MRR du back office.
+alter table teams add column if not exists is_comped boolean not null default false;
+
+comment on column teams.is_comped is
+  'Equipe non facturee : elle garde son palier et ses droits, mais ne compte pas dans le MRR.';

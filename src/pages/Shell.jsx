@@ -235,14 +235,13 @@ export default function Shell({ session, team, reloadTeam }) {
   })();
 
   const memberCount = team?.members?.length || 1;
-  const isTeamBilling = memberCount > 1 && team?.team;
+  const isTeamBilling = !!team?.team && (memberCount > 1 || team.team.plan_price != null);
   const billingPrice = Number((isTeamBilling ? team.team?.plan_price : settings?.plan_price) || 0);
   const hasAssistantBubbleAccess = billingPrice > 39;
 
   // Les tickets sont réservés à Équipe et Business : c'est ce qui distingue ces
   // formules de Solo par une fonctionnalité réelle, pas par un quota.
-  const planPrice = Number(team?.team?.plan_price ?? settings?.plan_price ?? 0);
-  const planTier = planTierFor(planPrice).name;
+  const planTier = planTierFor(billingPrice).name;
   // Sans équipe, il n'y a pas de tickets à lire ni de team_id à écrire : mieux
   // vaut ne pas montrer l'onglet que d'offrir un écran qui échoue à chaque geste.
   const hasTeam = !!team?.team?.id;
