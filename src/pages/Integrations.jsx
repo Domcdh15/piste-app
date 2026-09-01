@@ -38,8 +38,8 @@ const COMING_LATER = [
   { key: "qonto", label: "Qonto", desc: "Émettre la facture depuis votre compte Qonto et rapprocher l'encaissement du deal gagné." },
   { key: "evoliz", label: "Evoliz", desc: "Reprendre le devis signé dans Evoliz pour la facturation et le suivi des règlements." },
   { key: "tiime", label: "Tiime", desc: "Transmettre le devis signé à Tiime, qui porte la facturation et la comptabilité." },
-  { key: "zapier", label: "Zapier", desc: "Connecter Closia à des milliers d'applications." },
-  { key: "make", label: "Make", desc: "Automatiser vos enchaînements commerciaux." },
+  { key: "zapier", label: "Zapier", parCle: true, desc: "Connecter Closia à des milliers d'applications, par l'action « Webhooks » de Zapier pointée sur votre clé d'API." },
+  { key: "make", label: "Make", parCle: true, desc: "Automatiser vos enchaînements commerciaux, par un module HTTP branché sur votre clé d'API." },
 ];
 
 // Slack et Notion demandent chacun un identifiant fourni par le client — une
@@ -148,6 +148,7 @@ export default function Integrations({ session, team, reloadTeam, onBack, setAct
                   onConnect={() => (t.real ? setConfirmKey(t.key) : null)}
                   onDisconnect={() => disconnect(t.key)}
                   onImport={() => onOpenImport?.()}
+                  onCle={() => setActiveTab?.("settings")}
                 />
               ))}
             </div>
@@ -199,7 +200,7 @@ export default function Integrations({ session, team, reloadTeam, onBack, setAct
   );
 }
 
-function ToolCard({ tool, connected, loading, onConnect, onDisconnect, onImport, configured, planOk, onConfigure }) {
+function ToolCard({ tool, connected, loading, onConnect, onDisconnect, onImport, onCle, configured, planOk, onConfigure }) {
   return (
     <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "10px", padding: "14px", display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
@@ -224,6 +225,15 @@ function ToolCard({ tool, connected, loading, onConnect, onDisconnect, onImport,
         ) : tool.importable ? (
           <button className="focusable" onClick={onImport} style={{ fontSize: "11.5px", padding: "6px 10px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", whiteSpace: "nowrap" }}>
             Importer un fichier
+          </button>
+        ) : tool.parCle ? (
+          <button
+            className="focusable"
+            onClick={onCle}
+            title="L'application Closia n'est pas encore publiée dans leur annuaire : on passe par une clé d'API."
+            style={{ fontSize: "11.5px", padding: "6px 10px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", whiteSpace: "nowrap" }}
+          >
+            Par clé d'API
           </button>
         ) : !tool.real ? (
           <span style={{ fontSize: "11.5px", padding: "6px 10px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-faint)", whiteSpace: "nowrap" }}>Bientôt disponible</span>
