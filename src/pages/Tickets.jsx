@@ -85,10 +85,20 @@ const ROLES = { admin: "Responsable", sales: "Commercial", customer_success: "Cu
 // Un ticket a un propriétaire nommé, et on doit voir à quel titre il le porte :
 // un commercial qui suit une demande avant signature et un CSM qui suit un
 // client après signature ne font pas le même travail.
-function ChoixProprietaire({ valeur, membres, onChange, style }) {
+function ChoixProprietaire({ valeur, membres, onChange, style, fusionne }) {
   const commerciaux = membres.filter((m) => m.role === "admin" || m.role === "sales");
   const csm = membres.filter((m) => m.role === "customer_success");
   const nom = (m) => [m.first_name, m.last_name].filter(Boolean).join(" ") || m.email;
+  // Équipe où le commercial suit aussi ses clients : séparer les deux
+  // populations dans la liste n'aurait plus aucun sens.
+  if (fusionne) {
+    return (
+      <select value={valeur || ""} onChange={(e) => onChange(e.target.value || null)} style={style}>
+        <option value="">Personne</option>
+        {membres.map((m) => <option key={m.user_id} value={m.user_id}>{nom(m)}</option>)}
+      </select>
+    );
+  }
   return (
     <select value={valeur || ""} onChange={(e) => onChange(e.target.value || null)} style={style}>
       <option value="">Personne</option>
@@ -221,6 +231,7 @@ export default function Tickets({ session, prospects = [], team, onOpenProspect 
         nomMembre={nomMembre}
         onOpenProspect={onOpenProspect}
         roleMembre={roleMembre}
+        fusionne={!!team?.team?.sales_is_csm}
         onRetour={() => setOuvert(null)}
         onMaj={(maj) => {
           setTickets((prev) => prev.map((t) => (t.id === maj.id ? maj : t)));
@@ -518,6 +529,7 @@ function ModaleCreation({ session, team, prospects, membres, onFermer, onCree })
           <ChoixProprietaire
             valeur={assigne}
             membres={membres}
+            fusionne={!!team?.team?.sales_is_csm}
             onChange={(v) => { setAssigneManuel(true); setAssigne(v || ""); }}
             style={{ ...selectStyle, fontSize: "13px", padding: "8px 10px" }}
           />
@@ -557,7 +569,7 @@ function ModaleCreation({ session, team, prospects, membres, onFermer, onCree })
   );
 }
 
-function DetailTicket({ ticket, session, membres, client, nomMembre, roleMembre, onOpenProspect, onRetour, onMaj }) {
+function DetailTicket({ ticket, session, membres, client, nomMembre, roleMembre, fusionne, onOpenProspect, onRetour, onMaj }) {
   const [messages, setMessages] = useState([]);
   const [chargement, setChargement] = useState(true);
   const [brouillon, setBrouillon] = useState("");
@@ -729,6 +741,7 @@ function DetailTicket({ ticket, session, membres, client, nomMembre, roleMembre,
           <ChoixProprietaire
             valeur={ticket.assigned_to}
             membres={membres}
+            fusionne={fusionne}
             onChange={(v) => modifier({ assigned_to: v })}
             style={selectStyle}
           />

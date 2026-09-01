@@ -138,3 +138,31 @@ alter table teams add column if not exists is_comped boolean not null default fa
 
 comment on column teams.is_comped is
   'Equipe non facturee : elle garde son palier et ses droits, mais ne compte pas dans le MRR.';
+
+-- ENCADREMENT (migration encadrement_equipe)
+--
+-- Encadrer n'est pas un métier de plus : c'est une responsabilité posée
+-- par-dessus un métier. On sépare donc ce que la personne fait (role, inchangé)
+-- de ce qu'elle encadre (manages, ajouté à côté). Rien n'est retiré.
+alter table team_members
+  add column if not exists manages text not null default 'none'
+  check (manages in ('none', 'sales', 'csm', 'both'));
+
+alter table teams
+  add column if not exists sales_is_csm boolean not null default false;
+
+create or replace function my_team_manages() returns text
+language sql security definer stable as $$
+  select case when role = 'admin' then 'both' else coalesce(manages, 'none') end
+  from team_members where user_id = auth.uid() limit 1;
+$$;
+
+create or replace function encadre_ce_pool(pool_ligne text) returns boolean
+language sql stable as $$
+  select case my_team_manages()
+    when 'both' then true
+    when 'sales' then pool_ligne = 'sales'
+    when 'csm' then pool_ligne = 'customer_success'
+    else false
+  end;
+$$;

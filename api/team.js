@@ -52,7 +52,7 @@ export default async function handler(req, res) {
   if (req.method === "GET") {
     const [{ data: team }, { data: members }, { data: integ }] = await Promise.all([
       admin.from("teams").select("*").eq("id", membership.team_id).single(),
-      admin.from("team_members").select("id, user_id, role").eq("team_id", membership.team_id),
+      admin.from("team_members").select("id, user_id, role, manages").eq("team_id", membership.team_id),
       admin.from("team_integrations").select("*").eq("team_id", membership.team_id).maybeSingle(),
     ]);
 
@@ -77,6 +77,7 @@ export default async function handler(req, res) {
           id: m.id,
           user_id: m.user_id,
           role: m.role,
+          manages: m.manages || "none",
           email: u?.user?.email || null,
           first_name: settings?.first_name || null,
           last_name: settings?.last_name || null,
@@ -97,7 +98,7 @@ export default async function handler(req, res) {
       emailingListId: integ?.emailing_list_id || null,
     };
 
-    return res.status(200).json({ team, role: membership.role, members: enriched, integrations, apiKeys: cles || [] });
+    return res.status(200).json({ team, role: membership.role, manages: membership.manages || "none", members: enriched, integrations, apiKeys: cles || [] });
   }
 
   if (req.method !== "POST") {
@@ -178,14 +179,22 @@ export default async function handler(req, res) {
   }
 
   if (action === "change_role") {
-    const { userId, role } = req.body;
+    const { userId, role, manages } = req.body;
     if (!ROLES.includes(role)) return res.status(400).json({ error: "Rôle invalide" });
+    // Encadrer n'est pas un métier de plus : c'est une responsabilité posée
+    // par-dessus le métier, et elle se règle séparément.
+    if (manages !== undefined && !["none", "sales", "csm", "both"].includes(manages)) {
+      return res.status(400).json({ error: "Périmètre d'encadrement inconnu" });
+    }
     if (userId === user.id && role !== "admin" && (await countAdmins(admin, membership.team_id)) <= 1) {
       return res.status(400).json({ error: "Impossible de retirer le dernier administrateur" });
     }
-    const { error } = await admin.from("team_members").update({ role }).eq("team_id", membership.team_id).eq("user_id", userId);
+    const patch = { role };
+    if (manages !== undefined) patch.manages = manages;
+    const { error } = await admin.from("team_members").update(patch).eq("team_id", membership.team_id).eq("user_id", userId);
     if (error) return res.status(500).json({ error: "La mise à jour du rôle a échoué" });
-    await journal(admin, membership.team_id, user.id, "changement_role", `${await memberLabel(admin, userId)} → ${role}`);
+    await journal(admin, membership.team_id, user.id, "changement_role",
+      `${await memberLabel(admin, userId)} → ${role}${manages && manages !== "none" ? ` (encadre ${manages})` : ""}`);
     return res.status(200).json({ ok: true });
   }
 
@@ -441,11 +450,12 @@ export default async function handler(req, res) {
   }
 
   if (action === "set_team_flags") {
-    const { has_multiple_sales, has_multiple_csm, require_next_action, sales_visibility } = req.body;
+    const { has_multiple_sales, has_multiple_csm, require_next_action, sales_visibility, sales_is_csm } = req.body;
     const patch = {};
     if (has_multiple_sales !== undefined) patch.has_multiple_sales = has_multiple_sales;
     if (has_multiple_csm !== undefined) patch.has_multiple_csm = has_multiple_csm;
     if (require_next_action !== undefined) patch.require_next_action = !!require_next_action;
+    if (sales_is_csm !== undefined) patch.sales_is_csm = !!sales_is_csm;
     if (sales_visibility !== undefined) {
       // La base porte la même contrainte : on refuse ici pour renvoyer un
       // message clair plutôt qu'une erreur 500 venue de Postgres.

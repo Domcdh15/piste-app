@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { CLOSED_STAGES, HomeIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIcon, TicketIcon, GearIcon, Logo } from "../lib/ui.jsx";
+import { CLOSED_STAGES, HomeIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIcon, TicketIcon, GearIcon, UsersIcon, Logo } from "../lib/ui.jsx";
 
 const NAV_ITEMS = [
   { key: "today", label: "Aujourd'hui", Icon: HomeIcon },
   { key: "pipeline", label: "Opportunités", Icon: TargetIcon },
   { key: "planning", label: "Agenda", Icon: CalendarIcon },
   { key: "tickets", label: "Tickets", Icon: TicketIcon },
+  { key: "encadrement", label: "Encadrement", Icon: UsersIcon },
   { key: "assistant", label: "Assistant IA", Icon: SparklesIcon },
   { key: "activities", label: "Activités", Icon: ListIcon },
 ];
@@ -15,7 +16,7 @@ const SB_BORDER = "var(--hairline)";
 const SB_TEXT_DIM = "var(--text-dim)";
 const SB_TEXT_FAINT = "var(--text-faint)";
 
-export default function Sidebar({ activeTab, setActiveTab, prospects = [], hasTickets = false, open = false, onNavigate }) {
+export default function Sidebar({ activeTab, setActiveTab, prospects = [], hasTickets = false, hasEncadrement = false, open = false, onNavigate }) {
   // Naviguer referme le tiroir : sans ça il resterait ouvert par-dessus la
   // page qu'on vient de demander.
   const go = (tab) => { setActiveTab(tab); onNavigate?.(); };
@@ -59,7 +60,7 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [], hasTi
       </button>
 
       <nav style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1 }}>
-        {NAV_ITEMS.filter((item) => item.key !== "tickets" || hasTickets).map((item) => {
+        {NAV_ITEMS.filter((item) => (item.key !== "tickets" || hasTickets) && (item.key !== "encadrement" || hasEncadrement)).map((item) => {
           const active = activeTab === item.key;
           const isHovered = hovered === item.key;
           const count = counts[item.key];

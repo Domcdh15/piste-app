@@ -1099,13 +1099,27 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConn
               <select
                 value={m.role}
                 disabled={busy}
-                onChange={(e) => call({ action: "change_role", userId: m.user_id, role: e.target.value })}
+                onChange={(e) => call({ action: "change_role", userId: m.user_id, role: e.target.value, manages: m.manages || "none" })}
                 style={inputSm}
               >
                 <option value="admin">Admin</option>
                 <option value="sales">Commercial</option>
                 <option value="customer_success">Customer Success</option>
               </select>
+              {m.role !== "admin" && (
+                <select
+                  value={m.manages || "none"}
+                  disabled={busy}
+                  onChange={(e) => call({ action: "change_role", userId: m.user_id, role: m.role, manages: e.target.value })}
+                  style={inputSm}
+                  title="Ce que cette personne encadre, en plus de son métier"
+                >
+                  <option value="none">N'encadre personne</option>
+                  <option value="sales">Encadre les commerciaux</option>
+                  <option value="csm">Encadre les CSM</option>
+                  <option value="both">Encadre les deux</option>
+                </select>
+              )}
               <button
                 className="focusable"
                 disabled={busy}
@@ -1143,6 +1157,20 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConn
             S'applique à toute l'équipe. Une fiche en cours ne peut plus être quittée sans qu'une prochaine
             action soit planifiée — ou que le prospect soit explicitement clos. C'est la règle qui empêche
             un deal de s'endormir.
+          </div>
+
+          <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "0.5px solid var(--hairline)" }}>
+            <Toggle
+              label="Le commercial assure aussi le suivi client"
+              checked={!!team.team?.sales_is_csm}
+              onChange={(v) => call({ action: "set_team_flags", sales_is_csm: v })}
+              last
+            />
+            <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px", lineHeight: 1.5 }}>
+              Chez beaucoup d'entreprises, celui qui a vendu reste l'interlocuteur après la vente.
+              Activez ce réglage et Closia cesse de distinguer commercial et Customer Success :
+              une seule personne responsable par client, un seul propriétaire par ticket.
+            </div>
           </div>
 
           <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "0.5px solid var(--hairline)" }}>

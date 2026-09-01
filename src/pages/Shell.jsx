@@ -7,6 +7,7 @@ import Pipeline from "./Pipeline.jsx";
 import Assistant from "./Assistant.jsx";
 import Activities from "./Activities.jsx";
 import Tickets from "./Tickets.jsx";
+import Encadrement from "./Encadrement.jsx";
 import { planTierFor } from "../../api/_lib/plans.js";
 import { PageTitle, TicketIcon } from "../lib/ui.jsx";
 import Settings from "./Settings.jsx";
@@ -29,6 +30,7 @@ const TAB_LABELS = {
   planning: "Agenda",
   pipeline: "Opportunités",
   tickets: "Tickets",
+  encadrement: "Encadrement",
   chauds: "Prospects chauds",
   "a-sauver": "Deals à sauver",
   assistant: "Assistant IA",
@@ -38,7 +40,7 @@ const TAB_LABELS = {
   equipe: "Équipe",
 };
 
-const VALID_TABS = ["today", "planning", "pipeline", "tickets", "chauds", "a-sauver", "assistant", "activities", "settings", "integrations", "equipe"];
+const VALID_TABS = ["today", "planning", "pipeline", "tickets", "encadrement", "chauds", "a-sauver", "assistant", "activities", "settings", "integrations", "equipe"];
 
 function tabFromHash() {
   const tab = window.location.hash.slice(1);
@@ -247,6 +249,12 @@ export default function Shell({ session, team, reloadTeam }) {
   const hasTeam = !!team?.team?.id;
   const hasTicketsAccess = hasTeam && ["Équipe", "Business", "Sur mesure"].includes(planTier);
 
+  // L'encadrement n'a de sens qu'à plusieurs : on l'ouvre à qui encadre
+  // vraiment quelqu'un, admin compris, sur les formules qui autorisent une
+  // équipe.
+  const perimetreEncadre = team?.role === "admin" ? "both" : team?.manages || "none";
+  const hasEncadrement = hasTicketsAccess && perimetreEncadre !== "none" && (team?.members?.length || 0) > 1;
+
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
       <div
@@ -259,6 +267,7 @@ export default function Shell({ session, team, reloadTeam }) {
         setActiveTab={setActiveTab}
         prospects={prospects}
         hasTickets={hasTicketsAccess}
+        hasEncadrement={hasEncadrement}
         open={menuOpen}
         onNavigate={() => setMenuOpen(false)}
       />
@@ -300,6 +309,7 @@ export default function Shell({ session, team, reloadTeam }) {
             onGuardResolved={resumePendingTab}
           />
         )}
+        {activeTab === "encadrement" && hasEncadrement && <Encadrement session={session} team={team} onOpenProspect={openProspect} />}
         {activeTab === "tickets" && (hasTicketsAccess
           ? <Tickets session={session} prospects={prospects} team={team} onOpenProspect={openProspect} />
           : <TicketsVerrouilles planTier={planTier} setActiveTab={setActiveTab} />)}

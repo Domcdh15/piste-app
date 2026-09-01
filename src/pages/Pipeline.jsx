@@ -3155,12 +3155,16 @@ function ProspectOwnersPanel({ prospect, session, team, onAssigned }) {
   // prospect qu'on n'a pas encore signé n'a pas de sens, et une case vide qui ne
   // sert jamais finit par être du bruit.
   const csmOptions = members.filter((m) => m.role === "customer_success");
-  const equipeAvecCsm = csmOptions.length > 0;
+  // Quand l'équipe déclare que le commercial assure aussi le suivi, il n'y a
+  // pas de relais à passer : afficher une seconde case reviendrait à inventer
+  // une organisation qu'elle n'a pas.
+  const rolesFusionnes = !!team.team?.sales_is_csm;
+  const equipeAvecCsm = csmOptions.length > 0 && !rolesFusionnes;
   const estClient = prospect.stage === "Gagné";
 
   const SLOTS = [
     {
-      label: "COMMERCIAL RESPONSABLE",
+      label: rolesFusionnes ? "RESPONSABLE DU CLIENT" : "COMMERCIAL RESPONSABLE",
       ownerId: prospect.sales_owner_id,
       // L'admin peut porter les deux casquettes : il figure dans les deux listes.
       options: members.filter((m) => m.role === "sales" || m.role === "admin"),
