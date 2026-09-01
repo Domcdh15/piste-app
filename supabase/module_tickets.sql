@@ -181,3 +181,44 @@ returns boolean language sql immutable as $$
      and (depuis is null or current_date >= depuis)
      and (jusqu_a is null or current_date <= jusqu_a);
 $$;
+
+-- TOURNIQUET DE DISTRIBUTION (migrations tourniquet_leads + tourniquet_horloge_reelle)
+--
+-- Un lead qui arrive sans propriétaire n'appartient à personne, donc personne
+-- ne le rappelle. Le tour de rôle se déduit de la date du dernier lead reçu
+-- plutôt que d'un compteur : un absent ne prend pas son tour, et la rotation
+-- reprend d'elle-même à son retour. Désactivé par défaut.
+alter table teams add column if not exists lead_round_robin boolean not null default false;
+alter table team_members add column if not exists last_lead_at timestamptz;
+
+create or replace function prochain_commercial(equipe uuid) returns uuid
+language sql security definer stable as $$
+  select m.user_id from team_members m
+    left join user_settings s on s.user_id = m.user_id
+   where m.team_id = equipe and m.role = 'sales'
+     and not est_absent(s.vacation_from, s.vacation_to, s.vacation_mode_enabled)
+   order by m.last_lead_at nulls first, m.created_at limit 1;
+$$;
+
+-- clock_timestamp() et non now() : now() est figé pour toute la transaction,
+-- donc un lot importé partait entièrement chez la même personne.
+create or replace function attribuer_lead() returns trigger
+language plpgsql security definer as $$
+declare choisi uuid; actif boolean;
+begin
+  if new.sales_owner_id is not null or new.team_id is null then return new; end if;
+  if coalesce(new.created_via, 'manuel') = 'manuel' then return new; end if;
+  select lead_round_robin into actif from teams where id = new.team_id;
+  if not coalesce(actif, false) then return new; end if;
+  choisi := prochain_commercial(new.team_id);
+  if choisi is null then return new; end if;
+  new.sales_owner_id := choisi;
+  update team_members set last_lead_at = clock_timestamp()
+   where team_id = new.team_id and user_id = choisi;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_attribuer_lead on prospects;
+create trigger trg_attribuer_lead before insert on prospects
+  for each row execute function attribuer_lead();

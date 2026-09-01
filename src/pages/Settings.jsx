@@ -273,7 +273,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
       </Section>
       <Section title="Absence">
         <Toggle
-          label="Je suis absent(e)"
+          label="Déclarer une absence"
           checked={!!local.vacation_mode_enabled}
           onChange={(v) => {
             set(
@@ -283,6 +283,12 @@ export default function Settings({ session, prospects, settings, reloadSettings,
             );
           }}
         />
+        {!local.vacation_mode_enabled && (
+          <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "8px", lineHeight: 1.5 }}>
+            Activez pour choisir vos dates de départ et de retour. Une absence peut être posée à l'avance :
+            elle ne prendra effet qu'à la date de début.
+          </div>
+        )}
         {local.vacation_mode_enabled && (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "12px" }}>
@@ -935,6 +941,16 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConn
 
   const isAdmin = team.role === "admin";
 
+  const [absenceDe, setAbsenceDe] = useState(null);
+
+  // Qui peut déclarer l'absence de qui. Le serveur revérifie : ceci ne fait que
+  // placer le geste au bon endroit.
+  const monPerimetre = team.role === "admin" ? "both" : team.manages || "none";
+  const jEncadre = (m) =>
+    monPerimetre === "both"
+    || (monPerimetre === "sales" && m.role === "sales")
+    || (monPerimetre === "csm" && m.role === "customer_success");
+
   async function call(body) {
     setBusy(true);
     setError("");
@@ -1152,6 +1168,14 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConn
               <button
                 className="focusable"
                 disabled={busy}
+                onClick={() => setAbsenceDe(absenceDe === m.user_id ? null : m.user_id)}
+                style={{ ...btnGhost, padding: "6px 10px" }}
+              >
+                {m.absent ? "Absence…" : "Absent ?"}
+              </button>
+              <button
+                className="focusable"
+                disabled={busy}
                 onClick={() => {
                   if (confirm("Retirer ce membre de l'équipe ?")) call({ action: "remove", userId: m.user_id });
                 }}
@@ -1161,9 +1185,24 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConn
               </button>
             </div>
           ) : (
-            <span style={{ fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)" }}>
-              {ROLE_LABELS[m.role] || m.role}
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "11px", padding: "4px 9px", borderRadius: "6px", background: "var(--panel2)", color: "var(--text-dim)" }}>
+                {ROLE_LABELS[m.role] || m.role}
+              </span>
+              {jEncadre(m) && m.user_id !== session.user.id && (
+                <button
+                  className="focusable"
+                  disabled={busy}
+                  onClick={() => setAbsenceDe(absenceDe === m.user_id ? null : m.user_id)}
+                  style={{ ...btnGhost, padding: "6px 10px" }}
+                >
+                  {m.absent ? "Absence…" : "Absent ?"}
+                </button>
+              )}
+            </div>
+          )}
+          {absenceDe === m.user_id && (
+            <PanneauAbsence membre={m} busy={busy} call={call} onFermer={() => setAbsenceDe(null)} />
           )}
         </div>
       ))}
@@ -1186,6 +1225,20 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConn
             S'applique à toute l'équipe. Une fiche en cours ne peut plus être quittée sans qu'une prochaine
             action soit planifiée — ou que le prospect soit explicitement clos. C'est la règle qui empêche
             un deal de s'endormir.
+          </div>
+
+          <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "0.5px solid var(--hairline)" }}>
+            <Toggle
+              label="Distribuer automatiquement les nouveaux leads"
+              checked={!!team.team?.lead_round_robin}
+              onChange={(v) => call({ action: "set_team_flags", lead_round_robin: v })}
+              last
+            />
+            <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px", lineHeight: 1.5 }}>
+              Un lead qui arrive sans responsable — formulaire du site, Zapier, import — revient au commercial
+              servi le moins récemment, en sautant ceux qui sont absents. Les fiches créées à la main dans Closia
+              restent à celui qui les saisit.
+            </div>
           </div>
 
           <div style={{ marginTop: "18px", paddingTop: "16px", borderTop: "0.5px solid var(--hairline)" }}>
@@ -1776,3 +1829,60 @@ function ComingSoon({ text }) {
 
 const btnGhost = { background: "var(--panel2)", color: "var(--text)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "8px 14px", fontSize: "13px" };
 const inputSm = { background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "6px", color: "var(--text)", fontSize: "13px", padding: "6px 10px", width: "140px" };
+
+// Déclarer l'absence de quelqu'un d'autre. Réservé à l'admin et au manager qui
+// encadre la personne : c'est vérifié côté serveur, l'interface ne fait que
+// proposer le geste au bon endroit.
+function PanneauAbsence({ membre, busy, call, onFermer }) {
+  const [du, setDu] = useState(membre.vacation_from || new Date().toISOString().slice(0, 10));
+  const [au, setAu] = useState(membre.vacation_to || "");
+
+  return (
+    <div style={{ flexBasis: "100%", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "12px", marginTop: "10px" }}>
+      <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "9px" }}>
+        Absence de {[membre.first_name, membre.last_name].filter(Boolean).join(" ") || membre.email}
+        {" — "}pendant cette période, aucun nouveau dossier ne lui est attribué et ses relances automatiques sont reportées.
+      </div>
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "flex-end" }}>
+        <label style={{ fontSize: "11px", color: "var(--text-faint)" }}>
+          Du
+          <input type="date" value={du} onChange={(e) => setDu(e.target.value)} style={{ ...inputSm, display: "block", marginTop: "3px" }} />
+        </label>
+        <label style={{ fontSize: "11px", color: "var(--text-faint)" }}>
+          Au
+          <input type="date" value={au} min={du || undefined} onChange={(e) => setAu(e.target.value)} style={{ ...inputSm, display: "block", marginTop: "3px" }} />
+        </label>
+        <button
+          className="focusable"
+          disabled={busy}
+          onClick={async () => {
+            await call({ action: "set_absence", userId: membre.user_id, from: du || null, to: au || null, enabled: true });
+            onFermer();
+          }}
+          style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "6px", padding: "7px 12px", fontSize: "12px", fontWeight: 600 }}
+        >
+          Enregistrer
+        </button>
+        {membre.vacation_enabled && (
+          <button
+            className="focusable"
+            disabled={busy}
+            onClick={async () => {
+              await call({ action: "set_absence", userId: membre.user_id, enabled: false });
+              onFermer();
+            }}
+            style={{ ...btnGhost, padding: "7px 12px" }}
+          >
+            Marquer de retour
+          </button>
+        )}
+        <button className="focusable" onClick={onFermer} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "12px", cursor: "pointer" }}>
+          Annuler
+        </button>
+      </div>
+      <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "8px" }}>
+        Sans date de retour, l'absence dure jusqu'à ce qu'elle soit levée.
+      </div>
+    </div>
+  );
+}

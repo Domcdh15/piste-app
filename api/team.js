@@ -92,6 +92,8 @@ export default async function handler(req, res) {
           first_name: settings?.first_name || null,
           last_name: settings?.last_name || null,
           absent: estAbsent(settings),
+          vacation_enabled: !!settings?.vacation_mode_enabled,
+          vacation_from: settings?.vacation_from || null,
           vacation_to: settings?.vacation_to || null,
         };
       })
@@ -188,6 +190,42 @@ export default async function handler(req, res) {
   // Le reste des actions est réservé à l'administrateur de l'équipe.
   if (membership.role !== "admin") {
     return res.status(403).json({ error: "Réservé à l'administrateur de l'équipe" });
+  }
+
+  if (action === "set_absence") {
+    const { userId, from, to, enabled } = req.body;
+    const { data: cible } = await admin
+      .from("team_members").select("role").eq("team_id", membership.team_id).eq("user_id", userId).maybeSingle();
+    if (!cible) return res.status(404).json({ error: "Cette personne n'est pas dans votre équipe" });
+
+    const encadre = membership.role === "admin" ? "both" : membership.manages || "none";
+    const couvre = encadre === "both"
+      || (encadre === "sales" && cible.role === "sales")
+      || (encadre === "csm" && cible.role === "customer_success");
+    // Se déclarer soi-même absent reste permis ; déclarer quelqu'un d'autre
+    // demande de l'encadrer.
+    if (userId !== user.id && !couvre) {
+      return res.status(403).json({ error: "Vous n'encadrez pas cette personne" });
+    }
+    if (from && to && to < from) {
+      return res.status(400).json({ error: "La date de retour précède le début de l'absence" });
+    }
+
+    const patch = enabled === false
+      ? { vacation_mode_enabled: false }
+      : {
+          vacation_mode_enabled: true,
+          vacation_from: from || null,
+          vacation_to: to || null,
+          vacation_last_checked_at: new Date().toISOString(),
+          vacation_replied_senders: [],
+        };
+    const { error } = await admin.from("user_settings").update(patch).eq("user_id", userId);
+    if (error) return res.status(500).json({ error: "La mise à jour de l'absence a échoué" });
+
+    await journal(admin, membership.team_id, user.id, "absence",
+      `${await memberLabel(admin, userId)} : ${enabled === false ? "retour" : `absent${to ? ` jusqu'au ${to}` : ""}`}`);
+    return res.status(200).json({ ok: true });
   }
 
   if (action === "change_role") {
@@ -462,12 +500,13 @@ export default async function handler(req, res) {
   }
 
   if (action === "set_team_flags") {
-    const { has_multiple_sales, has_multiple_csm, require_next_action, sales_visibility, sales_is_csm } = req.body;
+    const { has_multiple_sales, has_multiple_csm, require_next_action, sales_visibility, sales_is_csm, lead_round_robin } = req.body;
     const patch = {};
     if (has_multiple_sales !== undefined) patch.has_multiple_sales = has_multiple_sales;
     if (has_multiple_csm !== undefined) patch.has_multiple_csm = has_multiple_csm;
     if (require_next_action !== undefined) patch.require_next_action = !!require_next_action;
     if (sales_is_csm !== undefined) patch.sales_is_csm = !!sales_is_csm;
+    if (lead_round_robin !== undefined) patch.lead_round_robin = !!lead_round_robin;
     if (sales_visibility !== undefined) {
       // La base porte la même contrainte : on refuse ici pour renvoyer un
       // message clair plutôt qu'une erreur 500 venue de Postgres.
