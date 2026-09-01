@@ -34,10 +34,10 @@ const CATALOG = [
 // pas. D'où le libellé, et l'absence de ces outils dans ce que les formules
 // payantes incluent.
 const COMING_LATER = [
-  { key: "pennylane", label: "Pennylane", desc: "Transformer un devis signé en facture, sans ressaisie." },
-  { key: "qonto", label: "Qonto", desc: "Transformer un devis signé en facture, sans ressaisie." },
-  { key: "evoliz", label: "Evoliz", desc: "Transformer un devis signé en facture, sans ressaisie." },
-  { key: "tiime", label: "Tiime", desc: "Transformer un devis signé en facture, sans ressaisie." },
+  { key: "pennylane", label: "Pennylane", desc: "Envoyer un devis signé vers Pennylane pour qu'il y devienne une facture, à disposition de votre comptable." },
+  { key: "qonto", label: "Qonto", desc: "Émettre la facture depuis votre compte Qonto et rapprocher l'encaissement du deal gagné." },
+  { key: "evoliz", label: "Evoliz", desc: "Reprendre le devis signé dans Evoliz pour la facturation et le suivi des règlements." },
+  { key: "tiime", label: "Tiime", desc: "Transmettre le devis signé à Tiime, qui porte la facturation et la comptabilité." },
   { key: "zapier", label: "Zapier", desc: "Connecter Closia à des milliers d'applications." },
   { key: "make", label: "Make", desc: "Automatiser vos enchaînements commerciaux." },
 ];
