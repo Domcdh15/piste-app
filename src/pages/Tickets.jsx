@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import {
-  PageTitle, Avatar, ArrowLeftIcon, ClockIcon, AlertIcon, TicketIcon,
-  formatRelative, inputStyle, selectStyle,
+  PageTitle, Avatar, ArrowLeftIcon, ClockIcon, AlertIcon, TicketIcon, SparklesIcon,
+  formatRelative, inputStyle, selectStyle, callAI,
 } from "../lib/ui.jsx";
 
 // Un ticket suit une demande d'un client. Une tâche est une action à mener.
@@ -78,6 +78,32 @@ export function objetsProposes(team) {
     fusion[t] = Array.isArray(perso[t]) ? perso[t] : OBJETS_PAR_DEFAUT[t];
   }
   return fusion;
+}
+
+const ROLES = { admin: "Responsable", sales: "Commercial", customer_success: "Customer Success" };
+
+// Un ticket a un propriétaire nommé, et on doit voir à quel titre il le porte :
+// un commercial qui suit une demande avant signature et un CSM qui suit un
+// client après signature ne font pas le même travail.
+function ChoixProprietaire({ valeur, membres, onChange, style }) {
+  const commerciaux = membres.filter((m) => m.role === "admin" || m.role === "sales");
+  const csm = membres.filter((m) => m.role === "customer_success");
+  const nom = (m) => [m.first_name, m.last_name].filter(Boolean).join(" ") || m.email;
+  return (
+    <select value={valeur || ""} onChange={(e) => onChange(e.target.value || null)} style={style}>
+      <option value="">Personne</option>
+      {commerciaux.length > 0 && (
+        <optgroup label="Commercial">
+          {commerciaux.map((m) => <option key={m.user_id} value={m.user_id}>{nom(m)}</option>)}
+        </optgroup>
+      )}
+      {csm.length > 0 && (
+        <optgroup label="Customer Success">
+          {csm.map((m) => <option key={m.user_id} value={m.user_id}>{nom(m)}</option>)}
+        </optgroup>
+      )}
+    </select>
+  );
 }
 
 function Pastille({ texte, couleur, fort }) {
@@ -163,6 +189,8 @@ export default function Tickets({ session, prospects = [], team, onOpenProspect 
     return nom || m.email || null;
   };
 
+  const roleMembre = (userId) => ROLES[membres.find((x) => x.user_id === userId)?.role] || null;
+
   const visibles = useMemo(() => {
     const q = recherche.trim().toLowerCase();
     return tickets.filter((t) => {
@@ -192,6 +220,7 @@ export default function Tickets({ session, prospects = [], team, onOpenProspect 
         client={parProspect[ouvert.prospect_id] || null}
         nomMembre={nomMembre}
         onOpenProspect={onOpenProspect}
+        roleMembre={roleMembre}
         onRetour={() => setOuvert(null)}
         onMaj={(maj) => {
           setTickets((prev) => prev.map((t) => (t.id === maj.id ? maj : t)));
@@ -485,19 +514,13 @@ function ModaleCreation({ session, team, prospects, membres, onFermer, onCree })
           </Champ>
         </div>
 
-        <Champ label="Assigné à" aide={assigneManuel ? null : motifAttribution(clientChoisi, membres, assigne)}>
-          <select
-            value={assigne}
-            onChange={(e) => { setAssigneManuel(true); setAssigne(e.target.value); }}
+        <Champ label="Propriétaire du ticket" aide={assigneManuel ? null : motifAttribution(clientChoisi, membres, assigne)}>
+          <ChoixProprietaire
+            valeur={assigne}
+            membres={membres}
+            onChange={(v) => { setAssigneManuel(true); setAssigne(v || ""); }}
             style={{ ...selectStyle, fontSize: "13px", padding: "8px 10px" }}
-          >
-            <option value="">Personne</option>
-            {membres.map((m) => (
-              <option key={m.user_id} value={m.user_id}>
-                {[m.first_name, m.last_name].filter(Boolean).join(" ") || m.email}
-              </option>
-            ))}
-          </select>
+          />
         </Champ>
 
         <Champ label="Demande du client" aide="Facultatif — ce texte ouvre le fil de discussion.">
@@ -534,13 +557,16 @@ function ModaleCreation({ session, team, prospects, membres, onFermer, onCree })
   );
 }
 
-function DetailTicket({ ticket, session, membres, client, nomMembre, onOpenProspect, onRetour, onMaj }) {
+function DetailTicket({ ticket, session, membres, client, nomMembre, roleMembre, onOpenProspect, onRetour, onMaj }) {
   const [messages, setMessages] = useState([]);
   const [chargement, setChargement] = useState(true);
   const [brouillon, setBrouillon] = useState("");
   const [interne, setInterne] = useState(false);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState(null);
+  const [travailIA, setTravailIA] = useState(null);
+  const [resume, setResume] = useState(null);
+  const [quotaEpuise, setQuotaEpuise] = useState(null);
   const finFil = useRef(null);
 
   useEffect(() => {
@@ -609,6 +635,40 @@ function DetailTicket({ ticket, session, membres, client, nomMembre, onOpenProsp
     if (!interne && ticket.status === "nouveau") changerStatut("en_cours");
   }
 
+  // Le fil tel qu'il sera donné à l'IA. Les notes internes en font partie :
+  // elles portent souvent le contexte qui manque au client.
+  function filTexte() {
+    return messages
+      .map((m) => `${m.sender_type === "client" ? "Client" : m.is_internal ? "Note interne" : "Nous"} : ${m.body}`)
+      .join("\n\n");
+  }
+
+  // L'IA ne se déclenche jamais seule : c'est l'utilisateur qui appuie, et
+  // chaque génération est décomptée de son quota.
+  async function lancerIA(quoi) {
+    if (messages.length === 0) return;
+    setTravailIA(quoi);
+    setErreur(null);
+    setQuotaEpuise(null);
+    const entete = `Ticket « ${ticket.subject} » (${TYPES[ticket.type]}) du client ${client?.company || client?.name || "inconnu"}.`;
+    const consigne = quoi === "reponse"
+      ? `${entete}\n\nÉchange à ce jour :\n${filTexte()}\n\nRédige la prochaine réponse au client, en français, polie et concrète. `
+        + `Va droit au fait, n'invente aucun engagement de date ni de montant qui ne figure pas ci-dessus, `
+        + `et termine par une prochaine étape claire. Donne uniquement le texte de la réponse, sans objet ni signature.`
+      : `${entete}\n\nÉchange à ce jour :\n${filTexte()}\n\nRésume ce fil en cinq lignes maximum : ce que demande le client, `
+        + `ce qui a déjà été répondu, ce qui reste à faire. Pas de formule de politesse, pas de titre.`;
+    try {
+      const texte = await callAI(consigne, session?.access_token);
+      if (quoi === "reponse") setBrouillon(texte.trim());
+      else setResume(texte.trim());
+    } catch (e) {
+      if (e.quotaExhausted) setQuotaEpuise(e.message);
+      else setErreur(e.message);
+    } finally {
+      setTravailIA(null);
+    }
+  }
+
   const st = STATUTS[ticket.status] || STATUTS.nouveau;
   const enRetard = ticket.due_at && OUVERTS.includes(ticket.status) && new Date(ticket.due_at) < new Date();
 
@@ -665,15 +725,13 @@ function DetailTicket({ ticket, session, membres, client, nomMembre, onOpenProsp
             {Object.entries(PRIORITES).map(([cle, p]) => <option key={cle} value={cle}>{p.label}</option>)}
           </select>
         </Champ>
-        <Champ label="Assigné à">
-          <select value={ticket.assigned_to || ""} onChange={(e) => modifier({ assigned_to: e.target.value || null })} style={selectStyle}>
-            <option value="">Personne</option>
-            {membres.map((m) => (
-              <option key={m.user_id} value={m.user_id}>
-                {[m.first_name, m.last_name].filter(Boolean).join(" ") || m.email}
-              </option>
-            ))}
-          </select>
+        <Champ label="Propriétaire" aide={roleMembre?.(ticket.assigned_to)}>
+          <ChoixProprietaire
+            valeur={ticket.assigned_to}
+            membres={membres}
+            onChange={(v) => modifier({ assigned_to: v })}
+            style={selectStyle}
+          />
         </Champ>
         <Champ label="Échéance">
           <input
@@ -725,7 +783,55 @@ function DetailTicket({ ticket, session, membres, client, nomMembre, onOpenProsp
         <div ref={finFil} />
       </div>
 
+      {resume && (
+        <div style={{ background: "var(--blue-dim)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "13px 15px", marginBottom: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "7px" }}>
+            <SparklesIcon size={13} color="var(--blue)" />
+            <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--blue)" }}>Résumé du fil</span>
+            <button
+              className="focusable"
+              onClick={() => setResume(null)}
+              style={{ marginLeft: "auto", background: "none", border: "none", color: "var(--text-faint)", fontSize: "12px", cursor: "pointer" }}
+            >
+              Masquer
+            </button>
+          </div>
+          <div style={{ fontSize: "13px", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{resume}</div>
+        </div>
+      )}
+
+      {quotaEpuise && (
+        <RelanceQuota session={session} message={quotaEpuise} onFermer={() => setQuotaEpuise(null)} />
+      )}
+
       <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "12px", padding: "12px 14px" }}>
+        <div style={{ display: "flex", gap: "7px", flexWrap: "wrap", marginBottom: "10px" }}>
+          {[
+            { cle: "reponse", label: "Rédiger une réponse" },
+            { cle: "resume", label: "Résumer le fil" },
+          ].map((a) => (
+            <button
+              key={a.cle}
+              className="focusable"
+              onClick={() => lancerIA(a.cle)}
+              disabled={!!travailIA || messages.length === 0}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: "6px",
+                border: "0.5px solid var(--hairline)", borderRadius: "8px",
+                padding: "6px 11px", fontSize: "12.5px", fontWeight: 600,
+                background: "var(--panel2)", color: "var(--blue)",
+                cursor: travailIA || messages.length === 0 ? "default" : "pointer",
+                opacity: travailIA || messages.length === 0 ? 0.55 : 1,
+              }}
+            >
+              <SparklesIcon size={12} color="var(--blue)" />
+              {travailIA === a.cle ? "Génération…" : a.label}
+            </button>
+          ))}
+          <span style={{ fontSize: "11.5px", color: "var(--text-faint)", alignSelf: "center" }}>
+            Décompté de votre quota IA
+          </span>
+        </div>
         <textarea
           value={brouillon}
           onChange={(e) => setBrouillon(e.target.value)}
@@ -751,6 +857,61 @@ function DetailTicket({ ticket, session, membres, client, nomMembre, onOpenProsp
           La réponse est enregistrée dans le fil du ticket. L'envoi par email arrivera avec la boîte support.
         </div>
       </div>
+    </div>
+  );
+}
+
+// Quota épuisé : c'est le signe de quelqu'un qui se sert de l'outil, pas d'une
+// faute à sanctionner. On lui vend la capacité dont il a besoin plutôt que de
+// le renvoyer vers une formule supérieure pour un seul mois chargé.
+function RelanceQuota({ session, message, onFermer }) {
+  const [envoi, setEnvoi] = useState(false);
+  const [envoye, setEnvoye] = useState(false);
+  const [erreur, setErreur] = useState(null);
+
+  async function demander() {
+    setEnvoi(true);
+    setErreur(null);
+    const texte = "Demande de recharge IA : 500 générations supplémentaires pour ce mois.";
+    const { error } = await supabase.from("support_requests").insert({
+      user_id: session.user.id,
+      user_email: session.user.email,
+      message: texte,
+      messages: [{ from: "client", body: texte, at: new Date().toISOString() }],
+    });
+    setEnvoi(false);
+    if (error) setErreur("L'envoi a échoué. Réessayez.");
+    else setEnvoye(true);
+  }
+
+  return (
+    <div style={{ background: "#d977061a", border: "0.5px solid #d9770633", borderRadius: "12px", padding: "13px 15px", marginBottom: "12px" }}>
+      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "5px" }}>Quota d'IA épuisé</div>
+      <div style={{ fontSize: "12.5px", color: "var(--text-dim)", lineHeight: 1.5, marginBottom: "11px" }}>{message}</div>
+      {envoye ? (
+        <div style={{ fontSize: "12.5px", color: "var(--text-dim)" }}>
+          Demande envoyée. Votre recharge sera activée sous peu, et vous pourrez reprendre là où vous en étiez.
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          <button
+            className="focusable"
+            onClick={demander}
+            disabled={envoi}
+            style={{ background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "8px 14px", fontSize: "12.5px", fontWeight: 600, cursor: "pointer", opacity: envoi ? 0.6 : 1 }}
+          >
+            {envoi ? "Envoi…" : "Demander 500 générations"}
+          </button>
+          <button
+            className="focusable"
+            onClick={onFermer}
+            style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: "12.5px", cursor: "pointer" }}
+          >
+            Plus tard
+          </button>
+          {erreur && <span style={{ fontSize: "12px", color: "#dc2626" }}>{erreur}</span>}
+        </div>
+      )}
     </div>
   );
 }

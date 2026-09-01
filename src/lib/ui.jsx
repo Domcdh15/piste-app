@@ -199,7 +199,15 @@ export async function callAI(prompt, token) {
     body: JSON.stringify({ prompt }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Erreur inconnue");
+  if (!res.ok) {
+    // Le quota épuisé n'est pas une panne : l'interface doit pouvoir proposer
+    // une recharge plutôt qu'afficher un message d'erreur sans issue. Sans ce
+    // report, le drapeau renvoyé par l'API se perdait dans le message.
+    const err = new Error(data.error || "Erreur inconnue");
+    err.quotaExhausted = !!data.quotaExhausted;
+    err.resetAt = data.resetAt || null;
+    throw err;
+  }
   return data.text;
 }
 

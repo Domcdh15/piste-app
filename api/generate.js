@@ -53,7 +53,7 @@ export default async function handler(req, res) {
     return res.status(429).json({
       error: `Vos ${monthlyLimit} générations du mois sont épuisées`
         + (extra ? ` (${tier.aiQuota} du forfait ${tier.name} + ${extra} de recharge)` : ` (forfait ${tier.name})`)
-        + `. Le compteur repart le ${new Date(nextResetAt).toLocaleDateString("fr-FR")}. Pour continuer dès maintenant, demandez une recharge depuis Paramètres — 500 générations pour 19 €.`,
+        + `. Le compteur repart le ${new Date(nextResetAt).toLocaleDateString("fr-FR")}. Vous pouvez demander une recharge de 500 générations depuis l'application.`,
       quotaExhausted: true,
       limit: monthlyLimit,
       resetAt: nextResetAt,
