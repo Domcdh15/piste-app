@@ -3,6 +3,16 @@ import { getUserFromToken, bearerToken, supabaseAdmin } from "./_lib/supabase.js
 import { planTierFor } from "./_lib/plans.js";
 
 const ROLES = ["admin", "sales", "customer_success"];
+
+// Absent aujourd'hui ? Sans bornes, une absence dure indéfiniment : c'est ce
+// qui faisait répondre « je suis absent » des mois après le retour.
+function estAbsent(s, le = new Date()) {
+  if (!s?.vacation_mode_enabled) return false;
+  const jour = le.toISOString().slice(0, 10);
+  if (s.vacation_from && jour < s.vacation_from) return false;
+  if (s.vacation_to && jour > s.vacation_to) return false;
+  return true;
+}
 const BUSINESS_MIN_PRICE = 70;
 
 // Journal d'équipe : on n'y consigne que ce qui engage les autres — une
@@ -71,7 +81,7 @@ export default async function handler(req, res) {
       (members || []).map(async (m) => {
         const [{ data: u }, { data: settings }] = await Promise.all([
           admin.auth.admin.getUserById(m.user_id),
-          admin.from("user_settings").select("first_name, last_name").eq("user_id", m.user_id).maybeSingle(),
+          admin.from("user_settings").select("first_name, last_name, vacation_mode_enabled, vacation_from, vacation_to").eq("user_id", m.user_id).maybeSingle(),
         ]);
         return {
           id: m.id,
@@ -81,6 +91,8 @@ export default async function handler(req, res) {
           email: u?.user?.email || null,
           first_name: settings?.first_name || null,
           last_name: settings?.last_name || null,
+          absent: estAbsent(settings),
+          vacation_to: settings?.vacation_to || null,
         };
       })
     );

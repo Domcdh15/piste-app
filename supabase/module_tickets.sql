@@ -166,3 +166,18 @@ language sql stable as $$
     else false
   end;
 $$;
+
+-- ABSENCE DATÉE (migration absence_dates)
+--
+-- Le mode absence n'avait qu'un interrupteur : la réponse automatique ne
+-- s'arrêtait jamais d'elle-même, et rien dans l'application ne savait qu'une
+-- personne était absente aujourd'hui.
+alter table user_settings add column if not exists vacation_from date;
+alter table user_settings add column if not exists vacation_to date;
+
+create or replace function est_absent(depuis date, jusqu_a date, actif boolean)
+returns boolean language sql immutable as $$
+  select coalesce(actif, false)
+     and (depuis is null or current_date >= depuis)
+     and (jusqu_a is null or current_date <= jusqu_a);
+$$;

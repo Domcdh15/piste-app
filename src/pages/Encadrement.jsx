@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import {
-  PageTitle, Avatar, UsersIcon, SparklesIcon, ArrowLeftIcon,
-  OPEN_STAGES, formatEuros, formatDate, formatRelative, callAI, selectStyle,
+  PageTitle, Avatar, UsersIcon, SparklesIcon, ArrowLeftIcon, BadgeAbsent,
+  OPEN_STAGES, CLOSED_STAGES, formatEuros, formatDate, formatRelative, callAI, selectStyle,
 } from "../lib/ui.jsx";
 
 // ESPACE D'ENCADREMENT
@@ -253,7 +253,7 @@ export default function Encadrement({ session, team, onOpenProspect }) {
       {chargement ? (
         <div style={{ color: "var(--text-faint)", fontSize: "13px", padding: "30px 0" }}>Chargement…</div>
       ) : vue === "analyses" ? (
-        <Analyses fiches={fiches} taches={taches} activites={activites} membres={membres} />
+        <Analyses fiches={fiches} taches={taches} activites={activites} membres={membres} onOpenProspect={onOpenProspect} />
       ) : suivis.length === 0 ? (
         <div style={{ background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "14px", padding: "36px 26px", textAlign: "center", fontSize: "13px", color: "var(--text-faint)" }}>
           Personne à encadrer pour l'instant dans ce périmètre.
@@ -277,8 +277,9 @@ export default function Encadrement({ session, team, onOpenProspect }) {
                   <Avatar name={nomDe(m)} size={34} />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: "14px", fontWeight: 700 }}>{nomDe(m)}</div>
-                    <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>
+                    <div style={{ fontSize: "11.5px", color: "var(--text-faint)", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
                       {m.role === "customer_success" ? "Customer Success" : "Commercial"}
+                      {m.absent && <BadgeAbsent jusquAu={m.vacation_to} compact />}
                     </div>
                   </div>
                 </div>
@@ -325,6 +326,9 @@ function FichePersonne({ session, membre, bilan, onOpenProspect, onRetour }) {
       `Affaires gagnées : ${b.gagnees.length} pour ${Math.round(b.valeurGagnee)} €. Perdues : ${b.perdues.length}.`,
       b.tauxTransfo === null ? "Aucune affaire close, pas de taux de transformation." : `Taux de transformation : ${b.tauxTransfo} %.`,
       `Tâches en retard : ${b.enRetard}. Activités sur 30 jours : ${b.activites30j}.`,
+      membre.absent
+        ? `ATTENTION : cette personne est actuellement absente${membre.vacation_to ? ` jusqu'au ${membre.vacation_to}` : ""}. N'attribue pas à un manque d'implication ce qui s'explique par son absence.`
+        : "",
       `Affaires sans échange depuis plus de ${JOURS_SANS_CONTACT} jours : ${b.endormies.length}` +
         (b.endormies.length ? ` (${b.endormies.slice(0, 5).map((p) => p.company).join(", ")}).` : "."),
       `Prospects jamais contactés après plus d'une semaine : ${b.jamaisContactes.length}.`,
@@ -332,7 +336,7 @@ function FichePersonne({ session, membre, bilan, onOpenProspect, onRetour }) {
         : `Clients suivis : ${b.clientsSuivis.length}, dont ${b.fragiles.length} fragiles`
           + (b.fragiles.length ? ` (${b.fragiles.slice(0, 4).map((c) => `${c.client.company} : ${c.raisons.join(", ")}`).join(" ; ")}).` : "."),
       `Répartition des affaires ouvertes par étape : ${Object.entries(b.parEtape).map(([e, n]) => `${e} ${n}`).join(", ") || "aucune"}.`,
-    ].join("\n");
+    ].filter(Boolean).join("\n");
 
     try {
       const texte = await callAI(
@@ -370,6 +374,9 @@ function FichePersonne({ session, membre, bilan, onOpenProspect, onRetour }) {
           <div style={{ fontSize: "12.5px", color: "var(--text-faint)" }}>
             {membre.role === "customer_success" ? "Customer Success" : "Commercial"}
             {b.derniereActivite ? ` · dernière activité ${formatRelative(b.derniereActivite)?.toLowerCase()}` : " · aucune activité enregistrée"}
+            {membre.absent && (
+              <> · <BadgeAbsent jusquAu={membre.vacation_to} /></>
+            )}
           </div>
         </div>
       </div>
@@ -527,10 +534,11 @@ const MESURES = {
 const PERIODES = { j30: "30 jours", j90: "90 jours", m12: "12 mois", tout: "Depuis le début" };
 const JOURS_PERIODE = { j30: 30, j90: 90, m12: 365, tout: null };
 
-function Analyses({ fiches, taches, activites, membres }) {
+function Analyses({ fiches, taches, activites, membres, onOpenProspect }) {
   const [ligne, setLigne] = useState("personne");
   const [mesures, setMesures] = useState(["nombre", "pipeline", "gagne", "transformation"]);
   const [periode, setPeriode] = useState("j90");
+  const [detail, setDetail] = useState(null);
 
   const bascule = (m) =>
     setMesures((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]));
@@ -565,14 +573,26 @@ function Analyses({ fiches, taches, activites, membres }) {
       const ouvertes = lot.filter((p) => OPEN_STAGES.includes(p.stage));
       const gagnees = lot.filter((p) => p.stage === "Gagné");
       const closes = gagnees.length + lot.filter((p) => p.stage === "Perdu").length;
+      const sesActivites = activites.filter((a) => ids.has(a.prospect_id) && dansPeriode(a.created_at));
+      const sesRetards = taches.filter((t) => ids.has(t.prospect_id) && !t.done && t.due_at && new Date(t.due_at) < new Date());
       return {
         nom,
         nombre: lot.length,
         pipeline: ouvertes.reduce((s, p) => s + Number(p.deal_value || 0), 0),
         gagne: gagnees.reduce((s, p) => s + Number(p.deal_value || 0), 0),
         transformation: closes ? Math.round((gagnees.length / closes) * 100) : null,
-        activites: activites.filter((a) => ids.has(a.prospect_id) && dansPeriode(a.created_at)).length,
-        retard: taches.filter((t) => ids.has(t.prospect_id) && !t.done && t.due_at && new Date(t.due_at) < new Date()).length,
+        activites: sesActivites.length,
+        retard: sesRetards.length,
+        // Ce qui est compté, gardé tel quel : ouvrir une cellule doit montrer
+        // exactement les lignes derrière le chiffre, pas une approximation.
+        detail: {
+          nombre: lot,
+          pipeline: ouvertes,
+          gagne: gagnees,
+          transformation: lot.filter((p) => CLOSED_STAGES.includes(p.stage)),
+          activites: sesActivites,
+          retard: sesRetards,
+        },
       };
     }).sort((a, b) => b.nombre - a.nombre);
   }, [fiches, taches, activites, membres, ligne, periode]);
@@ -654,11 +674,31 @@ function Analyses({ fiches, taches, activites, membres }) {
               {lignes.map((l) => (
                 <tr key={l.nom}>
                   <td style={{ padding: "10px 16px", borderTop: "0.5px solid var(--hairline)", fontWeight: 600 }}>{l.nom}</td>
-                  {mesures.map((m) => (
-                    <td key={m} style={{ padding: "10px 16px", borderTop: "0.5px solid var(--hairline)", textAlign: "right", fontVariantNumeric: "tabular-nums", color: m === "retard" && l[m] > 0 ? "#dc2626" : "var(--text)" }}>
-                      {affiche(l, m)}
-                    </td>
-                  ))}
+                  {mesures.map((m) => {
+                    const lignesDerriere = l.detail[m] || [];
+                    return (
+                      <td key={m} style={{ padding: "0", borderTop: "0.5px solid var(--hairline)", textAlign: "right" }}>
+                        <button
+                          className="focusable"
+                          onClick={() => lignesDerriere.length > 0 && setDetail({ ligne: l, mesure: m })}
+                          disabled={lignesDerriere.length === 0}
+                          title={lignesDerriere.length > 0 ? "Voir le détail" : "Rien à détailler"}
+                          style={{
+                            width: "100%", padding: "10px 16px", textAlign: "right", background: "none",
+                            border: "none", fontSize: "13px", fontVariantNumeric: "tabular-nums",
+                            fontFamily: "inherit",
+                            cursor: lignesDerriere.length > 0 ? "pointer" : "default",
+                            color: m === "retard" && l[m] > 0 ? "#dc2626" : "var(--text)",
+                            textDecoration: lignesDerriere.length > 0 ? "underline" : "none",
+                            textDecorationColor: "var(--hairline)",
+                            textUnderlineOffset: "3px",
+                          }}
+                        >
+                          {affiche(l, m)}
+                        </button>
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
               {lignes.length > 1 && (
@@ -676,11 +716,85 @@ function Analyses({ fiches, taches, activites, membres }) {
         </div>
       )}
 
+      {detail && (
+        <DetailMesure
+          ligne={detail.ligne}
+          mesure={detail.mesure}
+          libelleLigne={LIGNES[ligne]}
+          onOpenProspect={onOpenProspect}
+          onFermer={() => setDetail(null)}
+        />
+      )}
+
       {lignes.length === 0 && (
         <div style={{ fontSize: "12.5px", color: "var(--text-faint)", marginTop: "12px" }}>
           Aucune donnée sur cette période.
         </div>
       )}
+    </div>
+  );
+}
+
+// Ce qu'il y a derrière un chiffre. Un tableau qu'on ne peut pas ouvrir oblige
+// à faire confiance au calcul ; celui-ci montre ses lignes.
+function DetailMesure({ ligne, mesure, libelleLigne, onOpenProspect, onFermer }) {
+  const items = ligne.detail[mesure] || [];
+  const estFiche = ["nombre", "pipeline", "gagne", "transformation"].includes(mesure);
+
+  return (
+    <div
+      onClick={onFermer}
+      style={{ position: "fixed", inset: 0, background: "rgba(10,17,40,0.6)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: "20px" }}
+    >
+      <div
+        onClick={(ev) => ev.stopPropagation()}
+        style={{ background: "var(--panel)", border: "1px solid var(--hairline-strong, var(--hairline))", borderRadius: "14px", padding: "20px 22px", maxWidth: "560px", width: "100%", maxHeight: "80vh", overflowY: "auto", boxShadow: "var(--shadow-md)" }}
+      >
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "14px", marginBottom: "4px" }}>
+          <div className="display" style={{ fontSize: "16px", fontWeight: 700 }}>
+            {MESURES[mesure]} — {ligne.nom}
+          </div>
+          <button
+            className="focusable"
+            onClick={onFermer}
+            style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "13px", cursor: "pointer" }}
+          >
+            Fermer
+          </button>
+        </div>
+        <div style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "14px" }}>
+          {libelleLigne} · {items.length} ligne{items.length > 1 ? "s" : ""} comptée{items.length > 1 ? "s" : ""}
+          {mesure === "transformation" && " (les affaires closes, gagnées et perdues)"}
+        </div>
+
+        {items.map((it) => (
+          estFiche ? (
+            <button
+              key={it.id}
+              className="focusable"
+              onClick={() => { onFermer(); onOpenProspect?.(it.id); }}
+              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", width: "100%", background: "none", border: "none", borderTop: "0.5px solid var(--hairline)", padding: "10px 0", cursor: "pointer", textAlign: "left" }}
+            >
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: "13px", fontWeight: 600 }}>{it.company}</span>
+                <span style={{ display: "block", fontSize: "11.5px", color: "var(--text-faint)" }}>{it.stage} · {it.name}</span>
+              </span>
+              <span style={{ fontSize: "12.5px", fontWeight: 700, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                {formatEuros(it.deal_value)}
+              </span>
+            </button>
+          ) : (
+            <div key={it.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", borderTop: "0.5px solid var(--hairline)", padding: "10px 0" }}>
+              <span style={{ fontSize: "12.5px", color: "var(--text-dim)", minWidth: 0 }}>
+                {it.note || (mesure === "activites" ? "Activité enregistrée" : "Action à mener")}
+              </span>
+              <span style={{ fontSize: "11.5px", color: mesure === "retard" ? "#dc2626" : "var(--text-faint)", whiteSpace: "nowrap" }}>
+                {formatDate(it.due_at || it.created_at)}
+              </span>
+            </div>
+          )
+        ))}
+      </div>
     </div>
   );
 }

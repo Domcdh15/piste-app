@@ -529,3 +529,24 @@ export const selectStyle = {
   fontSize: "12px",
   padding: "6px 8px",
 };
+
+// Absent : l'information doit se voir là où l'on attribue un dossier, sinon on
+// confie un client à quelqu'un qui ne le verra pas avant son retour.
+export function BadgeAbsent({ jusquAu, compact }) {
+  const jusque = jusquAu
+    ? new Date(jusquAu).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
+    : null;
+  return (
+    <span
+      title={jusque ? `Absent jusqu'au ${jusque}` : "Absent"}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: "4px",
+        padding: "1px 7px", borderRadius: "999px", whiteSpace: "nowrap",
+        fontSize: compact ? "10px" : "11px", fontWeight: 600,
+        background: "#d977061a", color: "#b45309",
+      }}
+    >
+      Absent{jusque && !compact ? ` jusqu'au ${jusque}` : ""}
+    </span>
+  );
+}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { formatEuros, buildSignatureBlock } from "../lib/ui.jsx";
+import { PLAN_TIERS, planTierFor } from "../../api/_lib/plans.js";
+import { formatEuros, buildSignatureBlock, BadgeAbsent } from "../lib/ui.jsx";
 
 const TONES = ["Professionnel", "Chaleureux", "Direct"];
 const DETAIL_LEVELS = ["Court", "Équilibré", "Détaillé"];
@@ -270,47 +271,72 @@ export default function Settings({ session, prospects, settings, reloadSettings,
           </select>
         </Field>
       </Section>
-      {(mailConnected.google || mailConnected.microsoft) && (
-        <Section title="Mode absence">
-          <Toggle
-            label="Activer le mode absence"
-            checked={!!local.vacation_mode_enabled}
-            onChange={(v) => {
-              set(
-                v
-                  ? { vacation_mode_enabled: true, vacation_last_checked_at: new Date().toISOString(), vacation_replied_senders: [] }
-                  : { vacation_mode_enabled: false }
-              );
-            }}
-          />
-          {local.vacation_mode_enabled && (
-            <>
-              <div style={{ fontSize: "13px", color: "var(--text)", marginTop: "12px", marginBottom: "6px" }}>Message d'accusé de réception</div>
-              <textarea
-                value={local.vacation_message || ""}
-                onChange={(e) => set({ vacation_message: e.target.value })}
-                placeholder="ex : Je suis actuellement absent(e) et de retour le..."
-                rows={3}
-                style={{ ...inputSm, width: "100%", resize: "vertical", fontFamily: "inherit" }}
-              />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "12px" }}>
-                <Field label="Date de retour">
-                  <input type="date" value={local.vacation_return_at ? local.vacation_return_at.slice(0, 10) : ""} onChange={(e) => set({ vacation_return_at: e.target.value ? new Date(e.target.value).toISOString() : null })} style={{ ...inputSm, width: "100%" }} />
-                </Field>
-                <Field label="Collègue à contacter (nom)">
-                  <input value={local.vacation_redirect_name || ""} onChange={(e) => set({ vacation_redirect_name: e.target.value })} style={{ ...inputSm, width: "100%" }} placeholder="ex : Camille Martin" />
-                </Field>
-              </div>
-              <Field label="Email du collègue" last>
-                <input type="email" value={local.vacation_redirect_email || ""} onChange={(e) => set({ vacation_redirect_email: e.target.value })} style={{ ...inputSm, width: "100%" }} placeholder="ex : camille@entreprise.fr" />
+      <Section title="Absence">
+        <Toggle
+          label="Je suis absent(e)"
+          checked={!!local.vacation_mode_enabled}
+          onChange={(v) => {
+            set(
+              v
+                ? { vacation_mode_enabled: true, vacation_last_checked_at: new Date().toISOString(), vacation_replied_senders: [] }
+                : { vacation_mode_enabled: false }
+            );
+          }}
+        />
+        {local.vacation_mode_enabled && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "12px" }}>
+              <Field label="Du">
+                <input
+                  type="date"
+                  value={local.vacation_from || ""}
+                  onChange={(e) => set({ vacation_from: e.target.value || null })}
+                  style={{ ...inputSm, width: "100%" }}
+                />
               </Field>
-              <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>
-                Chaque nouvel expéditeur reçoit une réponse automatique une seule fois. La boîte est vérifiée une fois par jour — ce n'est pas instantané.
-              </div>
-            </>
-          )}
-        </Section>
-      )}
+              <Field label="Au">
+                <input
+                  type="date"
+                  value={local.vacation_to || ""}
+                  min={local.vacation_from || undefined}
+                  onChange={(e) => set({ vacation_to: e.target.value || null })}
+                  style={{ ...inputSm, width: "100%" }}
+                />
+              </Field>
+            </div>
+            <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "2px", marginBottom: "14px", lineHeight: 1.5 }}>
+              {local.vacation_to
+                ? "Pendant cette période, vous n'êtes plus proposé comme responsable d'un nouveau dossier, et votre équipe voit que vous êtes absent. Tout revient à la normale au retour, sans rien à désactiver."
+                : "Sans date de fin, l'absence dure jusqu'à ce que vous la désactiviez vous-même. Renseignez une date de retour pour qu'elle s'arrête seule."}
+            </div>
+
+            {(mailConnected.google || mailConnected.microsoft) && (
+              <>
+                <div style={{ fontSize: "13px", color: "var(--text)", marginTop: "4px", marginBottom: "6px" }}>Message d'accusé de réception</div>
+                <textarea
+                  value={local.vacation_message || ""}
+                  onChange={(e) => set({ vacation_message: e.target.value })}
+                  placeholder="ex : Je suis actuellement absent(e) et de retour le..."
+                  rows={3}
+                  style={{ ...inputSm, width: "100%", resize: "vertical", fontFamily: "inherit" }}
+                />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "12px" }}>
+                  <Field label="Collègue à contacter (nom)">
+                    <input value={local.vacation_redirect_name || ""} onChange={(e) => set({ vacation_redirect_name: e.target.value })} style={{ ...inputSm, width: "100%" }} placeholder="ex : Camille Martin" />
+                  </Field>
+                  <Field label="Email du collègue">
+                    <input type="email" value={local.vacation_redirect_email || ""} onChange={(e) => set({ vacation_redirect_email: e.target.value })} style={{ ...inputSm, width: "100%" }} placeholder="ex : camille@entreprise.fr" />
+                  </Field>
+                </div>
+                <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>
+                  Chaque nouvel expéditeur reçoit une réponse automatique une seule fois, et seulement pendant la période ci-dessus.
+                  La boîte est vérifiée une fois par jour — ce n'est pas instantané.
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </Section>
               </>
             )}
 
@@ -1092,7 +1118,10 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConn
               {m.first_name || m.last_name ? `${m.first_name || ""} ${m.last_name || ""}`.trim() : m.email}
               {m.user_id === session.user.id && <span style={{ color: "var(--text-faint)", fontWeight: 400 }}> (vous)</span>}
             </div>
-            <div style={{ fontSize: "11px", color: "var(--text-faint)" }}>{m.email}</div>
+            <div style={{ fontSize: "11px", color: "var(--text-faint)", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+              {m.email}
+              {m.absent && <BadgeAbsent jusquAu={m.vacation_to} />}
+            </div>
           </div>
           {isAdmin ? (
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -1202,19 +1231,6 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConn
 }
 
 const STANDARD_PRICE = 19;
-
-// Doit rester synchronisé avec api/_lib/plans.js (dupliqué côté client, ce fichier
-// n'est pas accessible dans le bundle serverless).
-const PLAN_TIERS = [
-  { name: "Solo", maxPrice: 19, seats: 1, overagePrice: 12, aiQuota: 300 },
-  { name: "Équipe", maxPrice: 39, seats: 3, overagePrice: 12, aiQuota: 300 },
-  { name: "Business", maxPrice: 79, seats: 10, overagePrice: 10, aiQuota: 1000 },
-  { name: "Sur mesure", maxPrice: Infinity, seats: 20, overagePrice: 8, aiQuota: 3000 },
-];
-
-function planTierFor(price) {
-  return PLAN_TIERS.find((t) => price <= t.maxPrice) || PLAN_TIERS[PLAN_TIERS.length - 1];
-}
 
 function BillingPanel({ local, session, team, reloadSettings, reloadTeam }) {
   const [specimenBusy, setSpecimenBusy] = useState(false);
@@ -1329,8 +1345,15 @@ function BillingPanel({ local, session, team, reloadSettings, reloadTeam }) {
                 <div style={{ fontSize: "13px", color: "var(--text)", marginBottom: "4px" }}>
                   {tier.name} · <span className="mono" style={{ fontWeight: 700, color: over ? "var(--red)" : "var(--text)" }}>{memberCount} / {tier.seats}</span> places utilisées
                 </div>
-                {over ? (
-                  <div style={{ fontSize: "11.5px", color: "var(--red)" }}>Au-delà de votre quota — contacte le support pour ajuster votre abonnement (+{formatEuros(tier.overagePrice)}/mois par place supplémentaire).</div>
+                {tier.overagePrice === null ? (
+                  <div style={{ fontSize: "11.5px", color: over ? "var(--red)" : "var(--text-faint)" }}>
+                    {over
+                      ? `Vous dépassez les ${tier.seats} places de la formule ${tier.name}.`
+                      : `La formule ${tier.name} couvre ${tier.seats} utilisateur${tier.seats > 1 ? "s" : ""}.`}
+                    {tier.nextTier ? ` Passez à ${tier.nextTier} pour inviter davantage de personnes.` : ""}
+                  </div>
+                ) : over ? (
+                  <div style={{ fontSize: "11.5px", color: "var(--red)" }}>Au-delà de votre quota — contactez le support pour ajuster votre abonnement (+{formatEuros(tier.overagePrice)}/mois par place supplémentaire).</div>
                 ) : (
                   <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>+{formatEuros(tier.overagePrice)}/mois par place au-delà de {tier.seats}.</div>
                 )}

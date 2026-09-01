@@ -3133,7 +3133,12 @@ function ProspectOwnersPanel({ prospect, session, team, onAssigned }) {
 
   function memberLabel(m) {
     if (!m) return "";
-    return m.first_name || m.last_name ? `${m.first_name || ""} ${m.last_name || ""}`.trim() : m.email;
+    const base = m.first_name || m.last_name ? `${m.first_name || ""} ${m.last_name || ""}`.trim() : m.email;
+    if (!m.absent) return base;
+    const jusque = m.vacation_to
+      ? new Date(m.vacation_to).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
+      : null;
+    return jusque ? `${base} — absent jusqu'au ${jusque}` : `${base} — absent`;
   }
 
   async function assign(patch) {

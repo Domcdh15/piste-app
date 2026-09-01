@@ -13,8 +13,7 @@ import {
   formatEuros,
   formatShortDate,
   isOverdue,
-  computeDealScore,
-} from "../lib/ui.jsx";
+  computeDealScore } from "../lib/ui.jsx";
 
 const TASK_TYPE_META = {
   appel_telephone: { label: "Appel", color: "var(--amber)", dim: "var(--amber-dim)", Icon: PhoneIcon },
@@ -125,6 +124,9 @@ Ton direct et professionnel, vouvoiement. Pas d'emoji. Maximum 200 mots.`;
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,17,40,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 130, padding: "20px" }}>
+      {settings?.vacation_mode_enabled && (
+        <BandeauAbsence settings={settings} session={session} />
+      )}
       <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg)", borderRadius: "14px", boxShadow: "var(--shadow-md)", padding: "26px", maxWidth: "540px", width: "100%", maxHeight: "86vh", overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "9px", marginBottom: "4px" }}>
           <SparklesIcon size={15} color="var(--blue)" />
@@ -745,6 +747,49 @@ function BriefAgendaRow({ item, prospect, onOpen, onToggleDone }) {
       <span className="mono" style={{ fontSize: "9px", fontWeight: 700, color: meta.color, background: meta.dim, borderRadius: "5px", padding: "3px 6px", whiteSpace: "nowrap", flexShrink: 0 }}>
         {meta.label}
       </span>
+    </div>
+  );
+}
+
+// Rappel à la personne concernée. Une absence qu'on oublie de lever explique
+// mal pourquoi les relances ne partent plus et pourquoi les nouveaux dossiers
+// vont ailleurs : autant le dire, et permettre de la lever en un clic.
+function BandeauAbsence({ settings, session }) {
+  const [busy, setBusy] = useState(false);
+  const [leve, setLeve] = useState(false);
+  const aujourdhui = new Date().toISOString().slice(0, 10);
+  const pasEncore = settings.vacation_from && aujourdhui < settings.vacation_from;
+  const terminee = settings.vacation_to && aujourdhui > settings.vacation_to;
+  const jour = (d) => new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+
+  async function revenir() {
+    setBusy(true);
+    const { error } = await supabase.from("user_settings").update({ vacation_mode_enabled: false }).eq("user_id", session.user.id);
+    setBusy(false);
+    if (!error) setLeve(true);
+  }
+
+  if (leve) return null;
+
+  return (
+    <div style={{ background: "#d977061a", border: "0.5px solid #d9770633", borderRadius: "12px", padding: "12px 15px", marginBottom: "16px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+      <span style={{ fontSize: "13px", color: "var(--text)", minWidth: 0 }}>
+        {pasEncore
+          ? `Absence programmée à partir du ${jour(settings.vacation_from)}.`
+          : terminee
+          ? `Votre absence s'est terminée le ${jour(settings.vacation_to)}, mais elle est toujours active.`
+          : settings.vacation_to
+          ? `Vous êtes déclaré absent jusqu'au ${jour(settings.vacation_to)}. Vos relances automatiques sont reportées et les nouveaux dossiers vont à vos collègues.`
+          : "Vous êtes déclaré absent, sans date de retour. Vos relances automatiques sont suspendues."}
+      </span>
+      <button
+        className="focusable"
+        onClick={revenir}
+        disabled={busy}
+        style={{ marginLeft: "auto", background: "var(--panel)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "7px 13px", fontSize: "12.5px", fontWeight: 600, cursor: "pointer", opacity: busy ? 0.6 : 1 }}
+      >
+        {busy ? "…" : "Je suis de retour"}
+      </button>
     </div>
   );
 }

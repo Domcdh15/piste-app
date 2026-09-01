@@ -4,8 +4,11 @@ import { postSlack } from "../_lib/slack.js";
 
 function buildVacationReply(s) {
   const lines = [(s.vacation_message || "").trim() || "Je suis actuellement absent(e)."];
-  if (s.vacation_return_at) {
-    lines.push(`Je serai de retour le ${new Date(s.vacation_return_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}.`);
+  // La date de retour vient désormais de la période d'absence ; l'ancien champ
+  // reste lu pour les absences déclarées avant ce changement.
+  const retour = s.vacation_to || s.vacation_return_at;
+  if (retour) {
+    lines.push(`Je serai de retour le ${new Date(retour).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}.`);
   }
   if (s.vacation_redirect_name || s.vacation_redirect_email) {
     lines.push(`En cas d'urgence, vous pouvez contacter ${[s.vacation_redirect_name, s.vacation_redirect_email && `(${s.vacation_redirect_email})`].filter(Boolean).join(" ")}.`);
@@ -13,8 +16,20 @@ function buildVacationReply(s) {
   return lines.join("\n\n");
 }
 
+// Absent aujourd'hui ? Sans bornes de dates, une absence dure indéfiniment.
+function absentAujourdHui(s) {
+  if (!s?.vacation_mode_enabled) return false;
+  const jour = new Date().toISOString().slice(0, 10);
+  if (s.vacation_from && jour < s.vacation_from) return false;
+  if (s.vacation_to && jour > s.vacation_to) return false;
+  return true;
+}
+
 async function runVacationCheck(admin) {
-  const { data: rows } = await admin.from("user_settings").select("*").eq("vacation_mode_enabled", true);
+  // Bornée par les dates : sans elles, une absence oubliée répondait encore
+  // « je suis absent » des mois plus tard.
+  const { data: toutes } = await admin.from("user_settings").select("*").eq("vacation_mode_enabled", true);
+  const rows = (toutes || []).filter(absentAujourdHui);
   let repliesSent = 0;
 
   for (const s of rows || []) {
@@ -68,10 +83,11 @@ async function runSequences(admin) {
     .order("send_at", { ascending: true })
     .limit(200);
 
-  if (!due || due.length === 0) return { sent: 0, stopped: 0 };
+  if (!due || due.length === 0) return { sent: 0, stopped: 0, reportes: 0 };
 
   let sent = 0;
   let stopped = 0;
+  let reportes = 0;
   // Une séquence n'est vérifiée qu'une fois par passage, même si elle a
   // plusieurs messages en retard.
   const decided = new Map();
@@ -86,6 +102,21 @@ async function runSequences(admin) {
     const { data: prospect } = await admin.from("prospects").select("email, name, company").eq("id", msg.prospect_id).maybeSingle();
     if (!prospect?.email) {
       await admin.from("sequence_messages").update({ status: "failed", error: "Prospect sans adresse email" }).eq("id", msg.id);
+      continue;
+    }
+
+    const { data: reglages } = await admin
+      .from("user_settings")
+      .select("vacation_mode_enabled, vacation_from, vacation_to")
+      .eq("user_id", msg.user_id)
+      .maybeSingle();
+    if (absentAujourdHui(reglages)) {
+      const reprise = reglages.vacation_to
+        ? new Date(new Date(reglages.vacation_to).getTime() + 86400000)
+        : new Date(Date.now() + 7 * 86400000);
+      reprise.setHours(9, 0, 0, 0);
+      await admin.from("sequence_messages").update({ send_at: reprise.toISOString() }).eq("id", msg.id);
+      reportes += 1;
       continue;
     }
 
@@ -160,7 +191,7 @@ async function runSequences(admin) {
     }
   }
 
-  return { sent, stopped };
+  return { sent, stopped, reportes };
 }
 
 // Le point du matin dans Slack. Un seul message par équipe, volontairement

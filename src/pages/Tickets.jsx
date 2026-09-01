@@ -88,7 +88,13 @@ const ROLES = { admin: "Responsable", sales: "Commercial", customer_success: "Cu
 function ChoixProprietaire({ valeur, membres, onChange, style, fusionne }) {
   const commerciaux = membres.filter((m) => m.role === "admin" || m.role === "sales");
   const csm = membres.filter((m) => m.role === "customer_success");
-  const nom = (m) => [m.first_name, m.last_name].filter(Boolean).join(" ") || m.email;
+  const nom = (m) => {
+    const base = [m.first_name, m.last_name].filter(Boolean).join(" ") || m.email;
+    if (!m.absent) return base;
+    return m.vacation_to
+      ? `${base} — absent jusqu'au ${new Date(m.vacation_to).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}`
+      : `${base} — absent`;
+  };
   // Équipe où le commercial suit aussi ses clients : séparer les deux
   // populations dans la liste n'aurait plus aucun sens.
   if (fusionne) {
@@ -140,23 +146,36 @@ function formatHeure(d) {
 const STAGE_CLIENT = "Gagné";
 
 export function proprietaireParDefaut(client, membres = []) {
-  const admin = membres.find((m) => m.role === "admin")?.user_id || null;
+  // Attribuer un ticket à quelqu'un en congés, c'est le laisser sans réponse
+  // jusqu'à son retour : on passe au suivant.
+  const disponible = (id) => id && membres.some((m) => m.user_id === id && !m.absent);
+  const admin = membres.find((m) => m.role === "admin" && !m.absent)?.user_id
+    || membres.find((m) => m.role === "admin")?.user_id
+    || null;
   if (!client) return admin;
   const estClient = client.stage === STAGE_CLIENT;
-  const pressenti = estClient
-    ? client.csm_owner_id || client.sales_owner_id
-    : client.sales_owner_id || client.csm_owner_id;
-  // Un propriétaire qui a quitté l'équipe ne doit pas récupérer le ticket.
-  const present = pressenti && membres.some((m) => m.user_id === pressenti);
-  return present ? pressenti : admin;
+  const ordre = estClient
+    ? [client.csm_owner_id, client.sales_owner_id]
+    : [client.sales_owner_id, client.csm_owner_id];
+  // Un propriétaire absent ou qui a quitté l'équipe ne récupère pas le ticket.
+  return ordre.find(disponible) || admin;
 }
 
 export function motifAttribution(client, membres = [], choisi) {
   if (!choisi) return null;
   const admin = membres.find((m) => m.role === "admin")?.user_id || null;
+  const absent = (id) => membres.find((m) => m.user_id === id)?.absent;
   if (client && client.stage === STAGE_CLIENT && choisi === client.csm_owner_id) return "Suivi par le CSM du client.";
-  if (client && choisi === client.sales_owner_id) return "Suivi par le commercial du contact.";
-  if (choisi === admin) return "Personne n'est encore rattaché à ce contact : l'admin en devient responsable.";
+  if (client && choisi === client.sales_owner_id) {
+    return absent(client.csm_owner_id)
+      ? "Le CSM de ce client est absent : le commercial reprend la main."
+      : "Suivi par le commercial du contact.";
+  }
+  if (choisi === admin) {
+    const pressenti = client && (client.csm_owner_id || client.sales_owner_id);
+    if (pressenti && absent(pressenti)) return "La personne qui suit ce contact est absente : l'admin prend le relais.";
+    return "Personne n'est encore rattaché à ce contact : l'admin en devient responsable.";
+  }
   return null;
 }
 
