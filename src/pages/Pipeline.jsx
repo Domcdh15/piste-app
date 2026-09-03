@@ -18,6 +18,7 @@ import {
   appendSignature,
   nearestPriorityLevel,
   SparklesIcon,
+  AlertIcon,
   CalendarIcon,
   CheckIcon,
   XIcon,
