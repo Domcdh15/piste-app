@@ -469,14 +469,20 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
   }
 
   const selected = prospects.find((p) => p.id === selectedId);
+  // Une fiche rattachée à l'affaire d'une autre reste un contact à part
+  // entière — son historique, ses relances, ses notes — mais ce n'est plus une
+  // affaire : elle sort du pipeline et de son total, sinon le même montant y
+  // serait compté autant de fois qu'il y a d'interlocuteurs. On la retrouve
+  // depuis la fiche qui porte l'affaire.
+  const affaires = prospects.filter((p) => !p.rattache_a);
   const q = search.trim().toLowerCase();
   const presetIds =
     presetFilter === "chauds"
-      ? new Set(computeHotProspects(prospects).map((p) => p.id))
+      ? new Set(computeHotProspects(affaires).map((p) => p.id))
       : presetFilter === "a-sauver"
-      ? new Set(computeAtRiskDeals(prospects).map((x) => x.prospect.id))
+      ? new Set(computeAtRiskDeals(affaires).map((x) => x.prospect.id))
       : null;
-  const visibleProspects = prospects
+  const visibleProspects = affaires
     .filter((p) => !presetIds || presetIds.has(p.id))
     .filter((p) => !q || p.name.toLowerCase().includes(q) || p.company.toLowerCase().includes(q));
   const now = new Date();
@@ -486,7 +492,7 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
   }
   const isAtRisk = (p) => !CLOSED_STAGES.includes(p.stage) && (!p.last_contact_at || (now - new Date(p.last_contact_at)) / 86400000 >= 7);
   const hasNoNextAction = (p) => !CLOSED_STAGES.includes(p.stage) && !nextTaskByProspect[p.id] && !p.next_contact_at;
-  const openList = prospects.filter((p) => !CLOSED_STAGES.includes(p.stage));
+  const openList = affaires.filter((p) => !CLOSED_STAGES.includes(p.stage));
   const atRiskCount = openList.filter(isAtRisk).length;
   const noActionCount = openList.filter(hasNoNextAction).length;
   const totalValue = openList.reduce((sum, p) => sum + (p.deal_value || 0), 0);
@@ -542,6 +548,8 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
     return (
       <ProspectDetailPage
         prospect={selected}
+        prospects={prospects}
+        onOpenProspect={setSelectedId}
         session={session}
         settings={settings}
         team={team}
@@ -1148,7 +1156,7 @@ ${atRisk.slice(0, 15).map((p) => `- ${p.name} (${p.company}), ${formatEuros(p.de
   );
 }
 
-function ProspectDetailPage({ prospect, session, settings, team, onBack, backLabel, onUpdate, onDelete, onLogActivity, initialTab, reload, navGuardRef, onGuardResolved }) {
+function ProspectDetailPage({ prospect, prospects = [], onOpenProspect, session, settings, team, onBack, backLabel, onUpdate, onDelete, onLogActivity, initialTab, reload, navGuardRef, onGuardResolved }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [quickAction, setQuickAction] = useState(null);
   const [showDevis, setShowDevis] = useState(false);
@@ -1396,6 +1404,8 @@ function ProspectDetailPage({ prospect, session, settings, team, onBack, backLab
               <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginBottom: "9px" }}>Étape du pipeline</div>
               <PipelineStepper stage={prospect.stage} onChange={handleStageChange} />
             </Card>
+
+            <InterlocuteursCard prospect={prospect} prospects={prospects} onOpenProspect={onOpenProspect} reload={reload} />
 
             <Card title="Prochaine action" Icon={CalendarIcon}>
               <NextActionCard prospect={prospect} refreshKey={taskVersion} onOpenTab={goToTab} onDoAction={doNextAction} onAdd={() => setQuickAction("task")} onCompleted={afterTaskCompleted} bare />
@@ -2206,6 +2216,113 @@ function initialsOf(company, name) {
 }
 
 // Notes libres sur le client — la colonne existait en base mais n'était affichée nulle part.
+// Une entreprise compte souvent plusieurs contacts, et ils sont indépendants :
+// chacun garde son historique, ses relances et ses notes. Le jour où la même
+// affaire les concerne tous, on rattache les autres à la fiche qui la porte.
+// Eux seuls cessent alors d'être une affaire distincte — c'est ce qui empêche
+// le pipeline de compter le montant une fois par interlocuteur.
+//
+// La carte ne s'affiche que s'il y a quelque chose à dire : une fiche seule
+// chez son client n'a pas à porter un bloc vide.
+function InterlocuteursCard({ prospect, prospects = [], onOpenProspect, reload }) {
+  const [busy, setBusy] = useState(false);
+  const [erreur, setErreur] = useState(null);
+  const [choix, setChoix] = useState("");
+
+  const memeEntreprise = prospect.company_id
+    ? prospects.filter((p) => p.id !== prospect.id && p.company_id === prospect.company_id)
+    : [];
+  const porteuse = prospect.rattache_a ? prospects.find((p) => p.id === prospect.rattache_a) : null;
+  const rattaches = prospects.filter((p) => p.rattache_a === prospect.id);
+  // On ne propose que des fiches libres : ni déjà rattachées ailleurs, ni
+  // porteuses de leurs propres interlocuteurs. La base refuserait les deux.
+  const rattachables = memeEntreprise.filter(
+    (p) => !p.rattache_a && !prospects.some((x) => x.rattache_a === p.id)
+  );
+
+  if (!porteuse && memeEntreprise.length === 0) return null;
+
+  async function ecrire(id, valeur) {
+    setBusy(true);
+    setErreur(null);
+    // Les garde-fous vivent en base et renvoient déjà un message en français :
+    // on l'affiche tel quel plutôt que d'en réécrire un approximatif.
+    const { error } = await supabase.from("prospects").update({ rattache_a: valeur }).eq("id", id);
+    setBusy(false);
+    if (error) setErreur(error.message);
+    else {
+      setChoix("");
+      reload?.();
+    }
+  }
+
+  const ligne = {
+    display: "flex", alignItems: "center", justifyContent: "space-between",
+    gap: "10px", padding: "8px 0", borderBottom: "0.5px solid var(--border)",
+  };
+
+  return (
+    <Card title="Interlocuteurs" Icon={UsersIcon}>
+      <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginBottom: "10px" }}>
+        {memeEntreprise.length + 1} contact{memeEntreprise.length ? "s" : ""} chez {prospect.company}
+      </div>
+
+      {porteuse ? (
+        <div>
+          <div style={{ fontSize: "12.5px", color: "var(--text-dim)", marginBottom: "10px" }}>
+            Cette fiche est un interlocuteur sur l'affaire de{" "}
+            <CardLink onClick={() => onOpenProspect?.(porteuse.id)}>{porteuse.name}</CardLink>. Elle garde son
+            historique, mais ne compte pas comme une affaire à part.
+          </div>
+          <button className="focusable" disabled={busy} onClick={() => ecrire(prospect.id, null)} style={{ ...moreBtn, opacity: busy ? 0.6 : 1 }}>
+            {busy ? "…" : "En faire une affaire à part"}
+          </button>
+        </div>
+      ) : (
+        <div>
+          {rattaches.length > 0 && (
+            <div style={{ marginBottom: "12px" }}>
+              {rattaches.map((p) => (
+                <div key={p.id} style={ligne}>
+                  <div style={{ minWidth: 0 }}>
+                    <CardLink onClick={() => onOpenProspect?.(p.id)}>{p.name}</CardLink>
+                    {p.job_title && <span style={{ fontSize: "11.5px", color: "var(--text-faint)" }}> · {p.job_title}</span>}
+                  </div>
+                  <button className="focusable" disabled={busy} onClick={() => ecrire(p.id, null)} style={{ background: "none", border: "none", color: "var(--text-faint)", fontSize: "11.5px", padding: 0 }}>
+                    Détacher
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {rattachables.length > 0 ? (
+            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+              <select value={choix} onChange={(e) => setChoix(e.target.value)} style={{ ...selectStyle, flex: 1, minWidth: "160px" }}>
+                <option value="">Ajouter un interlocuteur…</option>
+                {rattachables.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}{p.job_title ? ` — ${p.job_title}` : ""}</option>
+                ))}
+              </select>
+              <button className="focusable" disabled={!choix || busy} onClick={() => ecrire(choix, prospect.id)} style={{ ...moreBtn, opacity: !choix || busy ? 0.5 : 1 }}>
+                {busy ? "…" : "Rattacher"}
+              </button>
+            </div>
+          ) : (
+            rattaches.length === 0 && (
+              <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>
+                Les autres contacts de cette entreprise portent leur propre affaire.
+              </div>
+            )
+          )}
+        </div>
+      )}
+
+      {erreur && <div style={{ fontSize: "11.5px", color: "var(--red)", marginTop: "10px" }}>{erreur}</div>}
+    </Card>
+  );
+}
+
 function ProspectNotesCard({ prospect, onUpdate }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(prospect.notes || "");
