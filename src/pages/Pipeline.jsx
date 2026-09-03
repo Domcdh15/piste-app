@@ -1430,8 +1430,10 @@ function ProspectDetailPage({ prospect, prospects = [], onOpenProspect, session,
           stage={playbookStage}
           session={session}
           settings={settings}
+          team={team}
           onClose={() => setPlaybookStage(null)}
           onDone={() => { bumpTasks(); history.reload(); }}
+          onAssigned={reload}
         />
       )}
 
@@ -2417,7 +2419,12 @@ const STAGE_PLAYBOOK = {
   },
 };
 
-function StagePlaybookModal({ prospect, stage, session, settings, onClose, onDone }) {
+function nomDuMembre(m) {
+  if (!m) return "";
+  return m.first_name || m.last_name ? `${m.first_name || ""} ${m.last_name || ""}`.trim() : m.email;
+}
+
+function StagePlaybookModal({ prospect, stage, session, settings, team, onClose, onDone, onAssigned }) {
   const play = STAGE_PLAYBOOK[stage];
   const gagne = stage === "Gagné";
   const defaultDate = new Date(Date.now() + (play?.days ?? 3) * 86400000);
@@ -2425,8 +2432,38 @@ function StagePlaybookModal({ prospect, stage, session, settings, onClose, onDon
   const [note, setNote] = useState(play ? play.note(prospect) : "");
   const [date, setDate] = useState(defaultDate.toISOString().slice(0, 10));
   const [busy, setBusy] = useState(false);
+  const [csm, setCsm] = useState(prospect.csm_owner_id || "");
+  const [csmBusy, setCsmBusy] = useState(false);
+
+  // Le passage du commercial au CSM se joue à cet instant précis : l'affaire
+  // vient d'être signée, et c'est le commercial qui sait à qui confier le
+  // client. La case existait déjà, mais dans un bloc plus bas dans la fiche —
+  // personne ne pense à le dérouler un jour de signature. On la met là où le
+  // relais se décide.
+  const membres = team?.members || [];
+  const csmOptions = membres.filter((m) => m.role === "customer_success");
+  // Quand l'équipe déclare que le commercial assure aussi le suivi, il n'y a
+  // pas de relais à passer. Même règle que le bloc Équipe de la fiche.
+  const relaisPossible = gagne && csmOptions.length > 0 && !team?.team?.sales_is_csm;
 
   if (!play) return null;
+
+  // On enregistre dès la sélection, et non à la validation : « Ignorer » ne
+  // doit pas perdre un relais que l'utilisateur vient de désigner.
+  async function assignerCsm(id) {
+    setCsm(id);
+    setCsmBusy(true);
+    try {
+      await fetch("/api/team", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "assign_prospect", prospectId: prospect.id, csmOwnerId: id || null }),
+      });
+      onAssigned?.();
+    } finally {
+      setCsmBusy(false);
+    }
+  }
 
   async function create() {
     if (!note.trim() || busy) return;
@@ -2454,6 +2491,23 @@ function StagePlaybookModal({ prospect, stage, session, settings, onClose, onDon
         <SparklesIcon size={13} color="var(--blue)" style={{ flexShrink: 0, marginTop: "2px" }} />
         <div style={{ fontSize: "12.5px", color: "var(--blue-deep)", lineHeight: 1.5 }}>{play.why}</div>
       </div>
+      {relaisPossible && (
+        <div style={{ marginBottom: "18px" }}>
+          <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-faint)", marginBottom: "8px" }}>
+            Passer le relais
+          </div>
+          <select value={csm} disabled={csmBusy} onChange={(e) => assignerCsm(e.target.value)} style={{ ...inputStyle, width: "100%" }}>
+            <option value="">Choisir un CSM responsable…</option>
+            {[...csmOptions, ...membres.filter((m) => m.role === "admin")].map((m) => (
+              <option key={m.user_id} value={m.user_id}>{nomDuMembre(m)}</option>
+            ))}
+          </select>
+          <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "6px" }}>
+            {csm ? "Relais enregistré." : "Facultatif — le client reste au commercial tant que personne n'est désigné."}
+          </div>
+        </div>
+      )}
+
       <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--text-faint)", marginBottom: "8px" }}>
         Prochaine étape suggérée
       </div>
