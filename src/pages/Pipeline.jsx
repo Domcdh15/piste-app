@@ -574,11 +574,8 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
                 <button className="focusable" onClick={() => setShowOptimize((s) => !s)} style={{ display: "flex", alignItems: "center", gap: "5px", background: "none", border: "none", color: "#fff", opacity: showOptimize ? 1 : 0.85, fontSize: "12.5px", fontWeight: 500, padding: 0 }}>
                   <SparklesIcon size={12} color="#fff" /> Optimiser
                 </button>
-                <button className="focusable" onClick={() => setShowImport(true)} style={{ background: "rgba(255,255,255,0.16)", border: "0.5px solid rgba(255,255,255,0.32)", borderRadius: "9px", color: "#fff", fontSize: "12.5px", fontWeight: 600, padding: "8px 14px" }}>
-                  Importer
-                </button>
                 <button className="focusable" onClick={() => setShowForm((s) => !s)} style={{ background: "#fff", border: "none", borderRadius: "9px", color: "var(--blue-deep)", fontSize: "12.5px", fontWeight: 700, padding: "8px 16px", boxShadow: "0 4px 14px rgba(10,20,50,0.18)" }}>
-                  {showForm ? "Annuler" : "+ Opportunité"}
+                  {showForm ? "Annuler" : "+ Nouvelle fiche"}
                 </button>
               </div>
             </div>
