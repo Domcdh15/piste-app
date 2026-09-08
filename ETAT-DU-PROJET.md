@@ -5,7 +5,7 @@ de conversation. Il dit **ce qui existe**, **pourquoi c'est ainsi**, et **ce qui
 reste**. Les décisions y sont accompagnées de leur raison : c'est ce qui évite
 de les refaire à l'envers.
 
-Dernière mise à jour : 3 septembre 2026.
+Dernière mise à jour : 8 septembre 2026.
 
 ---
 
@@ -138,9 +138,14 @@ l'interface non.
 
 - **Vercel Pro et Supabase Pro** avant le premier paiement client.
 - **Plafond de dépense Anthropic** à poser dans la console (à faire par la fondatrice).
-- **Recherche d'antériorité INPI** : `closia.fr` est pris depuis 2021 par un
-  cabinet de transmission d'entreprise, et c'est ce que Google renvoie pour
-  « Clos-ia ». Viser « Clos-ia CRM ».
+- **Recherche d'antériorité INPI**. `closia.fr` est pris depuis 2021 par un
+  cabinet de transmission d'entreprise, et c'est encore ce que Google renvoie
+  pour « Closia ». La marque a donc été renommée **Clos-ia**, alignée sur le
+  domaine détenu — application, site et back-office ont basculé le 8 septembre
+  2026. Reste à faire trancher par un juriste la seule question qui compte : le
+  trait d'union suffit-il à écarter le risque de confusion ? Les deux noms se
+  prononcent de la même façon, et les deux s'adressent aux dirigeants de PME.
+  Le dépôt INPI ne se fait qu'après cette réponse.
 - **Une seule intégration de facturation**, pas quatre. Pennylane d'abord, parce
   que c'est celle que les PME partagent avec leur expert-comptable. En attendant,
   un export du devis couvre les quatre cas sans rien construire.
