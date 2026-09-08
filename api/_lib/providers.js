@@ -456,3 +456,123 @@ async function fetchGmailThreadWith(accessToken, contactEmail, maxResults = 8) {
 
   return results.filter(Boolean).sort((a, b) => new Date(b.sentAt || 0) - new Date(a.sentAt || 0));
 }
+
+// --- Boîte de réception ---------------------------------------------------
+// Les messages récents de la boîte, avec leur contenu, pour l'écran « Boîte de
+// réception ». Différent de fetchEmailThreadWith, qui part d'un contact connu :
+// ici on ne sait pas encore qui écrit, c'est précisément la question.
+//
+// Le contenu ne quitte pas la requête : il sert au tri puis il est jeté. Seuls
+// l'expéditeur, l'objet, la date et le verdict sont conservés côté Clos-ia.
+
+const MAX_INBOX_BODY_CHARS = 1200;
+
+// Étiquettes Gmail qui disent déjà ce qu'est un message. Les lire évite de
+// dépenser une génération d'IA pour reconnaître une newsletter que Gmail a
+// déjà reconnue.
+const CATEGORIES_GMAIL = {
+  CATEGORY_PROMOTIONS: "promotions",
+  CATEGORY_SOCIAL: "réseaux sociaux",
+  CATEGORY_UPDATES: "notifications",
+  CATEGORY_FORUMS: "forums",
+  SPAM: "spam",
+};
+
+function nomEtAdresse(entete) {
+  const brut = String(entete || "").trim();
+  const avecChevrons = brut.match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
+  const adresse = (avecChevrons ? avecChevrons[2] : brut).trim().toLowerCase();
+  const nom = (avecChevrons ? avecChevrons[1] : "").replace(/^"|"$/g, "").trim();
+  return { adresse, nom };
+}
+
+export async function listInboxMessages(provider, accessToken, { jours = 14, maxResults = 30 } = {}) {
+  if (provider === "google") return listInboxGmail(accessToken, jours, maxResults);
+  if (provider === "microsoft") return listInboxOutlook(accessToken, jours, maxResults);
+  return [];
+}
+
+async function listInboxGmail(accessToken, jours, maxResults) {
+  const listUrl = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages");
+  // -in:chats écarte les conversations Google Chat, qui remontent autrement
+  // dans la boîte sans être des emails.
+  listUrl.searchParams.set("q", `in:inbox -in:chats newer_than:${jours}d`);
+  listUrl.searchParams.set("maxResults", String(maxResults));
+
+  const listRes = await fetch(listUrl, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!listRes.ok) {
+    const err = new Error("gmail_list_failed");
+    err.status = listRes.status;
+    err.detail = await listRes.text();
+    throw err;
+  }
+  const { messages = [] } = await listRes.json();
+  if (messages.length === 0) return [];
+
+  const details = await Promise.all(
+    messages.map(async (m) => {
+      const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=full`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) return null;
+      const msg = await res.json();
+      const headers = msg.payload?.headers;
+      const { adresse, nom } = nomEtAdresse(headerValue(headers, "From"));
+      if (!adresse) return null;
+      const corps = extractBody(msg.payload).trim();
+      const etiquettes = msg.labelIds || [];
+      return {
+        id: msg.id,
+        from: adresse,
+        fromName: nom,
+        subject: headerValue(headers, "Subject"),
+        receivedAt: msg.internalDate ? new Date(Number(msg.internalDate)).toISOString() : null,
+        snippet: msg.snippet || "",
+        body: corps.length > MAX_INBOX_BODY_CHARS ? `${corps.slice(0, MAX_INBOX_BODY_CHARS)}…` : corps,
+        // Une réponse à un message que l'utilisateur a lui-même envoyé n'est pas
+        // du démarchage : l'étiquette le dit sans lire le texte.
+        category: etiquettes.map((l) => CATEGORIES_GMAIL[l]).find(Boolean) || "",
+        unread: etiquettes.includes("UNREAD"),
+      };
+    })
+  );
+
+  return details.filter(Boolean).sort((a, b) => new Date(b.receivedAt || 0) - new Date(a.receivedAt || 0));
+}
+
+async function listInboxOutlook(accessToken, jours, maxResults) {
+  const depuis = new Date(Date.now() - jours * 86400000).toISOString();
+  const url = new URL("https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages");
+  url.searchParams.set("$filter", `receivedDateTime ge ${depuis}`);
+  url.searchParams.set("$select", "id,subject,from,receivedDateTime,bodyPreview,body,isRead");
+  url.searchParams.set("$top", String(maxResults));
+  url.searchParams.set("$orderby", "receivedDateTime desc");
+
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}`, Prefer: 'outlook.timezone="UTC"' } });
+  if (!res.ok) {
+    const err = new Error("outlook_list_failed");
+    err.status = res.status;
+    err.detail = await res.text();
+    throw err;
+  }
+  const { value = [] } = await res.json();
+
+  return value
+    .map((m) => {
+      const brut = m.body?.contentType === "html" ? htmlToText(m.body?.content) : m.body?.content || m.bodyPreview || "";
+      const corps = brut.trim();
+      return {
+        id: m.id,
+        from: (m.from?.emailAddress?.address || "").toLowerCase(),
+        fromName: m.from?.emailAddress?.name || "",
+        subject: m.subject || "",
+        receivedAt: m.receivedDateTime || null,
+        snippet: m.bodyPreview || "",
+        body: corps.length > MAX_INBOX_BODY_CHARS ? `${corps.slice(0, MAX_INBOX_BODY_CHARS)}…` : corps,
+        // Outlook ne classe pas les messages en catégories comme Gmail.
+        category: "",
+        unread: m.isRead === false,
+      };
+    })
+    .filter((m) => m.from);
+}

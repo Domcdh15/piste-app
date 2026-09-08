@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { CLOSED_STAGES, HomeIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIcon, TicketIcon, GearIcon, UsersIcon, Logo } from "../lib/ui.jsx";
+import { CLOSED_STAGES, HomeIcon, InboxIcon, TargetIcon, CalendarIcon, SparklesIcon, ListIcon, TicketIcon, GearIcon, UsersIcon, Logo } from "../lib/ui.jsx";
 
 const NAV_ITEMS = [
   { key: "today", label: "Aujourd'hui", Icon: HomeIcon },
+  { key: "boite", label: "Boîte de réception", Icon: InboxIcon },
   { key: "pipeline", label: "Opportunités", Icon: TargetIcon },
   { key: "planning", label: "Agenda", Icon: CalendarIcon },
   { key: "tickets", label: "Tickets", Icon: TicketIcon },
@@ -22,6 +23,7 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [], hasTi
   const go = (tab) => { setActiveTab(tab); onNavigate?.(); };
   const [todayCount, setTodayCount] = useState(null);
   const [ticketCount, setTicketCount] = useState(null);
+  const [boiteCount, setBoiteCount] = useState(null);
   const [hovered, setHovered] = useState(null);
 
   useEffect(() => {
@@ -34,6 +36,15 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [], hasTi
       .lte("due_at", endOfToday.toISOString())
       .then(({ count }) => setTodayCount(count ?? null));
 
+    // Les messages qui attendent un tri. La table peut ne pas exister sur une
+    // base pas encore migrée : l'erreur laisse simplement le compteur vide.
+    supabase
+      .from("inbox_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("verdict", "a_trier")
+      .is("archived_at", null)
+      .then(({ count }) => setBoiteCount(count ?? null));
+
     if (hasTickets) supabase
       .from("tickets")
       .select("id", { count: "exact", head: true })
@@ -43,7 +54,7 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [], hasTi
 
   const pipelineCount = prospects.filter((p) => !CLOSED_STAGES.includes(p.stage)).length;
 
-  const counts = { today: todayCount, pipeline: pipelineCount || null, tickets: ticketCount || null };
+  const counts = { today: todayCount, boite: boiteCount || null, pipeline: pipelineCount || null, tickets: ticketCount || null };
 
   return (
     <div

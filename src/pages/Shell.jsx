@@ -4,6 +4,7 @@ import Sidebar from "../components/Sidebar.jsx";
 import Today from "./Today.jsx";
 import Agenda from "./Agenda.jsx";
 import Pipeline from "./Pipeline.jsx";
+import BoiteReception from "./BoiteReception.jsx";
 import Assistant from "./Assistant.jsx";
 import Activities from "./Activities.jsx";
 import Tickets from "./Tickets.jsx";
@@ -27,6 +28,7 @@ const COMPANY_FIELDS = [
 // sur quelle page on se trouve une fois le tiroir refermé.
 const TAB_LABELS = {
   today: "Aujourd'hui",
+  boite: "Boîte de réception",
   planning: "Agenda",
   pipeline: "Opportunités",
   tickets: "Tickets",
@@ -40,7 +42,7 @@ const TAB_LABELS = {
   equipe: "Équipe",
 };
 
-const VALID_TABS = ["today", "planning", "pipeline", "tickets", "encadrement", "chauds", "a-sauver", "assistant", "activities", "settings", "integrations", "equipe"];
+const VALID_TABS = ["today", "boite", "planning", "pipeline", "tickets", "encadrement", "chauds", "a-sauver", "assistant", "activities", "settings", "integrations", "equipe"];
 
 function tabFromHash() {
   const tab = window.location.hash.slice(1);
@@ -286,6 +288,17 @@ export default function Shell({ session, team, reloadTeam }) {
           </span>
         </div>
         {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} onOpenProspect={openProspect} settings={effectiveSettings} />}
+        {activeTab === "boite" && (
+          <BoiteReception
+            session={session}
+            team={team}
+            settings={effectiveSettings}
+            reloadSettings={loadSettings}
+            reload={loadProspects}
+            onOpenProspect={openProspect}
+            setActiveTab={setActiveTab}
+          />
+        )}
         {activeTab === "planning" && <Agenda prospects={prospects} session={session} onOpenProspect={openProspect} settings={effectiveSettings} />}
         {(activeTab === "pipeline" || activeTab === "chauds" || activeTab === "a-sauver") && (
           <Pipeline

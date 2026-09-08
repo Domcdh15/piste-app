@@ -46,6 +46,11 @@ Les dix : `admin/overview`, `admin/update-user`, `calendar/range`,
 `calendar/status`, `generate`, `google/callback`, `integrations`, `sign`,
 `team`, `zapier`.
 
+La boîte de réception n'a rien coûté à ce compteur : sa logique vit dans
+`api/_lib/boite.js`, et `api/calendar/status.js` l'expose. Un fichier sous
+`_lib/` n'est pas une fonction serverless. C'est la manœuvre à reprendre pour
+la prochaine fonctionnalité qui a besoin d'un point d'entrée.
+
 **Le build ne détecte pas tout.** `npm run build` passe même quand un composant
 JSX ou une fonction n'est pas défini. Après toute modification, vérifier à part
 que chaque `<Composant>` utilisé est bien importé ou déclaré. Ça a mordu
@@ -87,6 +92,43 @@ customer_success). `team_members.manages` dit ce qu'elle **encadre** (none,
 sales, csm, both). Les deux sont indépendants : un directeur commercial vend et
 encadre. Les règles d'accès continuent de s'appuyer sur `role` ; `manages`
 s'ajoute par-dessus via `my_team_manages()` et `encadre_ce_pool()`.
+
+### La boîte de réception trie, elle ne recopie pas
+
+Écrite après un entretien avec un compositeur de **musique à l'image** :
+ses demandes arrivent par email, mêlées aux newsletters et au démarchage, il
+perd le suivi, et surtout il **ne sait pas quelles colonnes mettre dans un
+tableau**. Un CRM qui lui demande de définir son schéma avant d'avoir vu ses
+données lui redonne son problème avec un formulaire autour.
+
+Trois choix en découlent.
+
+**Les colonnes se déduisent des emails.** Le bouton « Proposer mes colonnes »
+lit les derniers messages et propose quatre à six colonnes en disant, pour
+chacune, ce qui dans les messages la justifie. L'utilisateur retire ce qui ne
+lui sert pas. Rien n'est imposé, et surtout rien n'est générique : un
+compositeur et un menuisier ne suivront pas les mêmes informations.
+
+**Le corps des messages n'est jamais copié en base.** `inbox_messages` garde
+l'expéditeur, l'objet, la date, le verdict et les champs extraits — de quoi
+tenir un suivi. Le texte est relu chez Gmail ou Outlook au moment du tri, puis
+jeté. Dupliquer une boîte mail dans un CRM double la surface d'une fuite sans
+rien apporter au suivi.
+
+**On ne dépense une génération que pour ce qu'on ne sait pas déjà.** Un message
+venant d'un contact déjà suivi est reconnu sans IA ; un expéditeur mis de côté
+et une étiquette Gmail « Promotions » se lisent aussi sans IA. L'IA ne tranche
+que le reste, et seulement quand l'utilisateur appuie — comme partout ailleurs
+dans Clos-ia.
+
+Un dernier point de méthode : l'écran est ouvert à **toutes les formules**, pas
+réservé à Équipe comme les tickets. Celui pour qui il a été écrit travaille
+seul ; le réserver aux équipes reviendrait à le retirer à son premier
+utilisateur.
+
+L'appel à Claude et son quota vivent désormais dans `api/_lib/ia.js`,
+partagé par `api/generate.js` et par la boîte. Sans ce point unique, chaque
+nouvel écran devenait une porte dérobée vers l'API, sans compteur.
 
 ### La santé d'un client n'est pas stockée
 Elle est recalculée à l'affichage, et rendue **avec ses raisons**. Un score figé
@@ -136,6 +178,14 @@ l'interface non.
 
 ## 5. Ce qui reste à faire
 
+- **Appliquer `supabase/boite_reception.sql`** sur le projet Supabase : tant
+  que la migration n'est pas passée, l'onglet Boîte de réception s'affiche mais
+  n'enregistre rien. Elle est idempotente (`if not exists` partout).
+- **Reconnexion Google pour les comptes déjà reliés.** Le périmètre
+  `gmail.readonly` était déjà demandé, donc rien à changer côté console Google ;
+  mais un compte relié avant que ce périmètre soit ajouté devra se déconnecter
+  puis se reconnecter dans Intégrations. L'écran le dit quand la lecture est
+  refusée.
 - **Vercel Pro et Supabase Pro** avant le premier paiement client.
 - **Plafond de dépense Anthropic** à poser dans la console (à faire par la fondatrice).
 - **Recherche d'antériorité INPI**. `closia.fr` est pris depuis 2021 par un

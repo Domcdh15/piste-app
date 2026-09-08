@@ -1,6 +1,7 @@
 import { supabaseAdmin, getUserFromToken, bearerToken } from "../_lib/supabase.js";
 import { ensureFreshToken, sendEmail, listRecentMessages, setGmailSignature, getGmailSignature, fetchEmailThreadWith } from "../_lib/providers.js";
 import { postSlack } from "../_lib/slack.js";
+import { relever, trier, proposerColonnes } from "../_lib/boite.js";
 
 function buildVacationReply(s) {
   const lines = [(s.vacation_message || "").trim() || "Je suis actuellement absent(e)."];
@@ -340,6 +341,17 @@ export default async function handler(req, res) {
   const user = await getUserFromToken(bearerToken(req));
   if (!user) return res.status(401).json({ error: "Non authentifié" });
 
+  // Boîte de réception. La logique vit dans _lib/boite.js — ce fichier ne fait
+  // que l'exposer, parce qu'un nouveau fichier api/ coûterait une des douze
+  // fonctions du plan Vercel.
+  if (req.method === "GET" && req.query?.action === "inbox") {
+    try {
+      return res.status(200).json(await relever(supabaseAdmin(), user));
+    } catch (e) {
+      return res.status(500).json({ error: "La relève de la boîte a échoué. Réessayez." });
+    }
+  }
+
   // Échanges email avec un prospect — lus à la demande chez le fournisseur,
   // jamais stockés côté Clos-ia.
   if (req.method === "GET" && req.query?.action === "thread") {
@@ -372,6 +384,21 @@ export default async function handler(req, res) {
 
   if (req.method === "POST") {
     const { action, provider, to, subject, body, signature, attachment } = req.body || {};
+
+    // Les deux gestes qui consomment une génération. L'IA ne part jamais seule :
+    // c'est l'utilisateur qui appuie, et le compteur est celui de son forfait.
+    if (action === "inbox_trier" || action === "inbox_colonnes") {
+      try {
+        const admin = supabaseAdmin();
+        const out = action === "inbox_trier" ? await trier(admin, user) : await proposerColonnes(admin, user);
+        return res.status(200).json(out);
+      } catch (e) {
+        if (e.quotaExhausted) {
+          return res.status(429).json({ error: e.message, quotaExhausted: true, limit: e.limit, resetAt: e.resetAt });
+        }
+        return res.status(500).json({ error: "Le tri a échoué. Réessayez." });
+      }
+    }
 
     if (action === "set_gmail_signature") {
       if (!signature) return res.status(400).json({ error: "Signature manquante" });

@@ -498,6 +498,15 @@ export function TicketIcon(props) {
     </Icon>
   );
 }
+export function InboxIcon(props) {
+  return (
+    <Icon {...props}>
+      <path d="M3 13h4l1.5 3h7L17 13h4" />
+      <path d="M5.5 5h13l2.5 8v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-5z" />
+    </Icon>
+  );
+}
+
 export function ArrowLeftIcon(props) {
   return (
     <Icon {...props}>
