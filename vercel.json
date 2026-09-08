@@ -1,4 +1,5 @@
 {
+  "regions": ["arn1"],
   "crons": [
     { "path": "/api/calendar/status?action=vacation_check", "schedule": "0 8 * * *" }
   ],
