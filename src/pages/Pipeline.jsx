@@ -456,12 +456,16 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
     if (!error) reload();
   }
 
+  // Renvoie null si la fiche est partie, un message sinon. Une suppression qui
+  // échoue en silence est pire qu'une suppression refusée : l'utilisateur
+  // ferme l'écran convaincu que c'est fait, et retrouve la fiche au prochain
+  // rechargement sans comprendre pourquoi.
   async function handleDeleteProspect(id) {
     const { error } = await supabase.from("prospects").delete().eq("id", id);
-    if (!error) {
-      setSelectedId(null);
-      reload();
-    }
+    if (error) return error.message || "La suppression a échoué.";
+    setSelectedId(null);
+    reload();
+    return null;
   }
 
   async function logActivity(prospectId, type, note) {
@@ -1158,6 +1162,8 @@ ${atRisk.slice(0, 15).map((p) => `- ${p.name} (${p.company}), ${formatEuros(p.de
 
 function ProspectDetailPage({ prospect, prospects = [], onOpenProspect, session, settings, team, onBack, backLabel, onUpdate, onDelete, onLogActivity, initialTab, reload, navGuardRef, onGuardResolved }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [quickAction, setQuickAction] = useState(null);
   const [showDevis, setShowDevis] = useState(false);
   const [docVersion, setDocVersion] = useState(0);
@@ -1343,16 +1349,36 @@ function ProspectDetailPage({ prospect, prospects = [], onOpenProspect, session,
               <button className="focusable" onClick={() => { setQuickAction("task"); setShowMore(false); }} style={moreBtn}>Ajouter une tâche</button>
               <button className="focusable" onClick={() => { setQuickAction("contacted"); setShowMore(false); }} style={moreBtn}>Marquer contacté</button>
               <button className="focusable" onClick={() => { setShowDevis(true); setShowMore(false); }} style={moreBtn}>Créer un devis</button>
-              <button className="focusable" onClick={() => { setConfirmDelete(true); setShowMore(false); }} style={{ ...moreBtn, color: "var(--red)" }}>Supprimer la fiche</button>
+              <button className="focusable" onClick={() => { setConfirmDelete(true); setDeleteError(""); setShowMore(false); }} style={{ ...moreBtn, color: "var(--red)" }}>Supprimer la fiche</button>
             </div>
           )}
         </div>
 
         {confirmDelete && (
           <div style={{ display: "flex", alignItems: "center", gap: "14px", background: "var(--red-dim)", borderRadius: "10px", padding: "12px 16px", marginBottom: "18px", fontSize: "12.5px", flexWrap: "wrap" }}>
-            <span>Supprimer définitivement cette fiche et tout son historique ?</span>
-            <button className="focusable" onClick={onDelete} style={{ marginLeft: "auto", background: "var(--red)", color: "#fff", border: "none", borderRadius: "7px", padding: "7px 14px", fontSize: "12px", fontWeight: 600 }}>Supprimer</button>
-            <button className="focusable" onClick={() => setConfirmDelete(false)} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: "12px" }}>Annuler</button>
+            <span>
+              Supprimer définitivement cette fiche et tout son historique ?
+              {deleteError && (
+                <span style={{ display: "block", marginTop: "6px", color: "var(--red)", fontWeight: 600 }}>
+                  La fiche n'a pas été supprimée : {deleteError}
+                </span>
+              )}
+            </span>
+            <button
+              className="focusable"
+              disabled={deleting}
+              onClick={async () => {
+                setDeleting(true);
+                setDeleteError("");
+                const message = await onDelete();
+                setDeleting(false);
+                if (message) setDeleteError(message);
+              }}
+              style={{ marginLeft: "auto", background: "var(--red)", color: "#fff", border: "none", borderRadius: "7px", padding: "7px 14px", fontSize: "12px", fontWeight: 600, opacity: deleting ? 0.6 : 1 }}
+            >
+              {deleting ? "Suppression…" : "Supprimer"}
+            </button>
+            <button className="focusable" onClick={() => { setConfirmDelete(false); setDeleteError(""); }} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: "12px" }}>Annuler</button>
           </div>
         )}
       </div>

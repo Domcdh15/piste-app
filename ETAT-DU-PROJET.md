@@ -98,6 +98,19 @@ Sur les tickets comme sur le bilan hebdomadaire, c'est l'utilisateur qui appuie,
 et chaque génération est décomptée de **son** quota. Un CRM qui écrit tout seul
 à vos clients est un risque, pas une fonctionnalité.
 
+### Supprimer une fiche, c'est supprimer son historique
+Dix tables filles partent avec la fiche (`CASCADE`) : activités, tâches,
+documents, signatures, séquences, événements, et les trois artefacts d'IA —
+emails générés, analyses, scripts d'appel. Deux survivent, détachées
+(`SET NULL`) : les **tickets**, qui appartiennent au client et non à la fiche,
+et les **interlocuteurs rattachés**, qui redeviennent des affaires à part
+entière. C'est ce que promet l'écran de confirmation ; avant le 8 septembre
+2026 les trois artefacts d'IA étaient en `NO ACTION` et la suppression échouait
+en silence dès qu'une fiche avait servi à l'IA une seule fois.
+
+Le quota d'IA n'est pas remboursé pour autant : il vit dans
+`user_settings.ai_calls_used`, un compteur, et non dans le nombre de lignes.
+
 ### Le tourniquet de leads est éteint par défaut
 `teams.lead_round_robin`. L'activer changerait sans prévenir à qui reviennent
 les leads des équipes déjà en place. Le tour de rôle se déduit de
@@ -115,12 +128,6 @@ Stripe n'ont rien derrière et le disent.
 ---
 
 ## 4. Bugs connus, non corrigés
-
-**Suppression silencieuse d'un prospect.** `prospects` est référencée par
-`emails_generes`, `analyses_ia` et `scripts_appel` en `NO ACTION`. Supprimer un
-prospect qui a un email généré échoue, et `handleDeleteProspect` ignore
-l'erreur : l'utilisateur croit que c'est fait. À corriger en supprimant les
-lignes liées d'abord, ou en passant les clés étrangères en `CASCADE`.
 
 **17 mentions « à compléter »** dans les pages légales (CGV, CGU, mentions
 légales). Elles attendent des informations que seule la fondatrice a : forme
