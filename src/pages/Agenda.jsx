@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { callAI, parseJsonLoose, formatEuros, formatShortDate, getFirstName, Avatar, SparklesIcon, PhoneIcon, MailIcon, VideoIcon, PinIcon, CalendarIcon, CheckIcon, AlertIcon } from "../lib/ui.jsx";
+import { callAI, parseJsonLoose, formatEuros, formatShortDate, getFirstName, Avatar, SparklesIcon, PhoneIcon, MailIcon, VideoIcon, PinIcon, CalendarIcon, CheckIcon, AlertIcon, devineIdentite } from "../lib/ui.jsx";
 
 const VIEWS = ["Liste", "Jour", "Semaine"];
 
@@ -737,23 +737,6 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
       </div>
     </div>
   );
-}
-
-// Création d'une fiche depuis un participant inconnu. Le nom et l'entreprise
-// sont devinés à partir de l'adresse : « jean.dupont@menuiserie-martin.fr »
-// donne « Jean Dupont » chez « Menuiserie Martin ». Tout reste modifiable —
-// une déduction imposée agace plus qu'elle n'aide.
-function devineIdentite(email) {
-  const [local, domaine = ""] = email.split("@");
-  const mots = local.split(/[._-]+/).filter(Boolean);
-  const capitale = (m) => m.charAt(0).toUpperCase() + m.slice(1);
-  const nom = mots.length >= 2 ? `${capitale(mots[0])} ${capitale(mots[1])}` : capitale(mots[0] || "");
-  const GENERIQUES = ["gmail", "outlook", "hotmail", "yahoo", "orange", "free", "wanadoo", "laposte", "sfr", "icloud", "me", "live", "msn", "protonmail"];
-  const racine = domaine.split(".")[0] || "";
-  const entreprise = GENERIQUES.includes(racine.toLowerCase())
-    ? ""
-    : racine.split(/[-_]/).map(capitale).join(" ");
-  return { nom, entreprise };
 }
 
 function NewContactModal({ email, event, session, reload, onClose, onCreated }) {
