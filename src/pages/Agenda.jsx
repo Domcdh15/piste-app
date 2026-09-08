@@ -762,6 +762,10 @@ function NewContactModal({ email, event, session, reload, onClose, onCreated }) 
   const [entreprise, setEntreprise] = useState(devine.entreprise);
   const [busy, setBusy] = useState(false);
   const [erreur, setErreur] = useState("");
+  // Identifiant de la fiche une fois créée. Tant qu'il est nul, on est dans le
+  // formulaire ; renseigné, la fenêtre propose d'ouvrir la fiche plutôt que d'y
+  // emmener d'office : on consultait son agenda, on n'a pas forcément fini.
+  const [creeId, setCreeId] = useState(null);
 
   async function creer() {
     if (busy) return;
@@ -801,8 +805,7 @@ function NewContactModal({ email, event, session, reload, onClose, onCreated }) 
     await reload?.();
 
     setBusy(false);
-    onCreated?.(data.id);
-    onClose();
+    setCreeId(data.id);
   }
 
   const champ = { width: "100%", boxSizing: "border-box", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", padding: "9px 12px" };
@@ -810,8 +813,25 @@ function NewContactModal({ email, event, session, reload, onClose, onCreated }) 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,17,40,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 130, padding: "20px" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg)", borderRadius: "12px", boxShadow: "var(--shadow-md)", padding: "20px", maxWidth: "400px", width: "100%" }}>
-        <div className="display" style={{ fontWeight: 700, fontSize: "15px", marginBottom: "3px" }}>Nouveau contact</div>
+        <div className="display" style={{ fontWeight: 700, fontSize: "15px", marginBottom: "3px" }}>{creeId ? "Fiche créée" : "Nouveau contact"}</div>
         <div className="mono" style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "16px" }}>{email}</div>
+        {creeId ? (
+          <>
+            <div style={{ fontSize: "13px", color: "var(--text-dim)" }}>
+              <b style={{ color: "var(--text)" }}>{nom.trim() || email}</b>
+              {entreprise.trim() ? ` — ${entreprise.trim()}` : ""} est maintenant dans ton pipeline, à l'étape « Rendez-vous prévu ».
+            </div>
+            <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
+              <button className="focusable" onClick={() => { onCreated?.(creeId); onClose(); }} style={{ flex: 1, background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
+                Ouvrir la fiche
+              </button>
+              <button className="focusable" onClick={onClose} style={{ background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px 16px", fontSize: "13px" }}>
+                Rester dans l'agenda
+              </button>
+            </div>
+          </>
+        ) : (
+        <>
         <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
           <input value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Nom et prénom" style={champ} />
           <input value={entreprise} onChange={(e) => setEntreprise(e.target.value)} placeholder="Entreprise" style={champ} />
@@ -825,6 +845,8 @@ function NewContactModal({ email, event, session, reload, onClose, onCreated }) 
             Annuler
           </button>
         </div>
+        </>
+        )}
       </div>
     </div>
   );
