@@ -232,7 +232,7 @@ export default function Sign({ token }) {
         {info && !erreur && <div style={{ fontSize: "12.5px", color: "var(--text-dim)", marginTop: "12px" }}>{info}</div>}
 
         <div style={{ fontSize: "10.5px", color: "var(--text-faint)", marginTop: "20px", lineHeight: 1.5, borderTop: "0.5px solid var(--hairline)", paddingTop: "14px" }}>
-          Signature électronique simple. Closia conserve l'empreinte du document, la vérification de votre adresse email,
+          Signature électronique simple. Clos-ia conserve l'empreinte du document, la vérification de votre adresse email,
           l'horodatage, votre adresse IP et votre navigateur.
         </div>
       </div>

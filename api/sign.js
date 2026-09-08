@@ -7,7 +7,7 @@ import { ensureFreshToken, sendEmail } from "./_lib/providers.js";
 // Une seule fonction sert les deux côtés, parce qu'ils ne se distinguent que
 // par la manière dont l'appelant prouve son identité : le commercial par son
 // jeton de session, le signataire par le jeton imprévisible de son lien. Ce
-// dernier n'a aucun compte Closia et ne doit pas en créer un — exiger une
+// dernier n'a aucun compte Clos-ia et ne doit pas en créer un — exiger une
 // inscription pour signer un devis est le meilleur moyen de ne pas le faire
 // signer.
 //

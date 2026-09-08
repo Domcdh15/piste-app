@@ -1,7 +1,7 @@
-// Facture d'abonnement Closia. Même parti pris que le devis : le texte est
+// Facture d'abonnement Clos-ia. Même parti pris que le devis : le texte est
 // dessiné, pas capturé — fichier léger, texte sélectionnable.
 //
-// L'émetteur est Closia elle-même. Ses informations légales ne vivent nulle
+// L'émetteur est Clos-ia elle-même. Ses informations légales ne vivent nulle
 // part dans l'application (elles sont sur les pages légales du site, encore
 // incomplètes) : les champs manquants ressortent en orange sur le document
 // plutôt que d'être passés sous silence.
@@ -135,7 +135,7 @@ export async function buildInvoicePdf({ number, issuedAt, periodStart, periodEnd
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9.5);
   setColor(INK);
-  doc.text(`Abonnement Closia — formule ${planName}`, MARGIN, y);
+  doc.text(`Abonnement Clos-ia — formule ${planName}`, MARGIN, y);
   doc.setFont("helvetica", "bold");
   doc.text(euros(amountTTC), colTotal, y, { align: "right" });
 
@@ -187,8 +187,8 @@ export async function buildInvoicePdf({ number, issuedAt, periodStart, periodEnd
   doc.setFontSize(7.5);
   setColor(FAINT);
   const footer = seller.contact_email
-    ? `Closia · ${seller.contact_email}`
-    : "Closia · contact — à compléter";
+    ? `Clos-ia · ${seller.contact_email}`
+    : "Clos-ia · contact — à compléter";
   doc.text(footer, MARGIN, 285);
   doc.text("Page 1/1", PAGE_W - MARGIN, 285, { align: "right" });
 

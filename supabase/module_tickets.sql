@@ -4,7 +4,7 @@
 -- Contact → Ticket → Messages. Distinct d'une tâche, qui est une action à
 -- mener : un ticket peut engendrer une tâche, l'inverse n'est pas vrai.
 --
--- Distinct aussi de support_requests, qui sert au support de Closia lui-même.
+-- Distinct aussi de support_requests, qui sert au support de Clos-ia lui-même.
 
 create table if not exists tickets (
   id uuid primary key default gen_random_uuid(),

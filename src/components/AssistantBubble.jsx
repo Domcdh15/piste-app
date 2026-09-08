@@ -15,7 +15,7 @@ export default function AssistantBubble({ session }) {
     setSending(true);
     try {
       const answer = await callAI(
-        `Tu es l'assistant intégré au CRM Closia (pipeline commercial, agenda, relances, assistant IA). Réponds de façon concise et utile, en français, à la question suivante de l'utilisateur :\n\n${question}`,
+        `Tu es l'assistant intégré au CRM Clos-ia (pipeline commercial, agenda, relances, assistant IA). Réponds de façon concise et utile, en français, à la question suivante de l'utilisateur :\n\n${question}`,
         session.access_token
       );
       setMessages((m) => [...m, { role: "assistant", text: answer }]);
@@ -48,7 +48,7 @@ export default function AssistantBubble({ session }) {
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "var(--gradient-hero-subtle)", color: "#fff" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px", fontWeight: 700, fontSize: "13.5px" }}>
-              <SparklesIcon size={14} color="#fff" /> Assistant Closia
+              <SparklesIcon size={14} color="#fff" /> Assistant Clos-ia
             </div>
             <button className="focusable" onClick={() => setOpen(false)} style={{ background: "none", border: "none", padding: 0, display: "flex" }}>
               <XIcon size={16} color="#fff" />
@@ -57,7 +57,7 @@ export default function AssistantBubble({ session }) {
 
           <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
             {messages.length === 0 && (
-              <div style={{ fontSize: "12.5px", color: "var(--text-faint)" }}>Pose une question sur Closia ou sur comment utiliser l'outil.</div>
+              <div style={{ fontSize: "12.5px", color: "var(--text-faint)" }}>Pose une question sur Clos-ia ou sur comment utiliser l'outil.</div>
             )}
             {messages.map((m, i) => (
               <div
@@ -114,7 +114,7 @@ export default function AssistantBubble({ session }) {
       <button
         className="focusable assist-bubble-toggle"
         onClick={() => setOpen((o) => !o)}
-        title="Assistant Closia"
+        title="Assistant Clos-ia"
         style={{
           position: "fixed",
           bottom: "24px",

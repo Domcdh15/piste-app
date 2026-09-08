@@ -1,6 +1,6 @@
 -- Plusieurs interlocuteurs sur une même affaire.
 --
--- Dans Closia, une fiche EST une affaire : la même ligne porte la personne,
+-- Dans Clos-ia, une fiche EST une affaire : la même ligne porte la personne,
 -- l'entreprise et le deal (étape, montant, échéance). Deux contacts de la même
 -- maison sur la même vente donnaient donc deux affaires, et le total du
 -- pipeline comptait le montant deux fois.

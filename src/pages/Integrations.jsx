@@ -11,15 +11,15 @@ function badgeColor(label) {
 const CATEGORIES = ["Toutes", "Agenda & Email", "CRM", "Productivité"];
 
 const CATALOG = [
-  { key: "google", label: "Google Calendar & Gmail", category: "Agenda & Email", desc: "Synchronisez vos rendez-vous, envoyez vos relances depuis Gmail, et permettez à Closia de s'appuyer sur vos échanges réels pour les rédiger.", real: true, permissions: "Lecture de l'agenda (calendar.readonly), envoi d'email (gmail.send), synchronisation de signature (gmail.settings.basic) et lecture des échanges avec vos prospects (gmail.readonly)" },
+  { key: "google", label: "Google Calendar & Gmail", category: "Agenda & Email", desc: "Synchronisez vos rendez-vous, envoyez vos relances depuis Gmail, et permettez à Clos-ia de s'appuyer sur vos échanges réels pour les rédiger.", real: true, permissions: "Lecture de l'agenda (calendar.readonly), envoi d'email (gmail.send), synchronisation de signature (gmail.settings.basic) et lecture des échanges avec vos prospects (gmail.readonly)" },
   // Toute la logique Outlook (agenda, envoi, lecture des échanges) vit toujours dans
   // api/_lib/providers.js, qui ne compte pas dans le plafond de fonctions Vercel. Seules
   // les deux routes OAuth ont été retirées, faute d'inscription d'application Azure et
   // pour libérer deux emplacements. Pour rétablir :
   //   git revert <commit « Met Outlook de côté »>, MICROSOFT_CLIENT_ID / _SECRET dans
   //   Vercel, puis real: true ici.
-  { key: "microsoft", label: "Outlook Calendar & Mail", category: "Agenda & Email", desc: "Synchronisez vos événements, envoyez vos relances depuis Outlook, et permettez à Closia de s'appuyer sur vos échanges réels pour les rédiger.", permissions: "Lecture de l'agenda (Calendars.Read), envoi d'email (Mail.Send) et lecture des échanges avec vos prospects (Mail.Read)" },
-  { key: "hubspot", label: "HubSpot", category: "CRM", desc: "Reprenez vos contacts, entreprises et opportunités HubSpot dans Closia — exportez-les depuis HubSpot, puis importez le fichier CSV ou Excel.", importable: true },
+  { key: "microsoft", label: "Outlook Calendar & Mail", category: "Agenda & Email", desc: "Synchronisez vos événements, envoyez vos relances depuis Outlook, et permettez à Clos-ia de s'appuyer sur vos échanges réels pour les rédiger.", permissions: "Lecture de l'agenda (Calendars.Read), envoi d'email (Mail.Send) et lecture des échanges avec vos prospects (Mail.Read)" },
+  { key: "hubspot", label: "HubSpot", category: "CRM", desc: "Reprenez vos contacts, entreprises et opportunités HubSpot dans Clos-ia — exportez-les depuis HubSpot, puis importez le fichier CSV ou Excel.", importable: true },
   { key: "salesforce", label: "Salesforce", category: "CRM", desc: "Reprenez vos comptes, contacts et opportunités Salesforce — exportez-les depuis Salesforce, puis importez le fichier CSV ou Excel.", importable: true },
   { key: "pipedrive", label: "Pipedrive", category: "CRM", desc: "Reprenez vos prospects et opportunités Pipedrive — exportez-les depuis Pipedrive, puis importez le fichier CSV ou Excel.", importable: true },
   { key: "aircall", label: "Aircall", category: "Productivité", desc: "Logger automatiquement vos appels." },
@@ -38,7 +38,7 @@ const COMING_LATER = [
   { key: "qonto", label: "Qonto", desc: "Émettre la facture depuis votre compte Qonto et rapprocher l'encaissement du deal gagné." },
   { key: "evoliz", label: "Evoliz", desc: "Reprendre le devis signé dans Evoliz pour la facturation et le suivi des règlements." },
   { key: "tiime", label: "Tiime", desc: "Transmettre le devis signé à Tiime, qui porte la facturation et la comptabilité." },
-  { key: "zapier", label: "Zapier", parCle: true, desc: "Connecter Closia à des milliers d'applications, par l'action « Webhooks » de Zapier pointée sur votre clé d'API." },
+  { key: "zapier", label: "Zapier", parCle: true, desc: "Connecter Clos-ia à des milliers d'applications, par l'action « Webhooks » de Zapier pointée sur votre clé d'API." },
   { key: "make", label: "Make", parCle: true, desc: "Automatiser vos enchaînements commerciaux, par un module HTTP branché sur votre clé d'API." },
 ];
 
@@ -106,13 +106,13 @@ export default function Integrations({ session, team, reloadTeam, onBack, setAct
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px", marginBottom: "28px" }}>
         <div>
           <PageTitle icon={PlugIcon} color="var(--blue)" style={{ marginBottom: "4px" }}>Intégrations</PageTitle>
-          <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Connectez vos outils. Closia fait le reste.</div>
+          <div style={{ color: "var(--text-dim)", fontSize: "13px" }}>Connectez vos outils. Clos-ia fait le reste.</div>
         </div>
       </div>
 
       <div id="connect-app-anchor" style={{ marginBottom: "8px" }}>
         <div className="display" style={{ fontWeight: 700, fontSize: "14px", marginBottom: "2px" }}>Connecter une application</div>
-        <div style={{ color: "var(--text-dim)", fontSize: "12.5px", marginBottom: "14px" }}>Choisissez un outil à connecter à votre espace Closia.</div>
+        <div style={{ color: "var(--text-dim)", fontSize: "12.5px", marginBottom: "14px" }}>Choisissez un outil à connecter à votre espace Clos-ia.</div>
 
         <input
           placeholder="Rechercher une intégration..."
@@ -230,7 +230,7 @@ function ToolCard({ tool, connected, loading, onConnect, onDisconnect, onImport,
           <button
             className="focusable"
             onClick={onCle}
-            title="L'application Closia n'est pas encore publiée dans leur annuaire : on passe par une clé d'API."
+            title="L'application Clos-ia n'est pas encore publiée dans leur annuaire : on passe par une clé d'API."
             style={{ fontSize: "11.5px", padding: "6px 10px", borderRadius: "6px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", whiteSpace: "nowrap" }}
           >
             Par clé d'API
@@ -260,7 +260,7 @@ function ToolCard({ tool, connected, loading, onConnect, onDisconnect, onImport,
 const SETUP = {
   slack: {
     titre: "Recevoir le point du matin dans Slack",
-    quoi: "Chaque matin, Closia publiera dans le canal de votre choix ce qu'il y a à mener aujourd'hui, ce qui est en retard, et les dossiers sans nouvelles depuis une semaine.",
+    quoi: "Chaque matin, Clos-ia publiera dans le canal de votre choix ce qu'il y a à mener aujourd'hui, ce qui est en retard, et les dossiers sans nouvelles depuis une semaine.",
     etapes: [
       "Dans Slack, ouvrez api.slack.com/apps et créez une application pour votre espace de travail.",
       "Activez « Incoming Webhooks », puis « Add New Webhook to Workspace ».",
@@ -273,7 +273,7 @@ const SETUP = {
   },
   emailing: {
     titre: "Envoyer vos contacts vers votre plateforme d'emailing",
-    quoi: "Closia n'envoie pas de campagnes : il pousse vos contacts vers Brevo ou Mailjet, dont c'est le métier. Ces plateformes portent l'infrastructure d'envoi, la réputation du domaine et les désinscriptions — trois choses qu'une boîte Gmail ne sait pas faire à l'échelle d'une campagne.",
+    quoi: "Clos-ia n'envoie pas de campagnes : il pousse vos contacts vers Brevo ou Mailjet, dont c'est le métier. Ces plateformes portent l'infrastructure d'envoi, la réputation du domaine et les désinscriptions — trois choses qu'une boîte Gmail ne sait pas faire à l'échelle d'une campagne.",
     etapes: [
       "Créez un compte sur Brevo ou Mailjet, puis ouvrez la section des clés d'API.",
       "Copiez la clé et collez-la ci-dessous. Mailjet en fournit deux : la clé et son secret.",
@@ -470,7 +470,7 @@ function ConnectConfirmModal({ tool, onCancel, onConfirm }) {
           <span className="display" style={{ fontWeight: 700, fontSize: "15px" }}>Connecter {tool.label}</span>
         </div>
         <div style={{ fontSize: "13px", color: "var(--text-dim)", lineHeight: 1.5, marginBottom: "14px" }}>
-          Closia va lire vos rendez-vous à venir dans {tool.label} pour les afficher dans votre agenda, et pourra envoyer des emails de relance en votre nom lorsque vous cliquez sur "Envoyer". Vous serez redirigé vers {tool.label} pour autoriser l'accès.
+          Clos-ia va lire vos rendez-vous à venir dans {tool.label} pour les afficher dans votre agenda, et pourra envoyer des emails de relance en votre nom lorsque vous cliquez sur "Envoyer". Vous serez redirigé vers {tool.label} pour autoriser l'accès.
         </div>
         <div style={{ fontSize: "11.5px", color: "var(--text-faint)", marginBottom: "18px" }}>Permissions demandées : {tool.permissions}</div>
         <div style={{ display: "flex", gap: "8px" }}>

@@ -2586,7 +2586,7 @@ function SendToSignModal({ doc, prospect, session, onClose, onSent }) {
         <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="Message d'accompagnement (facultatif)" style={{ ...inputStyle, width: "100%", resize: "vertical" }} />
       </div>
       <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px", lineHeight: 1.5 }}>
-        Signature électronique simple : l'adresse du signataire est vérifiée par un code à usage unique, et Closia conserve
+        Signature électronique simple : l'adresse du signataire est vérifiée par un code à usage unique, et Clos-ia conserve
         l'empreinte du document, l'horodatage, l'adresse IP et le navigateur. Sans valeur probante renforcée au sens d'une
         signature qualifiée.
       </div>
@@ -3545,7 +3545,7 @@ ${buildHistoryContext(history)}`;
             <div style={{ fontSize: "10px", color: "var(--text-faint)" }}>Analysé le {formatShortDate(data.analyzed_at)}</div>
           </>
         ) : (
-          <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>Génère une analyse pour voir ce que Closia recommande.</div>
+          <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>Génère une analyse pour voir ce que Clos-ia recommande.</div>
         )}
       </div>
     </div>
@@ -3634,7 +3634,7 @@ function ActivityTimeline({ history, prospect, team, session }) {
   const items = [
     ...history.emails.map((x) => ({ ...x, kind: x.type === "devis" ? "Devis envoyé" : "Email envoyé", filterKey: "IA", Icon: MailIcon })),
     ...history.scripts.map((x) => ({ ...x, kind: `Script préparé — ${x.section}`, filterKey: "IA", Icon: CalendarIcon })),
-    ...history.analyses.map((x) => ({ ...x, kind: x.type === "opportunite" ? "Analyse Closia" : "Analyse", filterKey: "IA", Icon: SparklesIcon })),
+    ...history.analyses.map((x) => ({ ...x, kind: x.type === "opportunite" ? "Analyse Clos-ia" : "Analyse", filterKey: "IA", Icon: SparklesIcon })),
     ...history.activities.map((x) => ({ ...x, kind: ACTIVITY_LABEL[x.type] || x.type, content: x.note || "", filterKey: HISTORIQUE_FILTER_BY_TYPE[x.type] || "Notes", Icon: TIMELINE_ICON[x.type] || ListIcon })),
     ...creationItem(prospect, team, session),
   ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -3813,7 +3813,7 @@ function TasksTab({ prospect, session, settings, onChange }) {
   );
 }
 
-// Récupère les échanges email réels avec ce contact. Rien n'est stocké côté Closia :
+// Récupère les échanges email réels avec ce contact. Rien n'est stocké côté Clos-ia :
 // les messages sont lus chez Gmail à la demande.
 async function fetchEmailThread(email, token) {
   if (!email) return { messages: [] };
@@ -3869,7 +3869,7 @@ function EmailThreadTab({ prospect, session }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       <div style={{ fontSize: "11.5px", color: "var(--text-faint)" }}>
-        {state.messages.length} échange{state.messages.length > 1 ? "s" : ""} avec {prospect.email} · lus depuis votre boîte mail, non stockés par Closia
+        {state.messages.length} échange{state.messages.length > 1 ? "s" : ""} avec {prospect.email} · lus depuis votre boîte mail, non stockés par Clos-ia
       </div>
       {state.messages.map((m) => {
         const open = expanded === m.id;
@@ -4078,7 +4078,7 @@ Règles :
       {!drafts ? (
         <>
           <div style={{ fontSize: "12.5px", color: "var(--text-dim)", lineHeight: 1.55, marginBottom: "14px" }}>
-            Closia rédige tous les messages d'un coup, en s'appuyant sur vos échanges réels.
+            Clos-ia rédige tous les messages d'un coup, en s'appuyant sur vos échanges réels.
             Vous les relisez avant qu'ils ne soient programmés.
           </div>
 

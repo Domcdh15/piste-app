@@ -315,7 +315,7 @@ export default async function handler(req, res) {
       const already = /already|exist/i.test(linkError?.message || "");
       return res.status(400).json({
         error: already
-          ? "Cette adresse a déjà un compte Closia."
+          ? "Cette adresse a déjà un compte Clos-ia."
           : linkError?.message || "La création de l'invitation a échoué",
       });
     }

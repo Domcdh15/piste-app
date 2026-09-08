@@ -79,7 +79,7 @@ export default async function handler(req, res) {
   if (action === "slack_test") {
     if (!integ.slack_webhook_url) return res.status(400).json({ error: "Aucun canal Slack configuré" });
     try {
-      await postSlack(integ.slack_webhook_url, "Closia est bien relié à ce canal. Le point du matin arrivera ici chaque jour.");
+      await postSlack(integ.slack_webhook_url, "Clos-ia est bien relié à ce canal. Le point du matin arrivera ici chaque jour.");
       return res.status(200).json({ ok: true });
     } catch (e) {
       return res.status(400).json({ error: `Slack a refusé le message : ${e.message}` });
@@ -128,7 +128,7 @@ export default async function handler(req, res) {
 
   // ---- Emailing : Brevo ou Mailjet -------------------------------------
   //
-  // Closia ne devient pas un outil d'emailing : il pousse les contacts vers une
+  // Clos-ia ne devient pas un outil d'emailing : il pousse les contacts vers une
   // plateforme dont c'est le métier, qui porte l'infrastructure d'envoi, la
   // réputation du domaine et la gestion des désinscriptions. Envoyer des
   // campagnes depuis la boîte Gmail d'un commercial ferait restreindre son

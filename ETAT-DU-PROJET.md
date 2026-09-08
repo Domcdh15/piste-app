@@ -1,4 +1,4 @@
-# Closia — état du projet
+# Clos-ia — état du projet
 
 Document de reprise, écrit pour être lu sur une machine neuve, sans historique
 de conversation. Il dit **ce qui existe**, **pourquoi c'est ainsi**, et **ce qui
@@ -108,7 +108,7 @@ transaction, donc un import en lot partait entièrement chez la même personne.
 
 ### Les intégrations ne mentent pas sur leur état
 Slack, Notion et Brevo/Mailjet fonctionnent (clé d'API collée par le client).
-Zapier et Make marchent **par clé d'API** — l'application Closia n'est pas
+Zapier et Make marchent **par clé d'API** — l'application Clos-ia n'est pas
 publiée dans leur annuaire, d'où la mention exacte « Par clé d'API ». Aircall et
 Stripe n'ont rien derrière et le disent.
 
@@ -140,14 +140,14 @@ l'interface non.
 - **Plafond de dépense Anthropic** à poser dans la console (à faire par la fondatrice).
 - **Recherche d'antériorité INPI** : `closia.fr` est pris depuis 2021 par un
   cabinet de transmission d'entreprise, et c'est ce que Google renvoie pour
-  « Closia ». Viser « Closia CRM ».
+  « Clos-ia ». Viser « Clos-ia CRM ».
 - **Une seule intégration de facturation**, pas quatre. Pennylane d'abord, parce
   que c'est celle que les PME partagent avec leur expert-comptable. En attendant,
   un export du devis couvre les quatre cas sans rien construire.
 - **Distribution automatique de leads** : le tourniquet existe, mais rien
   n'alimente encore les leads entrants en dehors du formulaire du site.
 - **Une vraie analyse de pipeline en libre-service** : le bouton du site promet
-  « Voir ce que Closia ferait avec mon pipeline », et derrière il y a un
+  « Voir ce que Clos-ia ferait avec mon pipeline », et derrière il y a un
   rendez-vous. Honnête tant qu'on tient la promesse pendant l'appel, mais ça ne
   passe pas à l'échelle.
 

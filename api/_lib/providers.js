@@ -286,7 +286,7 @@ export async function setGmailSignature(accessToken, signatureText) {
 }
 
 // Convertit la signature HTML renvoyée par Gmail en texte brut simple, pour l'utiliser
-// comme point de départ éditable côté Closia (import, pas de rendu HTML fidèle).
+// comme point de départ éditable côté Clos-ia (import, pas de rendu HTML fidèle).
 function htmlSignatureToText(html) {
   return html
     .replace(/<br\s*\/?>/gi, "\n")
@@ -381,7 +381,7 @@ async function fetchOutlookThreadWith(accessToken, contactEmail, maxResults = 8)
   const safeEmail = contactEmail.replace(/["\\]/g, "");
   const url = new URL("https://graph.microsoft.com/v1.0/me/messages");
   // $search couvre expéditeur et destinataires en une requête ; il interdit $orderby,
-  // le tri est donc fait côté serveur Closia juste après.
+  // le tri est donc fait côté serveur Clos-ia juste après.
   url.searchParams.set("$search", `"participants:${safeEmail}"`);
   url.searchParams.set("$select", "id,subject,from,toRecipients,receivedDateTime,bodyPreview,body");
   url.searchParams.set("$top", String(maxResults));

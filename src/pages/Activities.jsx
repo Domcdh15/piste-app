@@ -994,8 +994,8 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
         </button>
       </div>
 
-      {/* 6. Indices Closia */}
-      <SectionLabel>Indices Closia</SectionLabel>
+      {/* 6. Indices Clos-ia */}
+      <SectionLabel>Indices Clos-ia</SectionLabel>
       <div className="dash-card" style={{ padding: "18px 20px", marginBottom: "26px" }}>
         <IndexBar
           label="Suivi"
@@ -1030,12 +1030,12 @@ Deals à risque (sans activité depuis 7j+) : ${atRisk.length}`;
         )}
       </div>
 
-      {/* 7. Insights Closia — un seul espace IA */}
-      <SectionLabel>Insights Closia</SectionLabel>
+      {/* 7. Insights Clos-ia — un seul espace IA */}
+      <SectionLabel>Insights Clos-ia</SectionLabel>
       <div className="dash-card" style={{ padding: "18px 20px", marginBottom: "26px", border: "0.5px solid var(--violet-border)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginBottom: "10px", flexWrap: "wrap" }}>
           <span style={{ display: "flex", alignItems: "center", gap: "7px", fontWeight: 700, fontSize: "13px", color: "var(--violet)" }}>
-            <SparklesIcon size={13} color="var(--violet)" /> Ce que Closia remarque
+            <SparklesIcon size={13} color="var(--violet)" /> Ce que Clos-ia remarque
           </span>
           <button className="focusable" onClick={generateInsight} disabled={loadingInsight} style={{ fontSize: "11.5px", fontWeight: 600, padding: "6px 12px", borderRadius: "7px", background: "var(--violet-dim)", color: "var(--violet)", border: "0.5px solid var(--violet-border)", opacity: loadingInsight ? 0.6 : 1 }}>
             {loadingInsight ? "Analyse…" : insight ? "Régénérer" : "Analyser ma période"}
@@ -1316,7 +1316,7 @@ function AIQuerySection({ prospects, activities, session, days, bare }) {
         .slice(0, 10)
         .map((p) => `${p.company} · ${p.stage} · ${formatEuros(p.deal_value || 0)} · dernier contact ${p.last_contact_at ? formatShortDate(p.last_contact_at) : "jamais"}`);
 
-      const prompt = `Tu es l'assistant data d'un CRM commercial (Closia). Voici les données réelles disponibles (période : ${days} derniers jours) :
+      const prompt = `Tu es l'assistant data d'un CRM commercial (Clos-ia). Voici les données réelles disponibles (période : ${days} derniers jours) :
 
 Pipeline par étape : ${stageGroups.map((g) => `${g.label} (${g.value})`).join(", ") || "aucune donnée"}
 Pipeline par statut : ${statusGroups.map((g) => `${g.label} (${g.value})`).join(", ") || "aucune donnée"}

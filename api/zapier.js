@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { supabaseAdmin } from "./_lib/supabase.js";
 
-// API publique de Closia, consommée par Zapier, Make ou tout appel direct.
+// API publique de Clos-ia, consommée par Zapier, Make ou tout appel direct.
 //
 // Une seule fonction serverless pour tout : l'authentification par clé, sept
 // lectures d'événements, cinq écritures et trois recherches. Le routage se fait
@@ -172,7 +172,7 @@ export default async function handler(req, res) {
       const { data } = await q.limit(20);
 
       // « Trouver ou créer » : le motif le plus utilisé de Zapier. Sans lui,
-      // chaque formulaire branché sur Closia créerait un doublon à chaque envoi.
+      // chaque formulaire branché sur Clos-ia créerait un doublon à chaque envoi.
       if ((!data || data.length === 0) && req.query.create === "1" && by === "email") {
         const { data: cree } = await admin
           .from("prospects")

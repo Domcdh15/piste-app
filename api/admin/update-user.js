@@ -10,7 +10,7 @@ const EDITABLE_TABLES = ["prospects", "tasks", "activities", "user_settings", "t
 const APP_URL = "https://app.clos-ia.fr";
 
 // Boîte mail utilisée pour envoyer automatiquement les liens d'invitation client —
-// doit être un compte Closia avec Gmail connecté dans Intégrations (sinon fallback
+// doit être un compte Clos-ia avec Gmail connecté dans Intégrations (sinon fallback
 // silencieux : le lien est simplement renvoyé pour copier-coller manuel).
 const SENDER_EMAIL = "domitille.debouy@clos-ia.fr";
 const PRO_ACCOUNT_USER_ID = "ca0b4c82-cd8c-4589-a593-2d9189445432";
@@ -27,8 +27,8 @@ async function sendInviteEmail(admin, toEmail, firstName, setPasswordLink) {
     const accessToken = await ensureFreshToken(admin, conn);
     await sendEmail("google", accessToken, {
       to: toEmail,
-      subject: "Bienvenue sur Closia — active ton compte",
-      body: `Bonjour ${firstName},\n\nTon compte Closia est prêt. Clique sur le lien ci-dessous pour choisir ton mot de passe et accéder à ton espace :\n\n${setPasswordLink}\n\nÀ bientôt,\nL'équipe Closia`,
+      subject: "Bienvenue sur Clos-ia — active ton compte",
+      body: `Bonjour ${firstName},\n\nTon compte Clos-ia est prêt. Clique sur le lien ci-dessous pour choisir ton mot de passe et accéder à ton espace :\n\n${setPasswordLink}\n\nÀ bientôt,\nL'équipe Clos-ia`,
     });
     return true;
   } catch (e) {
@@ -42,7 +42,7 @@ async function sendInviteEmail(admin, toEmail, firstName, setPasswordLink) {
 const COMPED_TIER_NAMES = { solo: "Solo", equipe: "Équipe", business: "Business" };
 
 function randomPassword() {
-  return `Closia-${Math.random().toString(36).slice(2, 8)}-${Math.random().toString(36).slice(2, 6)}`;
+  return `Clos-ia-${Math.random().toString(36).slice(2, 8)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
 async function logAudit(admin, targetUserId, action, detail) {
@@ -160,7 +160,7 @@ export default async function handler(req, res) {
       company: companyName,
       email,
       stage: "Gagné",
-      notes: `Client Closia — formule ${tierName} (gratuit, compte créé depuis le back office).`,
+      notes: `Client Clos-ia — formule ${tierName} (gratuit, compte créé depuis le back office).`,
     });
 
     let setPasswordLink = null;

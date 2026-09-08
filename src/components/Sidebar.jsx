@@ -56,7 +56,7 @@ export default function Sidebar({ activeTab, setActiveTab, prospects = [], hasTi
         style={{ display: "flex", alignItems: "center", gap: "10px", padding: "6px 8px", marginBottom: "34px", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}
       >
         <Logo size={30} />
-        <span className="display" style={{ fontSize: "15.5px", fontWeight: 700, letterSpacing: "0.02em", color: "var(--text)" }}>Closia</span>
+        <span className="display" style={{ fontSize: "15.5px", fontWeight: 700, letterSpacing: "0.02em", color: "var(--text)" }}>Clos-ia</span>
       </button>
 
       <nav style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1 }}>

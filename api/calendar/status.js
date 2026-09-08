@@ -226,7 +226,7 @@ async function runSlackBriefs(admin) {
         .filter((p) => !p.last_contact_at || (Date.now() - new Date(p.last_contact_at)) / 86400000 >= 7)
         .sort((a, b) => Number(b.deal_value || 0) - Number(a.deal_value || 0));
 
-      const lignes = [`*Closia — le point du matin*`, `${aFaire} action${aFaire > 1 ? "s" : ""} à mener aujourd'hui · ${enRetard} en retard · ${silencieux.length} dossier${silencieux.length > 1 ? "s" : ""} sans nouvelles depuis une semaine`];
+      const lignes = [`*Clos-ia — le point du matin*`, `${aFaire} action${aFaire > 1 ? "s" : ""} à mener aujourd'hui · ${enRetard} en retard · ${silencieux.length} dossier${silencieux.length > 1 ? "s" : ""} sans nouvelles depuis une semaine`];
 
       for (const p of silencieux.slice(0, 3)) {
         const jours = p.last_contact_at ? Math.floor((Date.now() - new Date(p.last_contact_at)) / 86400000) : null;
@@ -308,7 +308,7 @@ async function runWeeklyReports(admin) {
         const accessToken = await ensureFreshToken(admin, conn);
         await sendEmail("google", accessToken, {
           to: u.user.email,
-          subject: `Closia — votre point hebdomadaire`,
+          subject: `Clos-ia — votre point hebdomadaire`,
           body: corps,
         });
         envoyes++;
@@ -341,7 +341,7 @@ export default async function handler(req, res) {
   if (!user) return res.status(401).json({ error: "Non authentifié" });
 
   // Échanges email avec un prospect — lus à la demande chez le fournisseur,
-  // jamais stockés côté Closia.
+  // jamais stockés côté Clos-ia.
   if (req.method === "GET" && req.query?.action === "thread") {
     const email = (req.query.email || "").trim();
     if (!email) return res.status(400).json({ error: "Email du contact manquant" });

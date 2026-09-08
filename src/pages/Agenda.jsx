@@ -916,7 +916,7 @@ ${context}`;
 
       {!prospect ? (
         inconnus.length === 0 && (
-          <div style={{ color: "var(--text-faint)", fontSize: "12px" }}>Aucun prospect associé — l'invité(e) de l'événement ne correspond à aucun email enregistré dans Closia.</div>
+          <div style={{ color: "var(--text-faint)", fontSize: "12px" }}>Aucun prospect associé — l'invité(e) de l'événement ne correspond à aucun email enregistré dans Clos-ia.</div>
         )
       ) : (
         <>
@@ -1453,7 +1453,7 @@ Réponds en français, en 4 phrases maximum. Pas de markdown, pas d'emoji, pas d
   return (
     <div style={{ background: "var(--blue-dim)", border: "0.5px solid #147ff555", borderRadius: "12px", padding: "16px", marginBottom: "18px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-        <span className="display" style={{ fontWeight: 700, fontSize: "13px", color: "var(--blue)" }}>✨ Closia organise votre journée</span>
+        <span className="display" style={{ fontWeight: 700, fontSize: "13px", color: "var(--blue)" }}>✨ Clos-ia organise votre journée</span>
         <button className="focusable" onClick={onClose} style={{ background: "none", border: "none", color: "var(--blue)", fontSize: "13px" }}>✕</button>
       </div>
 
@@ -1518,7 +1518,7 @@ Réponds en français, en 4 phrases maximum. Pas de markdown, pas d'emoji, pas d
                     {m.text}
                   </div>
                 ))}
-                {asking && <div style={{ alignSelf: "flex-start", fontSize: "12px", color: "var(--text-dim)" }}>Closia réfléchit…</div>}
+                {asking && <div style={{ alignSelf: "flex-start", fontSize: "12px", color: "var(--text-dim)" }}>Clos-ia réfléchit…</div>}
               </div>
             )}
 

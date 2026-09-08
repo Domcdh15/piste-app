@@ -508,7 +508,7 @@ export function ArrowLeftIcon(props) {
 }
 
 export function Logo({ size = 32 }) {
-  return <img src="/logo-icon.png" width={size} height={size} alt="Closia" style={{ flexShrink: 0, objectFit: "contain" }} />;
+  return <img src="/logo-icon.png" width={size} height={size} alt="Clos-ia" style={{ flexShrink: 0, objectFit: "contain" }} />;
 }
 
 export const inputStyle = {

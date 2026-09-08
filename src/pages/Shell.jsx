@@ -282,7 +282,7 @@ export default function Shell({ session, team, reloadTeam }) {
             <span /><span /><span />
           </button>
           <span className="display" style={{ fontWeight: 700, fontSize: "15px", color: "var(--text)" }}>
-            {TAB_LABELS[activeTab] || "Closia"}
+            {TAB_LABELS[activeTab] || "Clos-ia"}
           </span>
         </div>
         {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} onOpenProspect={openProspect} settings={effectiveSettings} />}

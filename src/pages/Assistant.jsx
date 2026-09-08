@@ -150,7 +150,7 @@ function AnalyzedTodayBar({ prospects }) {
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "22px", flexWrap: "wrap", background: CARD, border: `0.5px solid ${BORDER}`, borderRadius: "10px", padding: "12px 18px", marginBottom: "24px" }}>
-      <span style={{ fontSize: "12px", color: TEXT2, fontWeight: 600 }}>Closia a analysé aujourd'hui</span>
+      <span style={{ fontSize: "12px", color: TEXT2, fontWeight: 600 }}>Clos-ia a analysé aujourd'hui</span>
       <TodayStat value={prospects.length} label="opportunités" />
       <TodayStat value={counts ? counts.activites : "…"} label="activités" />
       <TodayStat value={counts ? counts.rdv : "…"} label="rendez-vous" />
@@ -206,7 +206,7 @@ function AttentionCards({ prospects, onOpenProspect, onOpenFlow }) {
         `${formatEuros(risk.deal_value || 0)}`,
         `Aucune activité depuis ${daysSince(risk.last_contact_at) ?? "longtemps"} jour${daysSince(risk.last_contact_at) > 1 ? "s" : ""}.`,
       ],
-      recommendation: "Closia recommande : relancer aujourd'hui.",
+      recommendation: "Clos-ia recommande : relancer aujourd'hui.",
       reason: `Deal de ${formatEuros(risk.deal_value || 0)} sans aucune activité depuis ${daysSince(risk.last_contact_at) ?? "longtemps"} jour${daysSince(risk.last_contact_at) > 1 ? "s" : ""} — le risque de perte augmente avec le temps sans contact.`,
       actions: [
         { label: "Analyser", onClick: () => onOpenFlow("analyse", risk.id) },
@@ -222,7 +222,7 @@ function AttentionCards({ prospects, onOpenProspect, onOpenFlow }) {
         `${formatEuros(relance.deal_value || 0)}`,
         `La proposition a été envoyée il y a ${daysSince(relance.last_contact_at) ?? "quelques"} jour${daysSince(relance.last_contact_at) > 1 ? "s" : ""}.`,
       ],
-      recommendation: "Closia recommande : envoyer une relance courte.",
+      recommendation: "Clos-ia recommande : envoyer une relance courte.",
       reason: `Proposition envoyée il y a ${daysSince(relance.last_contact_at) ?? "quelques"} jour${daysSince(relance.last_contact_at) > 1 ? "s" : ""} sans retour — une relance courte remet le sujet devant le prospect avant qu'il ne passe à autre chose.`,
       actions: [{ label: "Générer", onClick: () => onOpenFlow("relance", relance.id) }],
     },
@@ -235,7 +235,7 @@ function AttentionCards({ prospects, onOpenProspect, onOpenFlow }) {
         `${formatEuros(rdvProspect.deal_value || 0)}`,
         formatShortDate(rdvTask.due_at),
       ],
-      recommendation: "Closia a préparé le contexte pour ce rendez-vous.",
+      recommendation: "Clos-ia a préparé le contexte pour ce rendez-vous.",
       reason: `Rendez-vous prévu ${formatShortDate(rdvTask.due_at)} — arriver préparé (enjeux, objections, historique) augmente les chances de faire avancer ce deal.`,
       actions: [{ label: "Préparer le RDV", onClick: () => onOpenFlow("rdv", rdvProspect.id) }],
     },
@@ -339,7 +339,7 @@ function ChatPanel({ session, prospects, onOpenProspect }) {
         .slice(0, 40)
         .map((p) => `- ${p.name} (${p.company}) · ${p.stage} · ${formatEuros(p.deal_value || 0)} · dernier contact ${p.last_contact_at ? `${daysSince(p.last_contact_at)}j` : "jamais"}${p.next_contact_at ? ` · prochain contact ${formatShortDate(p.next_contact_at)}` : ""}`)
         .join("\n");
-      const prompt = `Tu es Closia, l'assistant commercial d'un CRM. Réponds en français, de façon concise et actionnable (pas plus de 6-8 lignes), à la question du commercial en t'appuyant UNIQUEMENT sur les données de pipeline ci-dessous. Si tu cites des prospects, utilise leur nom exact. Ne dis jamais que tu n'as pas accès aux données du CRM — elles sont ci-dessous.
+      const prompt = `Tu es Clos-ia, l'assistant commercial d'un CRM. Réponds en français, de façon concise et actionnable (pas plus de 6-8 lignes), à la question du commercial en t'appuyant UNIQUEMENT sur les données de pipeline ci-dessous. Si tu cites des prospects, utilise leur nom exact. Ne dis jamais que tu n'as pas accès aux données du CRM — elles sont ci-dessous.
 
 Pipeline actuel (${prospects.length} opportunités ouvertes) :
 ${pipelineSummary}
@@ -383,7 +383,7 @@ Question du commercial : "${question}"`;
               {m.text}
             </div>
           ))}
-          {loading && <div style={{ alignSelf: "flex-start", fontSize: "12px", color: TEXT2 }}>Closia réfléchit...</div>}
+          {loading && <div style={{ alignSelf: "flex-start", fontSize: "12px", color: TEXT2 }}>Clos-ia réfléchit...</div>}
         </div>
       )}
 
@@ -595,7 +595,7 @@ ${ctx.text}`;
               {sendError && <div style={{ color: RED, fontSize: "12px", marginTop: "8px" }}>{sendError}</div>}
               {!mailbox && (
                 <div style={{ fontSize: "11.5px", color: TEXT2, marginTop: "8px" }}>
-                  Connectez votre boîte Gmail ou Outlook dans Paramètres → Intégrations pour envoyer directement depuis Closia.
+                  Connectez votre boîte Gmail ou Outlook dans Paramètres → Intégrations pour envoyer directement depuis Clos-ia.
                 </div>
               )}
               {mailbox && !prospect?.email && (

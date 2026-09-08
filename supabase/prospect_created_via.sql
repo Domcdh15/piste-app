@@ -1,4 +1,4 @@
--- Comment le prospect est entré dans Closia, renseigné par le code et non
+-- Comment le prospect est entré dans Clos-ia, renseigné par le code et non
 -- par l'utilisateur. Distinct de `source`, qui reste la provenance
 -- commerciale déclarée (Recommandation, LinkedIn, Salon…).
 -- Idempotent : peut être exécuté plusieurs fois sans risque.

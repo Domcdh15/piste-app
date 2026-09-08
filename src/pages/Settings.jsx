@@ -6,9 +6,9 @@ import { formatEuros, buildSignatureBlock, BadgeAbsent } from "../lib/ui.jsx";
 const TONES = ["Professionnel", "Chaleureux", "Direct"];
 const DETAIL_LEVELS = ["Court", "Équilibré", "Détaillé"];
 const INITIATIVE_LEVELS = [
-  { value: "Discret", desc: "Closia recommande uniquement les actions importantes." },
-  { value: "Équilibré", desc: "Closia signale les opportunités et problèmes importants." },
-  { value: "Proactif", desc: "Closia cherche activement les actions à effectuer." },
+  { value: "Discret", desc: "Clos-ia recommande uniquement les actions importantes." },
+  { value: "Équilibré", desc: "Clos-ia signale les opportunités et problèmes importants." },
+  { value: "Proactif", desc: "Clos-ia cherche activement les actions à effectuer." },
 ];
 // Rubriques dont les champs passent par `set` et ont donc besoin du bouton Enregistrer.
 const SAVEABLE = ["profil", "notifications", "organisation", "ia"];
@@ -106,7 +106,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
           <div style={{ position: "relative", zIndex: 1 }}>
             <div className="h2" style={{ color: "#fff" }}>Paramètres</div>
             <div style={{ color: "rgba(255,255,255,0.85)", fontSize: "13px", marginTop: "4px" }}>
-              Gérez votre compte, votre équipe et vos préférences Closia.
+              Gérez votre compte, votre équipe et vos préférences Clos-ia.
             </div>
           </div>
         </div>
@@ -200,7 +200,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
           <span style={{ color: "var(--text-faint)", fontSize: "13px" }}>→</span>
           <input type="time" value={local.default_task_time_end || "12:00"} onChange={(e) => set({ default_task_time_end: e.target.value })} style={inputSm} />
         </div>
-        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "16px" }}>Lorsque vous créez une tâche sans heure précise, Closia la place au début de ce créneau dans l'Agenda.</div>
+        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "16px" }}>Lorsque vous créez une tâche sans heure précise, Clos-ia la place au début de ce créneau dans l'Agenda.</div>
 
         <div style={{ fontSize: "13px", color: "var(--text)", marginBottom: "8px" }}>Journée de travail</div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "6px" }}>
@@ -359,7 +359,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
             {DETAIL_LEVELS.map((l) => <option key={l}>{l}</option>)}
           </select>
         </Field>
-        <div style={{ fontSize: "13px", color: "var(--text)", marginTop: "14px", marginBottom: "8px" }}>Initiative de Closia</div>
+        <div style={{ fontSize: "13px", color: "var(--text)", marginTop: "14px", marginBottom: "8px" }}>Initiative de Clos-ia</div>
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           {INITIATIVE_LEVELS.map((lvl) => (
             <button
@@ -373,7 +373,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
             </button>
           ))}
         </div>
-        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>Le ton et le niveau de détail s'appliquent aux emails générés par l'IA. L'initiative détermine si Closia propose spontanément une tâche de suivi après une note.</div>
+        <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>Le ton et le niveau de détail s'appliquent aux emails générés par l'IA. L'initiative détermine si Clos-ia propose spontanément une tâche de suivi après une note.</div>
       </Section>
 
       {false && (
@@ -389,7 +389,7 @@ export default function Settings({ session, prospects, settings, reloadSettings,
                 <input value={local.sig_job_title || ""} onChange={(e) => set({ sig_job_title: e.target.value })} style={inputSm} placeholder="ex : Responsable commercial" />
               </Field>
               <Field label="Entreprise">
-                <input value={local.sig_company || ""} onChange={(e) => set({ sig_company: e.target.value })} style={inputSm} placeholder="ex : Closia" />
+                <input value={local.sig_company || ""} onChange={(e) => set({ sig_company: e.target.value })} style={inputSm} placeholder="ex : Clos-ia" />
               </Field>
               <Field label="Téléphone (facultatif)">
                 <input value={local.sig_phone || ""} onChange={(e) => set({ sig_phone: e.target.value })} style={inputSm} placeholder="ex : 06 12 34 56 78" />
@@ -743,7 +743,7 @@ function ApiKeysPanel({ session, team, onChanged }) {
         CLÉS D'API
       </div>
       <div style={{ fontSize: "11px", color: "var(--text-faint)", marginBottom: "12px", lineHeight: 1.5 }}>
-        Pour relier Closia à Zapier, à Make ou à vos propres outils. Choisissez ce que la clé peut
+        Pour relier Clos-ia à Zapier, à Make ou à vos propres outils. Choisissez ce que la clé peut
         voir : toute l'équipe, pour un automatisme de pilotage, ou les seuls dossiers d'une personne,
         pour ses propres automatismes. Une clé contourne l'interface — ne la partagez pas, et
         révoquez-la dès qu'elle ne sert plus.
@@ -1000,7 +1000,7 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConn
     const lines = [
       "Bonjour,",
       "",
-      "Je vous invite à rejoindre notre espace Closia.",
+      "Je vous invite à rejoindre notre espace Clos-ia.",
       "",
       "Cliquez sur ce lien pour créer votre mot de passe et accéder à votre compte :",
       invited.link,
@@ -1016,7 +1016,7 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConn
           action: "send_email",
           provider: mailProvider,
           to: invited.email,
-          subject: `Rejoignez ${company} sur Closia`,
+          subject: `Rejoignez ${company} sur Clos-ia`,
           body: lines.join("\n").trim(),
         }),
       });
@@ -1086,7 +1086,7 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConn
             Compte créé pour {invited.email}
           </div>
           <div style={{ fontSize: "11.5px", color: "var(--text-dim)", marginBottom: "10px", lineHeight: 1.5 }}>
-            Transmettez-lui ce lien : il y créera son mot de passe, puis réglera son espace Closia.
+            Transmettez-lui ce lien : il y créera son mot de passe, puis réglera son espace Clos-ia.
           </div>
 
           <input
@@ -1236,7 +1236,7 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConn
             />
             <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px", lineHeight: 1.5 }}>
               Un lead qui arrive sans responsable — formulaire du site, Zapier, import — revient au commercial
-              servi le moins récemment, en sautant ceux qui sont absents. Les fiches créées à la main dans Closia
+              servi le moins récemment, en sautant ceux qui sont absents. Les fiches créées à la main dans Clos-ia
               restent à celui qui les saisit.
             </div>
           </div>
@@ -1250,7 +1250,7 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConn
             />
             <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px", lineHeight: 1.5 }}>
               Chez beaucoup d'entreprises, celui qui a vendu reste l'interlocuteur après la vente.
-              Activez ce réglage et Closia cesse de distinguer commercial et Customer Success :
+              Activez ce réglage et Clos-ia cesse de distinguer commercial et Customer Success :
               une seule personne responsable par client, un seul propriétaire par ticket.
             </div>
           </div>
@@ -1289,7 +1289,7 @@ function BillingPanel({ local, session, team, reloadSettings, reloadTeam }) {
   const [specimenBusy, setSpecimenBusy] = useState(false);
 
   // Un exemple au format réel : c'est le seul moyen de voir ce que recevra un
-  // client, et quelles informations légales manquent encore côté Closia.
+  // client, et quelles informations légales manquent encore côté Clos-ia.
   async function downloadSpecimen() {
     if (specimenBusy) return;
     setSpecimenBusy(true);
@@ -1344,7 +1344,7 @@ function BillingPanel({ local, session, team, reloadSettings, reloadTeam }) {
   if (isTeamBilling && price === null) {
     return (
       <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>
-        Tarif d'équipe ({memberCount} membres) en cours de configuration — contacte le support Closia.
+        Tarif d'équipe ({memberCount} membres) en cours de configuration — contacte le support Clos-ia.
       </div>
     );
   }
@@ -1631,7 +1631,7 @@ function SignatureMailSync({ local, session, mailConnected }) {
       {mailConnected.google ? (
         <>
           <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "10px" }}>
-            Applique cette signature directement dans Gmail — elle apparaîtra automatiquement quand tu réponds à un email, même en dehors de Closia.
+            Applique cette signature directement dans Gmail — elle apparaîtra automatiquement quand tu réponds à un email, même en dehors de Clos-ia.
           </div>
           <button className="focusable" onClick={syncToGmail} disabled={syncing || !signature} style={{ fontSize: "12px", fontWeight: 600, padding: "8px 14px", borderRadius: "8px", background: "var(--blue-dim)", color: "var(--blue)", border: "0.5px solid #147ff555", opacity: syncing || !signature ? 0.6 : 1 }}>
             {syncing ? "Synchronisation..." : "Appliquer à Gmail"}
@@ -1642,7 +1642,7 @@ function SignatureMailSync({ local, session, mailConnected }) {
         </>
       ) : (
         <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>
-          Microsoft ne permet pas d'appliquer une signature automatiquement dans Outlook via son API — cette signature reste utilisée dans les emails générés par Closia uniquement.
+          Microsoft ne permet pas d'appliquer une signature automatiquement dans Outlook via son API — cette signature reste utilisée dans les emails générés par Clos-ia uniquement.
         </div>
       )}
     </div>
@@ -1695,7 +1695,7 @@ function SupportPanel({ session }) {
   return (
     <>
       <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "12px" }}>
-        Une question, un bug, besoin d'aide ? Écris ici, l'équipe Closia te répond directement.
+        Une question, un bug, besoin d'aide ? Écris ici, l'équipe Clos-ia te répond directement.
       </div>
 
       {ticket?.messages?.length > 0 && (
@@ -1714,7 +1714,7 @@ function SupportPanel({ session }) {
                 maxWidth: "85%",
               }}
             >
-              <div style={{ fontSize: "10px", fontWeight: 700, opacity: 0.6, marginBottom: "3px" }}>{m.from === "admin" ? "Équipe Closia" : "Toi"}</div>
+              <div style={{ fontSize: "10px", fontWeight: 700, opacity: 0.6, marginBottom: "3px" }}>{m.from === "admin" ? "Équipe Clos-ia" : "Toi"}</div>
               {m.body}
             </div>
           ))}
