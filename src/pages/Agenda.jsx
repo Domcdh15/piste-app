@@ -107,7 +107,7 @@ function rangeLabel(view, refDate) {
   return `${s.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} – ${e.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}`;
 }
 
-export default function Agenda({ prospects, session, onOpenProspect, settings }) {
+export default function Agenda({ prospects, session, reload, onOpenProspect, settings }) {
   // Les réglages arrivent après le premier rendu : la valeur initiale de
   // useState ne les voyait jamais et retombait toujours sur "Liste".
   const [view, setView] = useState(settings?.agenda_default_view || "Liste");
@@ -413,6 +413,7 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
             email={newContact.email}
             event={newContact.event}
             session={session}
+            reload={reload}
             onClose={() => setNewContact(null)}
             onCreated={(id) => onOpenProspect?.(id)}
           />
@@ -755,7 +756,7 @@ function devineIdentite(email) {
   return { nom, entreprise };
 }
 
-function NewContactModal({ email, event, session, onClose, onCreated }) {
+function NewContactModal({ email, event, session, reload, onClose, onCreated }) {
   const devine = devineIdentite(email);
   const [nom, setNom] = useState(devine.nom);
   const [entreprise, setEntreprise] = useState(devine.entreprise);
@@ -791,6 +792,13 @@ function NewContactModal({ email, event, session, onClose, onCreated }) {
       type: "note",
       note: `Fiche créée depuis l'agenda — « ${event.title} » le ${new Date(event.start).toLocaleDateString("fr-FR")}`,
     });
+
+    // Recharger AVANT d'ouvrir : le pipeline reçoit l'identifiant de la fiche
+    // à afficher, et il la cherche dans la liste que l'application a déjà en
+    // mémoire. Sans ce rechargement, il cherche une fiche qu'il ne connaît pas
+    // encore, n'affiche rien, et la création paraît avoir échoué alors qu'elle
+    // a bien eu lieu.
+    await reload?.();
 
     setBusy(false);
     onCreated?.(data.id);
