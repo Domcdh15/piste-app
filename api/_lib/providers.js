@@ -122,6 +122,32 @@ export async function ensureFreshToken(admin, conn) {
   return tokens.access_token;
 }
 
+// En-têtes qui distinguent un courrier envoyé par une machine d'un courrier
+// écrit par quelqu'un. Ce sont ceux que le répondeur d'absence de Gmail
+// consulte lui-même avant de répondre.
+const EN_TETES_AUTOMATIQUES = ["List-Id", "List-Unsubscribe", "Precedence", "Auto-Submitted", "X-Auto-Response-Suppress"];
+
+// Boîtes qui n'attendent pas de réponse, et qui n'en veulent pas.
+const BOITES_SANS_REPONSE = /^(no-?reply|ne-?pas-?repondre|donotreply|mailer-daemon|postmaster|bounce|notifications?|newsletter|support-noreply)([.+-]|@)/i;
+
+// Faut-il s'abstenir de répondre à ce message ?
+//
+// Une réponse d'absence envoyée à une newsletter part parfois à toute la liste.
+// Envoyée à un spam, elle confirme que l'adresse est lue. Envoyée à un
+// robot, elle peut déclencher une boucle de réponses automatiques. Et dans
+// tous les cas elle diffuse le message d'absence, la date de retour et le nom
+// du contact de secours à quelqu'un qui n'a rien demandé.
+export function courrierAutomatique(msg) {
+  const e = msg?.entetes || {};
+  if (e["list-id"] || e["list-unsubscribe"]) return true;
+  if (e["x-auto-response-suppress"]) return true;
+  const precedence = (e["precedence"] || "").toLowerCase();
+  if (["bulk", "list", "junk", "auto_reply"].includes(precedence)) return true;
+  const auto = (e["auto-submitted"] || "").toLowerCase();
+  if (auto && auto !== "no") return true;
+  return BOITES_SANS_REPONSE.test(msg?.from || "");
+}
+
 export async function listRecentMessages(provider, accessToken, sinceISO) {
   if (provider === "google") {
     const listRes = await fetch(
@@ -135,7 +161,9 @@ export async function listRecentMessages(provider, accessToken, sinceISO) {
     const messages = [];
     for (const id of ids) {
       const msgRes = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`,
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=metadata`
+          + EN_TETES_AUTOMATIQUES.map((h) => `&metadataHeaders=${h}`).join("")
+          + "&metadataHeaders=From&metadataHeaders=Subject",
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       if (!msgRes.ok) continue;
@@ -147,7 +175,8 @@ export async function listRecentMessages(provider, accessToken, sinceISO) {
       const subjectHeader = headers.find((h) => h.name === "Subject")?.value || "";
       const emailMatch = fromHeader.match(/<([^>]+)>/);
       const fromEmail = (emailMatch ? emailMatch[1] : fromHeader).trim().toLowerCase();
-      if (fromEmail) messages.push({ id, from: fromEmail, subject: subjectHeader, receivedAt: new Date(internalDate).toISOString() });
+      const entetes = Object.fromEntries(headers.map((h) => [h.name.toLowerCase(), h.value]));
+      if (fromEmail) messages.push({ id, from: fromEmail, subject: subjectHeader, entetes, receivedAt: new Date(internalDate).toISOString() });
     }
     return messages;
   }
@@ -155,7 +184,7 @@ export async function listRecentMessages(provider, accessToken, sinceISO) {
   if (provider === "microsoft") {
     const url = new URL("https://graph.microsoft.com/v1.0/me/messages");
     url.searchParams.set("$filter", `receivedDateTime gt ${sinceISO}`);
-    url.searchParams.set("$select", "id,from,subject,receivedDateTime");
+    url.searchParams.set("$select", "id,from,subject,receivedDateTime,internetMessageHeaders");
     url.searchParams.set("$top", "20");
     url.searchParams.set("$orderby", "receivedDateTime desc");
     const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}`, Prefer: 'outlook.timezone="UTC"' } });
@@ -166,6 +195,7 @@ export async function listRecentMessages(provider, accessToken, sinceISO) {
         id: m.id,
         from: (m.from?.emailAddress?.address || "").toLowerCase(),
         subject: m.subject || "",
+        entetes: Object.fromEntries((m.internetMessageHeaders || []).map((h) => [(h.name || "").toLowerCase(), h.value])),
         receivedAt: m.receivedDateTime,
       }))
       .filter((m) => m.from);

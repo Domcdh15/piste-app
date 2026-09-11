@@ -1,5 +1,5 @@
 import { supabaseAdmin, getUserFromToken, bearerToken } from "../_lib/supabase.js";
-import { ensureFreshToken, sendEmail, listRecentMessages, setGmailSignature, getGmailSignature, fetchEmailThreadWith } from "../_lib/providers.js";
+import { ensureFreshToken, sendEmail, listRecentMessages, courrierAutomatique, setGmailSignature, getGmailSignature, fetchEmailThreadWith } from "../_lib/providers.js";
 import { postSlack } from "../_lib/slack.js";
 
 function buildVacationReply(s) {
@@ -38,12 +38,26 @@ async function runVacationCheck(admin) {
     const already = new Set(s.vacation_replied_senders || []);
     const newlyReplied = [];
 
+    // Répondre uniquement aux personnes du fichier, si l'utilisateur l'a
+    // demandé. On ne charge les adresses que dans ce cas : inutile de lire
+    // tout un pipeline pour ceux qui répondent à tout le monde.
+    let connus = null;
+    if (s.vacation_only_known_contacts) {
+      const { data: fiches } = await admin.from("prospects").select("email").eq("user_id", s.user_id).not("email", "is", null);
+      connus = new Set((fiches || []).map((f) => f.email.toLowerCase()));
+    }
+
     for (const conn of conns || []) {
       try {
         const accessToken = await ensureFreshToken(admin, conn);
         const messages = await listRecentMessages(conn.provider, accessToken, since);
         for (const msg of messages) {
           if (already.has(msg.from) || newlyReplied.includes(msg.from)) continue;
+          // Une réponse d'absence adressée à une liste de diffusion repart
+          // parfois vers tous ses abonnés ; adressée à un spam, elle confirme
+          // que la boîte est lue. Ces messages-là n'attendent personne.
+          if (courrierAutomatique(msg)) continue;
+          if (connus && !connus.has(msg.from)) continue;
           await sendEmail(conn.provider, accessToken, {
             to: msg.from,
             subject: msg.subject ? `Re: ${msg.subject}` : "Réponse automatique",

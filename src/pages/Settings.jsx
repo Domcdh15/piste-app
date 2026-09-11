@@ -334,9 +334,26 @@ export default function Settings({ session, prospects, settings, reloadSettings,
                     <input type="email" value={local.vacation_redirect_email || ""} onChange={(e) => set({ vacation_redirect_email: e.target.value })} style={{ ...inputSm, width: "100%" }} placeholder="ex : camille@entreprise.fr" />
                   </Field>
                 </div>
-                <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "10px" }}>
+                <label style={{ display: "flex", gap: "9px", alignItems: "flex-start", marginTop: "14px", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={!!local.vacation_only_known_contacts}
+                    onChange={(e) => set({ vacation_only_known_contacts: e.target.checked })}
+                    style={{ marginTop: "2px" }}
+                  />
+                  <span>
+                    <span style={{ fontSize: "13px", color: "var(--text)" }}>Ne répondre qu'aux personnes de mon fichier</span>
+                    <span style={{ display: "block", fontSize: "11px", color: "var(--text-faint)", marginTop: "2px" }}>
+                      Un prospect qui écrit pour la première fois n'aura alors pas de réponse.
+                    </span>
+                  </span>
+                </label>
+
+                <div style={{ fontSize: "11px", color: "var(--text-faint)", marginTop: "12px" }}>
                   Chaque nouvel expéditeur reçoit une réponse automatique une seule fois, et seulement pendant la période ci-dessus.
                   La boîte est vérifiée une fois par jour — ce n'est pas instantané.
+                  Les newsletters, notifications automatiques et adresses « ne pas répondre » sont écartées dans tous les cas :
+                  une réponse d'absence envoyée à une liste de diffusion repart parfois vers tous ses abonnés.
                 </div>
               </>
             )}
