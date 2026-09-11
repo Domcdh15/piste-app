@@ -6,9 +6,18 @@
 //
 // Grille au 30 août 2026 : Solo 19 €, Équipe 69 € (5 sièges), Business 129 €
 // (10 sièges). Les quotas d'IA sont comptés PAR UTILISATEUR, pas par équipe :
-// un Business à dix personnes dispose donc de 10 000 générations par mois,
-// soit environ 110 € d'API au pire. C'est soutenable à 129 €, ça ne l'était
-// pas à 79 €.
+// un Business à dix personnes dispose donc de 6 000 générations par mois.
+//
+// Ce que ça coûte, au 11 septembre 2026 : api/generate.js appelle Sonnet 5,
+// plafonné à 1 000 jetons de réponse, soit au pire un centime la génération.
+// Business coûte donc jusqu'à 61 € d'API pour 129 € facturés, Équipe 25 € pour
+// 69 €, Solo 3 € pour 19 €. La marge de Business est la plus étroite des
+// trois : c'est elle qu'il faut surveiller si les quotas remontent.
+//
+// Le commentaire précédent annonçait 10 000 générations et 110 € — deux
+// chiffres périmés, l'un par un changement de quota, l'autre par un
+// changement de modèle. Un raisonnement sur les marges vaut ce que valent
+// ses chiffres : les redater à chaque fois que l'un des deux bouge.
 // Solo et Équipe sont PLAFONNÉES : au-delà de leur nombre de sièges, il faut
 // changer de formule. C'est ce qui rend la grille honnête — sinon Équipe et ses
 // sièges supplémentaires reste moins chère que Business à tout effectif jusqu'à

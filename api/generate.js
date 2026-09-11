@@ -69,8 +69,17 @@ export default async function handler(req, res) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
+        model: "claude-sonnet-5",
         max_tokens: 1000,
+        // Le raisonnement est explicitement coupé, et ce n'est pas un détail :
+        // sur Sonnet 5, ne rien préciser l'ACTIVE, alors que sur le modèle
+        // précédent l'omission le laissait éteint. Sans cette ligne, le simple
+        // changement de modèle aurait fait raisonner l'IA avant chaque
+        // réponse — les jetons de réflexion se déduisent des 1 000 disponibles,
+        // donc réponses tronquées et facture en hausse, exactement l'inverse
+        // de ce qu'on cherchait. Les générations d'ici sont courtes et
+        // cadrées : elles n'ont rien à gagner à réfléchir.
+        thinking: { type: "disabled" },
         messages: [{ role: "user", content: prompt }],
       }),
     });
