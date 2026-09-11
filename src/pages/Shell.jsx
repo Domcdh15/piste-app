@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabaseClient";
 import Sidebar from "../components/Sidebar.jsx";
 import Today from "./Today.jsx";
 import Agenda from "./Agenda.jsx";
+import ErrorBoundary from "../lib/ErrorBoundary.jsx";
 import Pipeline from "./Pipeline.jsx";
 import Assistant from "./Assistant.jsx";
 import Activities from "./Activities.jsx";
@@ -285,6 +286,11 @@ export default function Shell({ session, team, reloadTeam }) {
             {TAB_LABELS[activeTab] || "Clos-ia"}
           </span>
         </div>
+        {/* Une frontière d'erreur autour du contenu, et une seule : la clé sur
+            l'onglet actif la réinitialise à chaque changement de page, si bien
+            qu'un écran en panne n'empêche pas d'aller ailleurs — ni d'y
+            revenir. La barre de navigation, elle, reste toujours debout. */}
+        <ErrorBoundary key={activeTab} page={TAB_LABELS[activeTab]}>
         {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} onOpenProspect={openProspect} settings={effectiveSettings} />}
         {activeTab === "planning" && <Agenda prospects={prospects} session={session} reload={loadProspects} onOpenProspect={openProspect} settings={effectiveSettings} />}
         {(activeTab === "pipeline" || activeTab === "chauds" || activeTab === "a-sauver") && (
@@ -318,6 +324,7 @@ export default function Shell({ session, team, reloadTeam }) {
         {activeTab === "settings" && <Settings session={session} prospects={prospects} settings={settings} reloadSettings={loadSettings} team={team} reloadTeam={reloadTeam} setActiveTab={setActiveTab} />}
         {activeTab === "integrations" && <Integrations session={session} team={team} reloadTeam={reloadTeam} onBack={() => setActiveTab("settings")} setActiveTab={setActiveTab} onOpenImport={() => { setJumpToShowImport(true); setActiveTab("pipeline"); }} />}
         {activeTab === "equipe" && <EquipePage session={session} team={team} reloadTeam={reloadTeam} />}
+        </ErrorBoundary>
       </div>
       {hasAssistantBubbleAccess && <AssistantBubble session={session} />}
     </div>
