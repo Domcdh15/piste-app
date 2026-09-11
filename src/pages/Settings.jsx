@@ -953,12 +953,16 @@ export function TeamPanel({ session, team, reloadTeam, hasTeamControls, mailConn
   const [invited, setInvited] = useState(null);
   const [copied, setCopied] = useState(false);
   const [mailState, setMailState] = useState("");
+  // Ce hook vivait APRÈS le retour anticipé ci-dessous : tant que l'équipe
+  // chargeait, le composant en déclarait neuf, puis dix une fois l'équipe
+  // arrivée. React compte les hooks et exige le même nombre à chaque rendu —
+  // la page Équipe plantait donc à la fin du chargement. Un hook se déclare
+  // toujours avant le premier return, sans exception.
+  const [absenceDe, setAbsenceDe] = useState(null);
 
   if (!team) return <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>Chargement...</div>;
 
   const isAdmin = team.role === "admin";
-
-  const [absenceDe, setAbsenceDe] = useState(null);
 
   // Qui peut déclarer l'absence de qui. Le serveur revérifie : ceci ne fait que
   // placer le geste au bon endroit.
