@@ -1,0 +1,14 @@
+# Identités des auteurs du dépôt.
+#
+# Les commits antérieurs au 11 septembre 2026 portent « Catherine Croizier »
+# et une adresse de machine (.local, .home) : c'est le nom inscrit dans la
+# configuration git des ordinateurs utilisés, qui n'avait jamais été changé.
+# L'auteure de ces commits est Domitille Debouy.
+#
+# Ce fichier corrige l'affichage dans git log, git shortlog et sur GitHub sans
+# réécrire les commits : l'historique d'origine reste intact et vérifiable,
+# ce qui vaut mieux qu'une réécriture pour une cession de droits à venir.
+
+Domitille Debouy <domitille.debouy@clos-ia.fr> Catherine Croizier <catherinecroizier@macbookair.home>
+Domitille Debouy <domitille.debouy@clos-ia.fr> Catherine Croizier <catherinecroizier@Catherines-MacBook-Air.local>
+Domitille Debouy <domitille.debouy@clos-ia.fr> Catherine Croizier <catherinecroizier@device-172.home>
