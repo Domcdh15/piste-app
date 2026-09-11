@@ -5,7 +5,7 @@ de conversation. Il dit **ce qui existe**, **pourquoi c'est ainsi**, et **ce qui
 reste**. Les décisions y sont accompagnées de leur raison : c'est ce qui évite
 de les refaire à l'envers.
 
-Dernière mise à jour : 8 septembre 2026.
+Dernière mise à jour : 11 septembre 2026.
 
 ---
 
@@ -46,10 +46,17 @@ Les dix : `admin/overview`, `admin/update-user`, `calendar/range`,
 `calendar/status`, `generate`, `google/callback`, `integrations`, `sign`,
 `team`, `zapier`.
 
-**Le build ne détecte pas tout.** `npm run build` passe même quand un composant
-JSX ou une fonction n'est pas défini. Après toute modification, vérifier à part
-que chaque `<Composant>` utilisé est bien importé ou déclaré. Ça a mordu
-plusieurs fois.
+**Le build ne détecte pas tout — `npm run lint` si.** `npm run build` passe même
+quand un composant JSX ou une fonction n'est pas défini : l'erreur n'apparaît
+qu'à l'exécution, en écran blanc. Ça a mordu deux fois sur le pipeline. Depuis
+le 11 septembre 2026, `npm run lint` attrape cette famille entière, composants
+JSX compris. **Le lancer après toute modification**, le build ne suffit pas.
+
+La configuration exige ESLint 10 : la version 9 ne vérifie pas les identifiants
+JSX et laissait passer `<Truc />` non défini. Les règles bloquantes décrivent
+des plantages — identifiant inconnu, hook appelé conditionnellement ; le style
+et la performance avertissent sans bloquer, pour que la base reste à zéro
+erreur et qu'un rouge signifie toujours quelque chose.
 
 **Les styles en ligne ne portent pas de media query.** Le CRM utilise des styles
 inline ; le responsive passe par les classes CSS globales.
@@ -119,6 +126,42 @@ son tour, et la rotation reprend seule à son retour. **La date vient de
 `clock_timestamp()` et non de `now()`** — `now()` est figé pour toute une
 transaction, donc un import en lot partait entièrement chez la même personne.
 
+### Un écran qui tombe n'emporte pas l'application
+Une frontière d'erreur entoure le contenu de chaque page, avec une clé sur
+l'onglet actif pour qu'elle se réinitialise au changement de page : un écran en
+panne laisse la navigation debout et n'empêche pas d'aller ailleurs. Une
+seconde, à la racine, couvre ce qui précède la navigation. L'écran propose de
+recharger et de **réinitialiser l'affichage**, qui efface les préférences
+mémorisées — c'est le geste qu'il fallait faire à la main dans la console pour
+sortir de la panne du pipeline, la vue fautive étant enregistrée dans le
+navigateur.
+
+### Une entreprise se reconnaît à son domaine, pas à son orthographe
+Le rattachement cherche d'abord le nom saisi ; s'il ne correspond à rien, il
+cherche le domaine de l'adresse professionnelle. « We Assign », « WeAssign » et
+« WeAssign SAS » ne font donc qu'une maison. Les boîtes personnelles sont
+exclues, sans quoi tous les contacts en @gmail.com n'en feraient qu'une seule.
+
+### Le mode absence ne répond qu'à des humains
+Le courrier automatique est écarté sans condition — en-têtes `List-Id`,
+`List-Unsubscribe`, `Precedence`, `Auto-Submitted`, et les boîtes `no-reply`.
+Une réponse d'absence envoyée à une liste de diffusion repart parfois vers tous
+ses abonnés, et envoyée à un spam elle confirme que l'adresse est lue. Ne
+répondre qu'aux personnes du fichier reste une option, décochée par défaut.
+
+### Une seule auteure, plusieurs identités
+Un `.mailmap` dans chacun des trois dépôts ramène sous « Domitille Debouy » les
+sept identités laissées par les machines et les comptes utilisés. L'historique
+d'origine n'a pas été réécrit : il reste vérifiable, ce qui vaut mieux à
+quelques semaines d'une cession de droits sur le logiciel.
+
+### La dépense d'IA est bornée deux fois
+Le quota par utilisateur, vérifié dans `api/generate.js` **avant** l'appel,
+borne l'usage des clients : c'est la vraie protection. Le plafond mensuel de la
+console Anthropic — 50 $, avec une alerte par courriel à 20 $, posés le
+11 septembre 2026 — protège d'un défaut du code, pas des clients. Pour situer :
+la consommation réelle au 11 septembre était de 0,07 $ sur la période.
+
 ### Les intégrations ne mentent pas sur leur état
 Slack, Notion et Brevo/Mailjet fonctionnent (clé d'API collée par le client).
 Zapier et Make marchent **par clé d'API** — l'application Clos-ia n'est pas
@@ -143,8 +186,13 @@ l'interface non.
 
 ## 5. Ce qui reste à faire
 
-- **Vercel Pro et Supabase Pro** avant le premier paiement client.
-- **Plafond de dépense Anthropic** à poser dans la console (à faire par la fondatrice).
+- **Vercel Pro et Supabase Pro** avant le premier paiement client. Ce sont les
+  seuls coûts fixes : de l'ordre de 45 $ par mois, soit trois clients Solo pour
+  les couvrir. C'est ce chiffre qui décide des six premiers mois, pas la marge
+  sur Business.
+- **Protection contre les mots de passe compromis** à activer dans Supabase :
+  elle vérifie à l'inscription que le mot de passe choisi ne figure pas dans
+  les fuites connues.
 - **Recherche d'antériorité INPI**. `closia.fr` est pris depuis 2021 par un
   cabinet de transmission d'entreprise, et c'est encore ce que Google renvoie
   pour « Closia ». La marque a donc été renommée **Clos-ia**, alignée sur le
@@ -169,7 +217,7 @@ l'interface non.
 
 | Compte | Rôle |
 |---|---|
-| `domitille.debouy@clos-ia.fr` | perso — **sans équipe**, donc privé de tout ce qui est cloisonné par équipe |
+| `domitille.debouy@clos-ia.fr` | **compte professionnel.** `PRO_ACCOUNT_USER_ID` dans le back-office — c'est lui qui reçoit la fiche de suivi de chaque client créé, et c'est de sa boîte Gmail que part l'invitation. Toujours **sans équipe**, donc privé de tout ce qui est cloisonné par équipe : en créer une le débloquerait sans déplacer aucune donnée. |
 | `domitille.croizier@gmail.com` | démo Solo |
 | `augustin.debouy@we-assign.com` | client réel — **ne pas y toucher** |
 | `test.solo@` / `test.equipe@` / `test.business@clos-ia.fr` | démonstration, remplis de données crédibles |
@@ -187,6 +235,8 @@ personne.
 
 ## 7. Manière de travailler
 
+- `npm run lint` avant de pousser, pas seulement `npm run build` : c'est le seul
+  des deux qui voit un composant ou une fonction qui n'existe pas.
 - Toute migration est **miroitée** dans `supabase/*.sql`, avec le commentaire qui
   dit pourquoi.
 - Rien de destructif sans vérification préalable : `_` est un joker dans `LIKE`,
