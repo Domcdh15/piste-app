@@ -286,7 +286,7 @@ export default function Shell({ session, team, reloadTeam }) {
           </span>
         </div>
         {activeTab === "today" && <Today prospects={prospects} setActiveTab={setActiveTab} session={session} reload={loadProspects} onOpenProspect={openProspect} settings={effectiveSettings} />}
-        {activeTab === "planning" && <Agenda prospects={prospects} session={session} onOpenProspect={openProspect} settings={effectiveSettings} />}
+        {activeTab === "planning" && <Agenda prospects={prospects} session={session} reload={loadProspects} onOpenProspect={openProspect} settings={effectiveSettings} />}
         {(activeTab === "pipeline" || activeTab === "chauds" || activeTab === "a-sauver") && (
           <Pipeline
             prospects={prospects}

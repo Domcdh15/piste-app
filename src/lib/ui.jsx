@@ -550,3 +550,35 @@ export function BadgeAbsent({ jusquAu, compact }) {
     </span>
   );
 }
+
+// Adresses personnelles : leur domaine ne dit rien de l'entreprise.
+export const DOMAINES_GENERIQUES = ["gmail", "outlook", "hotmail", "yahoo", "orange", "free", "wanadoo", "laposte", "sfr", "icloud", "me", "live", "msn", "protonmail"];
+
+// Devine un nom et une entreprise à partir d'une adresse :
+// « jean.dupont@menuiserie-martin.fr » donne « Jean Dupont » chez
+// « Menuiserie Martin ». Tout reste modifiable — une déduction imposée agace
+// plus qu'elle n'aide.
+//
+// Partagée par l'agenda et le pipeline, qui proposent tous deux de créer une
+// fiche depuis une adresse rencontrée. Deux copies finiraient par diverger,
+// et on sait ce que ça a coûté à la grille tarifaire.
+export function devineIdentite(email) {
+  const [local, domaine = ""] = String(email || "").split("@");
+  const mots = local.split(/[._-]+/).filter(Boolean);
+  const capitale = (m) => m.charAt(0).toUpperCase() + m.slice(1);
+  const nom = mots.length >= 2 ? `${capitale(mots[0])} ${capitale(mots[1])}` : capitale(mots[0] || "");
+  const racine = domaine.split(".")[0] || "";
+  const entreprise = DOMAINES_GENERIQUES.includes(racine.toLowerCase())
+    ? ""
+    : racine.split(/[-_]/).map(capitale).join(" ");
+  return { nom, entreprise };
+}
+
+// Le site de l'entreprise se déduit du domaine de l'adresse professionnelle —
+// sauf pour les boîtes personnelles, où il n'y a rien à déduire.
+export function siteDepuisEmail(email) {
+  const domaine = String(email || "").split("@")[1] || "";
+  const racine = domaine.split(".")[0] || "";
+  if (!domaine || DOMAINES_GENERIQUES.includes(racine.toLowerCase())) return "";
+  return `https://${domaine}`;
+}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { callAI, parseJsonLoose, formatEuros, formatShortDate, getFirstName, Avatar, SparklesIcon, PhoneIcon, MailIcon, VideoIcon, PinIcon, CalendarIcon, CheckIcon, AlertIcon } from "../lib/ui.jsx";
+import { callAI, parseJsonLoose, formatEuros, formatShortDate, getFirstName, Avatar, SparklesIcon, PhoneIcon, MailIcon, VideoIcon, PinIcon, CalendarIcon, CheckIcon, AlertIcon, devineIdentite } from "../lib/ui.jsx";
 
 const VIEWS = ["Liste", "Jour", "Semaine"];
 
@@ -107,7 +107,7 @@ function rangeLabel(view, refDate) {
   return `${s.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} – ${e.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}`;
 }
 
-export default function Agenda({ prospects, session, onOpenProspect, settings }) {
+export default function Agenda({ prospects, session, reload, onOpenProspect, settings }) {
   // Les réglages arrivent après le premier rendu : la valeur initiale de
   // useState ne les voyait jamais et retombait toujours sur "Liste".
   const [view, setView] = useState(settings?.agenda_default_view || "Liste");
@@ -413,6 +413,7 @@ export default function Agenda({ prospects, session, onOpenProspect, settings })
             email={newContact.email}
             event={newContact.event}
             session={session}
+            reload={reload}
             onClose={() => setNewContact(null)}
             onCreated={(id) => onOpenProspect?.(id)}
           />
@@ -738,29 +739,16 @@ function TimeGrid({ events, tasks, view, refDate, onSelect, selectedId, matchPro
   );
 }
 
-// Création d'une fiche depuis un participant inconnu. Le nom et l'entreprise
-// sont devinés à partir de l'adresse : « jean.dupont@menuiserie-martin.fr »
-// donne « Jean Dupont » chez « Menuiserie Martin ». Tout reste modifiable —
-// une déduction imposée agace plus qu'elle n'aide.
-function devineIdentite(email) {
-  const [local, domaine = ""] = email.split("@");
-  const mots = local.split(/[._-]+/).filter(Boolean);
-  const capitale = (m) => m.charAt(0).toUpperCase() + m.slice(1);
-  const nom = mots.length >= 2 ? `${capitale(mots[0])} ${capitale(mots[1])}` : capitale(mots[0] || "");
-  const GENERIQUES = ["gmail", "outlook", "hotmail", "yahoo", "orange", "free", "wanadoo", "laposte", "sfr", "icloud", "me", "live", "msn", "protonmail"];
-  const racine = domaine.split(".")[0] || "";
-  const entreprise = GENERIQUES.includes(racine.toLowerCase())
-    ? ""
-    : racine.split(/[-_]/).map(capitale).join(" ");
-  return { nom, entreprise };
-}
-
-function NewContactModal({ email, event, session, onClose, onCreated }) {
+function NewContactModal({ email, event, session, reload, onClose, onCreated }) {
   const devine = devineIdentite(email);
   const [nom, setNom] = useState(devine.nom);
   const [entreprise, setEntreprise] = useState(devine.entreprise);
   const [busy, setBusy] = useState(false);
   const [erreur, setErreur] = useState("");
+  // Identifiant de la fiche une fois créée. Tant qu'il est nul, on est dans le
+  // formulaire ; renseigné, la fenêtre propose d'ouvrir la fiche plutôt que d'y
+  // emmener d'office : on consultait son agenda, on n'a pas forcément fini.
+  const [creeId, setCreeId] = useState(null);
 
   async function creer() {
     if (busy) return;
@@ -792,9 +780,15 @@ function NewContactModal({ email, event, session, onClose, onCreated }) {
       note: `Fiche créée depuis l'agenda — « ${event.title} » le ${new Date(event.start).toLocaleDateString("fr-FR")}`,
     });
 
+    // Recharger AVANT d'ouvrir : le pipeline reçoit l'identifiant de la fiche
+    // à afficher, et il la cherche dans la liste que l'application a déjà en
+    // mémoire. Sans ce rechargement, il cherche une fiche qu'il ne connaît pas
+    // encore, n'affiche rien, et la création paraît avoir échoué alors qu'elle
+    // a bien eu lieu.
+    await reload?.();
+
     setBusy(false);
-    onCreated?.(data.id);
-    onClose();
+    setCreeId(data.id);
   }
 
   const champ = { width: "100%", boxSizing: "border-box", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", padding: "9px 12px" };
@@ -802,8 +796,25 @@ function NewContactModal({ email, event, session, onClose, onCreated }) {
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,17,40,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 130, padding: "20px" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg)", borderRadius: "12px", boxShadow: "var(--shadow-md)", padding: "20px", maxWidth: "400px", width: "100%" }}>
-        <div className="display" style={{ fontWeight: 700, fontSize: "15px", marginBottom: "3px" }}>Nouveau contact</div>
+        <div className="display" style={{ fontWeight: 700, fontSize: "15px", marginBottom: "3px" }}>{creeId ? "Fiche créée" : "Nouveau contact"}</div>
         <div className="mono" style={{ fontSize: "12px", color: "var(--text-faint)", marginBottom: "16px" }}>{email}</div>
+        {creeId ? (
+          <>
+            <div style={{ fontSize: "13px", color: "var(--text-dim)" }}>
+              <b style={{ color: "var(--text)" }}>{nom.trim() || email}</b>
+              {entreprise.trim() ? ` — ${entreprise.trim()}` : ""} est maintenant dans ton pipeline, à l'étape « Rendez-vous prévu ».
+            </div>
+            <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
+              <button className="focusable" onClick={() => { onCreated?.(creeId); onClose(); }} style={{ flex: 1, background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600 }}>
+                Ouvrir la fiche
+              </button>
+              <button className="focusable" onClick={onClose} style={{ background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px 16px", fontSize: "13px" }}>
+                Rester dans l'agenda
+              </button>
+            </div>
+          </>
+        ) : (
+        <>
         <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
           <input value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Nom et prénom" style={champ} />
           <input value={entreprise} onChange={(e) => setEntreprise(e.target.value)} placeholder="Entreprise" style={champ} />
@@ -817,6 +828,8 @@ function NewContactModal({ email, event, session, onClose, onCreated }) {
             Annuler
           </button>
         </div>
+        </>
+        )}
       </div>
     </div>
   );

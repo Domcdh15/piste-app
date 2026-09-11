@@ -1,0 +1,23 @@
+# Identités des auteurs du projet Clos-ia.
+#
+# Le code a été écrit par une seule personne, Domitille Debouy, depuis
+# plusieurs machines et plusieurs comptes. Les commits portent selon les cas :
+#
+#   - « Catherine Croizier » suivi d'une adresse de machine (.home, .local) :
+#     c'est le nom resté dans la configuration git de l'ordinateur familial
+#     utilisé pour développer, jamais modifié ;
+#   - « Domcdh15 », le compte GitHub, pour les modifications faites depuis le
+#     site web ;
+#   - « Domitille Croizier », une ancienne adresse personnelle.
+#
+# Ce fichier unifie l'affichage dans git log, git shortlog et sur GitHub sans
+# réécrire les commits : l'historique d'origine reste intact et vérifiable,
+# ce qui vaut mieux qu'une réécriture pour une cession de droits à venir.
+
+Domitille Debouy <domitille.debouy@clos-ia.fr> Catherine Croizier <catherinecroizier@macbookair.home>
+Domitille Debouy <domitille.debouy@clos-ia.fr> Catherine Croizier <catherinecroizier@Catherines-MacBook-Air.local>
+Domitille Debouy <domitille.debouy@clos-ia.fr> Catherine Croizier <catherinecroizier@catherines-air.home>
+Domitille Debouy <domitille.debouy@clos-ia.fr> Catherine Croizier <catherinecroizier@device-172.home>
+Domitille Debouy <domitille.debouy@clos-ia.fr> Domcdh15 <310764897+Domcdh15@users.noreply.github.com>
+Domitille Debouy <domitille.debouy@clos-ia.fr> Domcdh15 <domcroizier@hotmail.fr>
+Domitille Debouy <domitille.debouy@clos-ia.fr> Domitille Croizier <domitille.croizier@gmail.com>

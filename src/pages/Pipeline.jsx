@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
 import {
-  computeHotProspects,
+  useEffect,
+  useMemo,
+  useRef,
+  useState } from "react"; import { supabase } from "../lib/supabaseClient"; import {   computeHotProspects,
   computeAtRiskDeals,
   SCRIPT_SECTIONS,
   OPEN_STAGES,
@@ -39,6 +40,8 @@ import {
   STAGE_META,
   inputStyle,
   selectStyle,
+  devineIdentite,
+  siteDepuisEmail,
 } from "../lib/ui.jsx";
 import { celebrate } from "../lib/celebrate.js";
 
@@ -396,6 +399,257 @@ function buildHistoryContext(history) {
 
 const TAB_LABELS = { today: "Aujourd'hui", planning: "Agenda", assistant: "Assistant IA", activities: "Activités", integrations: "Intégrations", settings: "Paramètres", chauds: "Chauds", "a-sauver": "À sauver", equipe: "Équipe" };
 
+// Personnes rencontrées en rendez-vous mais absentes du pipeline.
+//
+// L'agenda savait déjà les repérer, mais il fallait ouvrir le rendez-vous
+// concerné pour le savoir : une personne vue il y a trois semaines dans une
+// réunion qu'on n'a jamais rouverte n'existait nulle part. Le bandeau la
+// remonte là où l'on travaille vraiment, sans interrompre : c'est un compte à
+// cliquer, pas une fenêtre qui s'impose. Une proposition qui coupe le travail
+// finit par se faire congédier machinalement, et c'est le meilleur moyen de
+// perdre le contact qu'elle voulait sauver.
+function ContactsRencontres({ session, prospects, reload }) {
+  const [events, setEvents] = useState([]);
+  const [ignores, setIgnores] = useState(() => new Set());
+  const [ouvert, setOuvert] = useState(false);
+
+  // Chargé une seule fois : la fenêtre regarde en arrière, là où les contacts
+  // se perdent, et un peu en avant pour préparer ce qui vient.
+  useEffect(() => {
+    let vivant = true;
+    const debut = new Date(Date.now() - 30 * 86400000).toISOString();
+    const fin = new Date(Date.now() + 7 * 86400000).toISOString();
+    Promise.all([
+      fetch(`/api/calendar/range?start=${encodeURIComponent(debut)}&end=${encodeURIComponent(fin)}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+        .then((r) => r.json())
+        .catch(() => ({ events: [] })),
+      supabase.from("ignored_contacts").select("email"),
+    ]).then(([cal, ign]) => {
+      if (!vivant) return;
+      setEvents(cal?.events || []);
+      setIgnores(new Set((ign.data || []).map((r) => (r.email || "").toLowerCase())));
+    });
+    return () => { vivant = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const monEmail = (session?.user?.email || "").toLowerCase();
+  const monDomaine = monEmail.split("@")[1] || "";
+
+  // Les mêmes garde-fous que dans l'agenda : jamais ses propres collègues,
+  // jamais une adresse déjà refusée. Une fiche existante suffit à écarter
+  // l'adresse, même si cette fiche est rattachée à l'affaire d'une autre.
+  const inconnus = useMemo(() => {
+    const connus = new Set(prospects.filter((p) => p.email).map((p) => p.email.toLowerCase()));
+    const parEmail = new Map();
+    for (const ev of events) {
+      for (const brut of ev.attendees || []) {
+        const email = (brut || "").toLowerCase().trim();
+        if (!email || !email.includes("@")) continue;
+        if (email === monEmail) continue;
+        if (monDomaine && email.split("@")[1] === monDomaine) continue;
+        if (connus.has(email) || ignores.has(email)) continue;
+        const precedent = parEmail.get(email);
+        // On garde le rendez-vous le plus récent : c'est celui dont on se
+        // souvient, et c'est lui qui rend la proposition compréhensible.
+        if (!precedent || new Date(ev.start) > new Date(precedent.quand)) {
+          parEmail.set(email, { email, titre: ev.title, quand: ev.start });
+        }
+      }
+    }
+    return [...parEmail.values()].sort((a, b) => new Date(b.quand) - new Date(a.quand));
+  }, [events, prospects, ignores, monEmail, monDomaine]);
+
+  function retirer(email) {
+    setIgnores((prev) => new Set([...prev, email.toLowerCase()]));
+  }
+
+  if (inconnus.length === 0) return null;
+
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", background: "var(--blue-dim)", border: "0.5px solid #147ff533", borderRadius: "10px", padding: "11px 16px", marginBottom: "20px", fontSize: "12.5px" }}>
+        <CalendarIcon size={13} color="var(--blue)" />
+        <span>
+          <b>{inconnus.length} personne{inconnus.length > 1 ? "s" : ""} rencontrée{inconnus.length > 1 ? "s" : ""}</b>
+          {inconnus.length > 1 ? " ne sont pas" : " n'est pas"} dans ton pipeline.
+        </span>
+        <button className="focusable" onClick={() => setOuvert(true)} style={{ marginLeft: "auto", background: "var(--blue)", color: "#fff", border: "none", borderRadius: "7px", padding: "6px 14px", fontSize: "12px", fontWeight: 600 }}>
+          Les traiter
+        </button>
+      </div>
+
+      {ouvert && (
+        <ContactsRencontresModal
+          inconnus={inconnus}
+          prospects={prospects}
+          session={session}
+          reload={reload}
+          onTraite={retirer}
+          onClose={() => setOuvert(false)}
+        />
+      )}
+    </>
+  );
+}
+
+function ContactsRencontresModal({ inconnus, prospects, session, reload, onTraite, onClose }) {
+  const courant = inconnus[0];
+  const devine = useMemo(() => devineIdentite(courant.email), [courant.email]);
+  const [nom, setNom] = useState(devine.nom);
+  const [entreprise, setEntreprise] = useState(devine.entreprise);
+  const [rattacheA, setRattacheA] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [erreur, setErreur] = useState("");
+
+  // Une nouvelle personne remet le formulaire à zéro : sans ça, le nom deviné
+  // de la précédente resterait affiché sous l'adresse de la suivante.
+  useEffect(() => {
+    setNom(devine.nom);
+    setEntreprise(devine.entreprise);
+    setRattacheA("");
+    setErreur("");
+  }, [courant.email, devine.nom, devine.entreprise]);
+
+  const entreprisesConnues = useMemo(
+    () => [...new Set(prospects.map((p) => (p.company || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr")),
+    [prospects]
+  );
+
+  // Affaires en cours de l'entreprise saisie. Si elle en porte une, la personne
+  // est probablement un interlocuteur de plus sur cette vente, et non une
+  // seconde affaire — sans quoi le même montant serait compté deux fois.
+  const affairesOuvertes = useMemo(() => {
+    const cible = entreprise.trim().toLowerCase();
+    if (!cible) return [];
+    return prospects.filter(
+      (p) => (p.company || "").trim().toLowerCase() === cible && !p.rattache_a && OPEN_STAGES.includes(p.stage)
+    );
+  }, [prospects, entreprise]);
+
+  async function creer() {
+    if (busy) return;
+    setBusy(true);
+    setErreur("");
+    const site = siteDepuisEmail(courant.email);
+    const fiche = {
+      user_id: session.user.id,
+      created_via: "agenda",
+      name: nom.trim() || courant.email,
+      company: entreprise.trim(),
+      email: courant.email,
+      website: site || null,
+      stage: "Rendez-vous prévu",
+      status: "attente",
+      priority: 60,
+      deal_value: 0,
+    };
+    if (rattacheA) fiche.rattache_a = rattacheA;
+
+    const { data, error } = await supabase.from("prospects").insert(fiche).select("id").single();
+    if (error) {
+      setBusy(false);
+      setErreur(error.message || "La création a échoué.");
+      return;
+    }
+
+    await supabase.from("activities").insert({
+      user_id: session.user.id,
+      prospect_id: data.id,
+      type: "note",
+      note: `Fiche créée depuis « ${courant.titre} » du ${new Date(courant.quand).toLocaleDateString("fr-FR")}`,
+    });
+
+    await reload?.();
+    setBusy(false);
+    suivant();
+  }
+
+  async function ignorer() {
+    if (busy) return;
+    setBusy(true);
+    await supabase.from("ignored_contacts").insert({ user_id: session.user.id, email: courant.email });
+    setBusy(false);
+    suivant();
+  }
+
+  function suivant() {
+    onTraite(courant.email);
+    if (inconnus.length <= 1) onClose();
+  }
+
+  const champ = { width: "100%", boxSizing: "border-box", background: "var(--panel2)", border: "0.5px solid var(--hairline)", borderRadius: "8px", color: "var(--text)", fontSize: "13px", padding: "9px 12px" };
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(10,17,40,0.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 130, padding: "20px" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg)", borderRadius: "12px", boxShadow: "var(--shadow-md)", padding: "20px", maxWidth: "440px", width: "100%", maxHeight: "90vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginBottom: "3px" }}>
+          <div className="display" style={{ fontWeight: 700, fontSize: "15px" }}>Rencontré, pas dans le pipeline</div>
+          {inconnus.length > 1 && (
+            <span className="mono" style={{ fontSize: "11px", color: "var(--text-faint)", marginLeft: "auto" }}>
+              {inconnus.length} restante{inconnus.length > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+        <div className="mono" style={{ fontSize: "12px", color: "var(--text-faint)" }}>{courant.email}</div>
+        <div style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "8px", marginBottom: "16px" }}>
+          Rendez-vous « {courant.titre} » le {new Date(courant.quand).toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}.
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
+          <input value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Nom et prénom" style={champ} />
+          <input
+            value={entreprise}
+            onChange={(e) => { setEntreprise(e.target.value); setRattacheA(""); }}
+            placeholder="Entreprise"
+            list="entreprises-connues"
+            style={champ}
+          />
+          <datalist id="entreprises-connues">
+            {entreprisesConnues.map((e) => <option key={e} value={e} />)}
+          </datalist>
+        </div>
+
+        {affairesOuvertes.length > 0 && (
+          <div style={{ marginTop: "14px", padding: "12px 14px", background: "var(--panel2)", borderRadius: "9px" }}>
+            <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "9px" }}>
+              {entreprise.trim()} porte déjà {affairesOuvertes.length > 1 ? "des affaires en cours" : "une affaire en cours"}. Cette personne en est-elle un interlocuteur de plus ?
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", cursor: "pointer" }}>
+                <input type="radio" name="rattachement" checked={rattacheA === ""} onChange={() => setRattacheA("")} />
+                Non — c'est une nouvelle affaire
+              </label>
+              {affairesOuvertes.map((a) => (
+                <label key={a.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12.5px", cursor: "pointer" }}>
+                  <input type="radio" name="rattachement" checked={rattacheA === a.id} onChange={() => setRattacheA(a.id)} />
+                  Interlocuteur sur l'affaire de {a.name} <span style={{ color: "var(--text-faint)" }}>({a.stage})</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {erreur && <div style={{ fontSize: "12px", color: "var(--red)", marginTop: "10px" }}>{erreur}</div>}
+
+        <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
+          <button className="focusable" onClick={creer} disabled={busy} style={{ flex: 1, background: "var(--blue)", color: "#fff", border: "none", borderRadius: "8px", padding: "10px", fontSize: "13px", fontWeight: 600, opacity: busy ? 0.6 : 1 }}>
+            {busy ? "…" : rattacheA ? "Rattacher à l'affaire" : "Créer la fiche"}
+          </button>
+          <button className="focusable" onClick={ignorer} disabled={busy} style={{ background: "var(--panel2)", color: "var(--text-dim)", border: "0.5px solid var(--hairline)", borderRadius: "8px", padding: "10px 16px", fontSize: "13px" }}>
+            Ignorer
+          </button>
+        </div>
+        <button className="focusable" onClick={onClose} style={{ width: "100%", marginTop: "8px", background: "none", border: "none", color: "var(--text-faint)", fontSize: "12px", padding: "4px" }}>
+          Plus tard
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Pipeline({ prospects, loading, reload, session, initialSelectedId, onConsumeInitialSelection, initialShowForm, onConsumeInitialShowForm, initialShowImport, onConsumeInitialShowImport, initialTab, settings, returnTab, onBackToPrevious, team, presetFilter, navGuardRef, onGuardResolved }) {
   const [showForm, setShowForm] = useState(!!initialShowForm);
   const [form, setForm] = useState({ civility: "-", firstName: "", lastName: "", company: "", jobTitle: "", email: "", phone: "", stage: "À contacter", status: "attente", priority: 50, deal_value: "" });
@@ -456,12 +710,16 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
     if (!error) reload();
   }
 
+  // Renvoie null si la fiche est partie, un message sinon. Une suppression qui
+  // échoue en silence est pire qu'une suppression refusée : l'utilisateur
+  // ferme l'écran convaincu que c'est fait, et retrouve la fiche au prochain
+  // rechargement sans comprendre pourquoi.
   async function handleDeleteProspect(id) {
     const { error } = await supabase.from("prospects").delete().eq("id", id);
-    if (!error) {
-      setSelectedId(null);
-      reload();
-    }
+    if (error) return error.message || "La suppression a échoué.";
+    setSelectedId(null);
+    reload();
+    return null;
   }
 
   async function logActivity(prospectId, type, note) {
@@ -595,6 +853,8 @@ export default function Pipeline({ prospects, loading, reload, session, initialS
       {/* La liste veut une longueur de ligne lisible ; le tableau veut toute
           la largeur — sept colonnes bridées à 980 px tronquaient chaque nom. */}
       <div style={{ padding: "22px 40px 64px", maxWidth: viewMode === "kanban" ? "none" : "1280px" }}>
+      <ContactsRencontres session={session} prospects={prospects} reload={reload} />
+
       {(atRiskCount > 0 || noActionCount > 0) && (
         <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap", padding: "10px 2px", borderTop: "0.5px solid var(--hairline)", borderBottom: "0.5px solid var(--hairline)", marginBottom: "20px", fontSize: "12.5px" }}>
           <span style={{ color: "var(--red)" }}>{atRiskCount} deal{atRiskCount > 1 ? "s" : ""} à risque</span>
@@ -1158,6 +1418,8 @@ ${atRisk.slice(0, 15).map((p) => `- ${p.name} (${p.company}), ${formatEuros(p.de
 
 function ProspectDetailPage({ prospect, prospects = [], onOpenProspect, session, settings, team, onBack, backLabel, onUpdate, onDelete, onLogActivity, initialTab, reload, navGuardRef, onGuardResolved }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [quickAction, setQuickAction] = useState(null);
   const [showDevis, setShowDevis] = useState(false);
   const [docVersion, setDocVersion] = useState(0);
@@ -1343,16 +1605,36 @@ function ProspectDetailPage({ prospect, prospects = [], onOpenProspect, session,
               <button className="focusable" onClick={() => { setQuickAction("task"); setShowMore(false); }} style={moreBtn}>Ajouter une tâche</button>
               <button className="focusable" onClick={() => { setQuickAction("contacted"); setShowMore(false); }} style={moreBtn}>Marquer contacté</button>
               <button className="focusable" onClick={() => { setShowDevis(true); setShowMore(false); }} style={moreBtn}>Créer un devis</button>
-              <button className="focusable" onClick={() => { setConfirmDelete(true); setShowMore(false); }} style={{ ...moreBtn, color: "var(--red)" }}>Supprimer la fiche</button>
+              <button className="focusable" onClick={() => { setConfirmDelete(true); setDeleteError(""); setShowMore(false); }} style={{ ...moreBtn, color: "var(--red)" }}>Supprimer la fiche</button>
             </div>
           )}
         </div>
 
         {confirmDelete && (
           <div style={{ display: "flex", alignItems: "center", gap: "14px", background: "var(--red-dim)", borderRadius: "10px", padding: "12px 16px", marginBottom: "18px", fontSize: "12.5px", flexWrap: "wrap" }}>
-            <span>Supprimer définitivement cette fiche et tout son historique ?</span>
-            <button className="focusable" onClick={onDelete} style={{ marginLeft: "auto", background: "var(--red)", color: "#fff", border: "none", borderRadius: "7px", padding: "7px 14px", fontSize: "12px", fontWeight: 600 }}>Supprimer</button>
-            <button className="focusable" onClick={() => setConfirmDelete(false)} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: "12px" }}>Annuler</button>
+            <span>
+              Supprimer définitivement cette fiche et tout son historique ?
+              {deleteError && (
+                <span style={{ display: "block", marginTop: "6px", color: "var(--red)", fontWeight: 600 }}>
+                  La fiche n'a pas été supprimée : {deleteError}
+                </span>
+              )}
+            </span>
+            <button
+              className="focusable"
+              disabled={deleting}
+              onClick={async () => {
+                setDeleting(true);
+                setDeleteError("");
+                const message = await onDelete();
+                setDeleting(false);
+                if (message) setDeleteError(message);
+              }}
+              style={{ marginLeft: "auto", background: "var(--red)", color: "#fff", border: "none", borderRadius: "7px", padding: "7px 14px", fontSize: "12px", fontWeight: 600, opacity: deleting ? 0.6 : 1 }}
+            >
+              {deleting ? "Suppression…" : "Supprimer"}
+            </button>
+            <button className="focusable" onClick={() => { setConfirmDelete(false); setDeleteError(""); }} style={{ background: "none", border: "none", color: "var(--text-dim)", fontSize: "12px" }}>Annuler</button>
           </div>
         )}
       </div>
