@@ -48,3 +48,25 @@ update prospects p
              || substr(lpad(c.n::text, 4, '0'), 1, 2) || ' ' || substr(lpad(c.n::text, 4, '0'), 3, 2)
   from cible c
  where p.id = c.id;
+
+-- 3. Trois fiches du compte Solo n'avaient ni adresse ni téléphone. Sans
+--    danger — il n'y a rien à joindre —, mais une fiche sans coordonnées a
+--    l'air cassée dans une démonstration, et deux d'entre elles portent
+--    l'historique le plus riche du compte (24 et 6 tâches). On leur donne des
+--    coordonnées inoffensives, une orthographe correcte pour « Charcuterie »,
+--    et un nom de famille à « Gérard », qui s'affichait seul.
+update prospects p set
+  name    = case p.name when 'Gérard' then 'Gérard Vasseur' else p.name end,
+  company = case p.company when 'Charchuterie' then 'Charcuterie Bonneau'
+                           when 'Mentor'       then 'Vasseur Conseil'
+                           else p.company end,
+  email   = case p.name when 'Gérard'         then 'gerard.vasseur@vasseur-conseil.example'
+                        when 'Jean Bonneau'   then 'jean.bonneau@charcuterie-bonneau.example'
+                        when 'Martin Mystère' then 'martin.mystere@mystery.example' end,
+  phone   = case p.name when 'Gérard'         then '06 39 98 00 21'
+                        when 'Jean Bonneau'   then '06 39 98 00 22'
+                        when 'Martin Mystère' then '06 39 98 00 23' end
+from auth.users u
+where u.id = p.user_id
+  and u.email = 'domitille.croizier@gmail.com'
+  and p.email is null;
